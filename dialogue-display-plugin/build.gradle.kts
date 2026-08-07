@@ -14,4 +14,7 @@ java { toolchain.languageVersion.set(JavaLanguageVersion.of(21)) }
 
 tasks.processResources {
     filesMatching("plugin.yml") { expand("version" to project.version) }
+    from("../dialogue-resource-pack/rpgmaker-character-manifest.json") {
+        into("")
+    }
 }

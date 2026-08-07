@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Dashboard } from '../components/dashboard/Dashboard';
-import { DialogueEditor } from '../components/editor/DialogueEditor';
+import { DialogueStudio } from '../components/editor/DialogueStudio';
 import { useProjectStore } from '../store/projectStore';
 
 export function App() {
@@ -23,7 +23,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
-      <Route path="/project/:projectId" element={<DialogueEditor />} />
+      <Route path="/project/:projectId" element={<DialogueStudio />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

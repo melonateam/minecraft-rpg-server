@@ -1,5 +1,5 @@
-import { mockCharacters } from '../data/mockCharacters';
 import type { Dialogue, DialoguePage, RPGProject } from '../domain/project';
+import { emptyServerPage } from '../domain/serverSettings';
 
 export const createId = () => crypto.randomUUID();
 
@@ -12,11 +12,12 @@ export function createPage(label?: string): DialoguePage {
     appearance: {
       visible: true,
       inheritPrevious: false,
-      expression: '기본',
+      expression: 'NEUTRAL',
     },
     choices: [],
     flow: { ending: false },
     effects: [],
+    server: emptyServerPage(),
   };
 }
 
@@ -37,12 +38,12 @@ export function createProject(name: string): RPGProject {
     id: createId(),
     name,
     dialogues: [dialogue],
-    characters: structuredClone(mockCharacters),
+    characters: [],
     variables: [],
     items: [],
     createdAt: now,
     updatedAt: now,
-    schemaVersion: 1,
+    schemaVersion: 2,
   };
 }
 
@@ -55,21 +56,24 @@ export function createDemoProject(): RPGProject {
   offer.editorLabel = '물건 제안';
   offer.speaker = '상인';
   offer.lines = ['좋은 물건이 있어.', '한번 보고 갈래?', '', ''];
-  offer.appearance.characterId = 'villager';
-  offer.appearance.expression = '무표정';
+  offer.appearance.characterId = 'VILLAGER';
+  offer.appearance.gender = 'male';
+  offer.appearance.expression = 'NEUTRAL';
 
   const buy = createPage('구매');
   buy.speaker = '상인';
   buy.lines = ['현명한 선택이야.', '', '', ''];
-  buy.appearance.characterId = 'villager';
-  buy.appearance.expression = '무표정';
+  buy.appearance.characterId = 'VILLAGER';
+  buy.appearance.gender = 'male';
+  buy.appearance.expression = 'NEUTRAL';
   buy.flow.ending = true;
 
   const decline = createPage('거절');
   decline.speaker = '상인';
   decline.lines = ['다음에 또 보자.', '', '', ''];
-  decline.appearance.characterId = 'villager';
-  decline.appearance.expression = '무표정';
+  decline.appearance.characterId = 'VILLAGER';
+  decline.appearance.gender = 'male';
+  decline.appearance.expression = 'NEUTRAL';
   decline.flow.ending = true;
 
   offer.choices = [

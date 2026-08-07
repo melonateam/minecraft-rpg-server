@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { RPGProject } from '../domain/project';
 import { IndexedDbProjectRepository } from '../repositories/IndexedDbProjectRepository';
+import { migrateProject } from '../services/migrateProject';
 import { createDemoProject, createProject } from '../services/projectFactory';
 import { useEditorStore } from './editorStore';
 
@@ -43,7 +44,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   hydrated: false,
   saveStatus: 'idle',
   hydrate: async () => {
-    let projects = await repository.loadProjects();
+    const storedProjects = await repository.loadProjects();
+    let projects = storedProjects.map(migrateProject);
+    await Promise.all(
+      projects
+        .filter((project, index) => storedProjects[index]?.schemaVersion !== project.schemaVersion)
+        .map((project) => repository.saveProject(project)),
+    );
     if (projects.length === 0) {
       const demo = createDemoProject();
       await repository.saveProject(demo);

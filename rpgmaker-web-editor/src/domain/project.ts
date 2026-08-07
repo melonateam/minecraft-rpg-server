@@ -1,3 +1,5 @@
+import type { ServerChoiceSettings, ServerPageSettings } from './serverSettings';
+
 export type ProjectId = string;
 export type DialogueId = string;
 export type PageId = string;
@@ -22,6 +24,13 @@ export interface Dialogue {
   editor?: {
     nodePositions?: Record<string, { x: number; y: number }>;
   };
+  server?: {
+    ownerUuid?: string;
+    remoteName?: string;
+    revision?: string;
+    raw?: Record<string, unknown>;
+    lastSyncedAt?: string;
+  };
 }
 
 export interface DialoguePage {
@@ -34,6 +43,7 @@ export interface DialoguePage {
   flow: PageFlow;
   effects: PageEffect[];
   operationOnly?: boolean;
+  server?: ServerPageSettings;
 }
 
 export interface PageAppearance {
