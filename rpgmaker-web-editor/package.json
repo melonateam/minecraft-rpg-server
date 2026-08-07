@@ -4,8 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "sync:assets": "node scripts/sync-character-assets.mjs",
+    "predev": "npm run sync:assets",
     "dev": "vite",
+    "pretypecheck": "npm run sync:assets",
     "typecheck": "tsc -b",
+    "prebuild": "npm run sync:assets",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

@@ -1,0 +1,399 @@
+import type { Dialogue, DialoguePage, RPGProject } from '../domain/project';
+import { emptyServerPage } from '../domain/serverSettings';
+import type { ServerCondition, ServerPageSettings } from '../domain/serverSettings';
+import {
+  availableExpressions,
+  getCharacter,
+  normalizedGender,
+  type CharacterManifest,
+} from './characterRegistry';
+
+export type ValidationSection = 'script' | 'character' | 'choices' | 'condition' | 'effects' | 'flow' | 'other';
+
+export interface ValidationIssue {
+  id: string;
+  severity: 'error' | 'warning';
+  dialogueId: string;
+  pageId?: string;
+  section: ValidationSection;
+  message: string;
+}
+
+type PageWithServer = DialoguePage & { server?: ServerPageSettings };
+
+const itemId = /^(minecraft:)?[a-z0-9_.-]+:[a-z0-9_./-]+(?::\d+)?(?:[:].*)?$/i;
+const customItem = /^@(?:OWNER|[0-9a-f-]{36})\/[^:,]+(?::\d+)?$/i;
+const variableOperation = /^[\p{L}\p{N}_-]+\s*(=|\+=|-=|\*=|\/=)\s*.+$/u;
+const extraCondition = /^[\p{L}\p{N}_-]+\s*(==|=|!=|>=|<=|>|<)\s*.+$/u;
+
+export function visibleLength(value: string) {
+  return Array.from(
+    value
+      .replace(/\{#[0-9a-fA-F]{6}\}/g, '')
+      .replace(/(^|\s)#[0-9a-fA-F]{6}:/g, '$1'),
+  ).length;
+}
+
+function entries(value: string) {
+  return value
+    .split(/[,\n]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function validateItemSpec(value: string) {
+  if (!value.trim()) return true;
+  return itemId.test(value.trim()) || customItem.test(value.trim());
+}
+
+function conditionProblems(condition: ServerCondition) {
+  const problems: string[] = [];
+  if (condition.mode === 'none') return problems;
+  if (['variable', 'both', 'any'].includes(condition.mode) && !condition.variable.trim() && !condition.extraVariables.trim())
+    problems.push('변수 조건을 선택했지만 변수 이름이 없습니다.');
+  if (['item', 'both', 'any'].includes(condition.mode) && !condition.itemSpec.trim())
+    problems.push('아이템 조건을 선택했지만 아이템이 없습니다.');
+  if (condition.itemSpec && !validateItemSpec(condition.itemSpec))
+    problems.push('아이템 조건 형식이 올바르지 않습니다.');
+  for (const expression of entries(condition.extraVariables)) {
+    if (!extraCondition.test(expression)) problems.push(`추가 변수 조건 '${expression}' 형식이 올바르지 않습니다.`);
+  }
+  if (condition.variableLogic === 'not' && entries(condition.extraVariables).length > 1)
+    problems.push('NOT 조건은 하나의 추가 변수 조건에 사용하는 것을 권장합니다.');
+  return problems;
+}
+
+function pageEdges(dialogue: Dialogue, page: PageWithServer, index: number): string[] {
+  const server = page.server ?? emptyServerPage();
+  const edges = new Set<string>();
+  page.choices.forEach((choice) => {
+    if (choice.targetPageId) edges.add(choice.targetPageId);
+  });
+  if (server.flow.conditionalTargetPageId) edges.add(server.flow.conditionalTargetPageId);
+  if (!server.flow.ending) {
+    if (server.flow.nextPageId) edges.add(server.flow.nextPageId);
+    else if (!page.choices.length && dialogue.pages[index + 1]) edges.add(dialogue.pages[index + 1].id);
+  }
+  return [...edges];
+}
+
+function graphIssues(dialogue: Dialogue): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  if (!dialogue.pages.length) return issues;
+  const byId = new Map(dialogue.pages.map((page) => [page.id, page]));
+  const edges = new Map(
+    dialogue.pages.map((page, index) => [page.id, pageEdges(dialogue, page as PageWithServer, index)]),
+  );
+
+  const reachable = new Set<string>();
+  const queue = [dialogue.startPageId || dialogue.pages[0].id];
+  while (queue.length) {
+    const id = queue.shift()!;
+    if (reachable.has(id) || !byId.has(id)) continue;
+    reachable.add(id);
+    edges.get(id)?.forEach((next) => queue.push(next));
+  }
+  dialogue.pages.forEach((page) => {
+    if (!reachable.has(page.id)) {
+      issues.push({
+        id: `unreachable-${page.id}`,
+        severity: 'warning',
+        dialogueId: dialogue.id,
+        pageId: page.id,
+        section: 'flow',
+        message: `${page.editorLabel || '페이지'}은 시작 페이지에서 도달할 수 없습니다.`,
+      });
+    }
+  });
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const cyclePages = new Set<string>();
+  const visit = (id: string) => {
+    if (visiting.has(id)) {
+      cyclePages.add(id);
+      return;
+    }
+    if (visited.has(id)) return;
+    visiting.add(id);
+    edges.get(id)?.forEach((next) => {
+      if (byId.has(next)) visit(next);
+    });
+    visiting.delete(id);
+    visited.add(id);
+  };
+  visit(dialogue.startPageId || dialogue.pages[0].id);
+  cyclePages.forEach((pageId) => {
+    issues.push({
+      id: `cycle-${pageId}`,
+      severity: 'warning',
+      dialogueId: dialogue.id,
+      pageId,
+      section: 'flow',
+      message: '페이지 순환이 존재합니다. 의도된 반복이 아니라면 64회 Flow safety에 도달할 수 있습니다.',
+    });
+  });
+
+  const terminal = new Set(
+    dialogue.pages
+      .filter((rawPage, index) => {
+        const page = rawPage as PageWithServer;
+        const server = page.server ?? emptyServerPage();
+        return server.flow.ending || (!page.choices.length && !server.flow.nextPageId && index === dialogue.pages.length - 1);
+      })
+      .map((page) => page.id),
+  );
+  const canFinish = new Set(terminal);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const page of dialogue.pages) {
+      if (canFinish.has(page.id)) continue;
+      if ((edges.get(page.id) ?? []).some((target) => canFinish.has(target))) {
+        canFinish.add(page.id);
+        changed = true;
+      }
+    }
+  }
+  const start = dialogue.startPageId || dialogue.pages[0].id;
+  if (!canFinish.has(start)) {
+    issues.push({
+      id: `unterminated-${dialogue.id}`,
+      severity: 'warning',
+      dialogueId: dialogue.id,
+      pageId: start,
+      section: 'flow',
+      message: '현재 흐름에서는 종료 가능한 경로를 찾을 수 없습니다.',
+    });
+  }
+  return issues;
+}
+
+export function validateProject(project: RPGProject, manifest: CharacterManifest): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const dialogue of project.dialogues) {
+    if (dialogue.name.length > 60) {
+      issues.push({
+        id: `title-${dialogue.id}`,
+        severity: 'error',
+        dialogueId: dialogue.id,
+        section: 'other',
+        message: '대화 제목은 최대 60자입니다.',
+      });
+    }
+    if (dialogue.pages.length > 10) {
+      issues.push({
+        id: `pages-${dialogue.id}`,
+        severity: 'error',
+        dialogueId: dialogue.id,
+        section: 'flow',
+        message: '한 대화에는 최대 10개의 페이지만 사용할 수 있습니다.',
+      });
+    }
+
+    dialogue.pages.forEach((rawPage, pageIndex) => {
+      const page = rawPage as PageWithServer;
+      const server = page.server ?? emptyServerPage();
+      const prefix = `Page ${pageIndex + 1}`;
+      if (page.speaker.length > 10) {
+        issues.push({
+          id: `speaker-${page.id}`,
+          severity: 'error',
+          dialogueId: dialogue.id,
+          pageId: page.id,
+          section: 'script',
+          message: `${prefix}: 화자는 최대 10자입니다.`,
+        });
+      }
+      if (page.lines.length > 4) {
+        issues.push({
+          id: `lines-${page.id}`,
+          severity: 'error',
+          dialogueId: dialogue.id,
+          pageId: page.id,
+          section: 'script',
+          message: `${prefix}: 대사는 최대 4줄입니다.`,
+        });
+      }
+      page.lines.forEach((line, lineIndex) => {
+        const length = visibleLength(line);
+        if (length > 30) {
+          issues.push({
+            id: `line-${page.id}-${lineIndex}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'script',
+            message: `${prefix} / ${lineIndex + 1}줄이 표시 문자 30자를 ${length - 30}자 초과했습니다.`,
+          });
+        }
+      });
+      if (page.choices.length > 8) {
+        issues.push({
+          id: `choices-${page.id}`,
+          severity: 'error',
+          dialogueId: dialogue.id,
+          pageId: page.id,
+          section: 'choices',
+          message: `${prefix}: 선택지는 최대 8개입니다.`,
+        });
+      }
+      page.choices.forEach((rawChoice, choiceIndex) => {
+        if (!rawChoice.label.trim()) {
+          issues.push({
+            id: `choice-empty-${rawChoice.id}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'choices',
+            message: `${prefix}: ${choiceIndex + 1}번 선택지 이름이 비어 있습니다.`,
+          });
+        }
+        if (rawChoice.label.length > 10) {
+          issues.push({
+            id: `choice-length-${rawChoice.id}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'choices',
+            message: `${prefix}: 선택지 이름은 최대 10자입니다.`,
+          });
+        }
+        if (rawChoice.targetPageId && !dialogue.pages.some((target) => target.id === rawChoice.targetPageId)) {
+          issues.push({
+            id: `choice-target-${rawChoice.id}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'choices',
+            message: `${prefix}: ${choiceIndex + 1}번 선택지의 대상 페이지가 존재하지 않습니다.`,
+          });
+        }
+        const condition = (rawChoice as { server?: { condition?: ServerCondition } }).server?.condition;
+        conditionProblems(condition ?? { ...server.displayCondition, mode: 'none' }).forEach((problem, index) =>
+          issues.push({
+            id: `choice-condition-${rawChoice.id}-${index}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'choices',
+            message: `${prefix}: ${problem}`,
+          }),
+        );
+      });
+
+      const character = getCharacter(manifest, page.appearance.characterId);
+      if (page.appearance.characterId && !character) {
+        issues.push({
+          id: `character-${page.id}`,
+          severity: 'error',
+          dialogueId: dialogue.id,
+          pageId: page.id,
+          section: 'character',
+          message: `${prefix}: Resource Pack에 없는 캐릭터 '${page.appearance.characterId}'를 사용하고 있습니다.`,
+        });
+      } else if (character) {
+        const gender = normalizedGender(character, page.appearance.gender);
+        const expression = (page.appearance.expression ?? 'NEUTRAL') as never;
+        if (!availableExpressions(character, gender).includes(expression)) {
+          issues.push({
+            id: `expression-${page.id}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'character',
+            message: `${prefix}: 선택한 캐릭터/성별에서 지원하지 않는 표정입니다.`,
+          });
+        }
+      }
+
+      [server.displayCondition, server.flow.condition].forEach((condition, conditionIndex) => {
+        conditionProblems(condition).forEach((problem, problemIndex) =>
+          issues.push({
+            id: `condition-${page.id}-${conditionIndex}-${problemIndex}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: conditionIndex === 0 ? 'condition' : 'flow',
+            message: `${prefix}: ${problem}`,
+          }),
+        );
+      });
+
+      for (const operation of entries(server.effects.variablesSet)) {
+        if (!variableOperation.test(operation)) {
+          issues.push({
+            id: `variable-op-${page.id}-${operation}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'effects',
+            message: `${prefix}: 변수 연산 '${operation}' 형식이 올바르지 않습니다.`,
+          });
+        }
+      }
+      for (const item of [...entries(server.effects.giveItems), ...entries(server.effects.takeItems)]) {
+        if (!validateItemSpec(item)) {
+          issues.push({
+            id: `item-${page.id}-${item}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'effects',
+            message: `${prefix}: 아이템 '${item}' 형식이 올바르지 않습니다.`,
+          });
+        }
+      }
+      if (server.effects.messageColor && !/^#[0-9a-f]{6}$/i.test(server.effects.messageColor)) {
+        issues.push({
+          id: `color-${page.id}`,
+          severity: 'error',
+          dialogueId: dialogue.id,
+          pageId: page.id,
+          section: 'effects',
+          message: `${prefix}: 메시지 색상은 #RRGGBB 형식이어야 합니다.`,
+        });
+      }
+      for (const sound of entries(server.effects.sounds)) {
+        const parts = sound.split(':');
+        const repeat = Number(parts.at(-1));
+        if (Number.isFinite(repeat) && (repeat < 1 || repeat > 10)) {
+          issues.push({
+            id: `sound-${page.id}-${sound}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'effects',
+            message: `${prefix}: 사운드 repeat는 1~10이어야 합니다.`,
+          });
+        }
+      }
+      if (server.flow.nextPageId && !dialogue.pages.some((target) => target.id === server.flow.nextPageId)) {
+        issues.push({
+          id: `next-${page.id}`,
+          severity: 'error',
+          dialogueId: dialogue.id,
+          pageId: page.id,
+          section: 'flow',
+          message: `${prefix}: 다음 페이지가 존재하지 않습니다.`,
+        });
+      }
+      if (
+        server.flow.conditionalTargetPageId &&
+        !dialogue.pages.some((target) => target.id === server.flow.conditionalTargetPageId)
+      ) {
+        issues.push({
+          id: `jump-${page.id}`,
+          severity: 'error',
+          dialogueId: dialogue.id,
+          pageId: page.id,
+          section: 'flow',
+          message: `${prefix}: 조건부 이동 대상 페이지가 존재하지 않습니다.`,
+        });
+      }
+    });
+
+    issues.push(...graphIssues(dialogue));
+  }
+  return issues;
+}

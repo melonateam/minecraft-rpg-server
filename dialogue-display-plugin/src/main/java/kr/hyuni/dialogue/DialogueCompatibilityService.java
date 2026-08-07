@@ -1,0 +1,220 @@
+package kr.hyuni.dialogue;
+
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
+
+final class DialogueCompatibilityService {
+    private static final int MAXIMUM_PAGES = 10;
+    private static final int MAXIMUM_LINES = 4;
+    private static final int MAXIMUM_CHARACTERS_PER_LINE = 30;
+    private static final int MAXIMUM_CHOICES = 8;
+
+    private final JavaPlugin plugin;
+
+    DialogueCompatibilityService(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    List<Map<String, Object>> list(UUID owner) {
+        ConfigurationSection section = plugin.getConfig().getConfigurationSection(ownerRoot(owner));
+        if (section == null) return List.of();
+        return section.getKeys(false).stream().sorted(String.CASE_INSENSITIVE_ORDER).map(name -> {
+            String path = ownerRoot(owner) + "." + name;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("name", name);
+            item.put("title", plugin.getConfig().getString(path + ".title", name));
+            item.put("revision", revision(path));
+            item.put("pages", pageCount(path));
+            return item;
+        }).toList();
+    }
+
+    DialogueDocument get(UUID owner, String rawName) {
+        String name = sanitize(rawName);
+        String path = ownerRoot(owner) + "." + name;
+        if (!plugin.getConfig().contains(path)) return null;
+        return new DialogueDocument(name, revision(path), readSection(path));
+    }
+
+    SaveResult save(UUID owner, String rawName, String expectedRevision, Map<String, Object> data) {
+        String name = sanitize(rawName);
+        String path = ownerRoot(owner) + "." + name;
+        String current = plugin.getConfig().contains(path) ? revision(path) : null;
+        if (expectedRevision != null && !expectedRevision.isBlank() && !expectedRevision.equals(current))
+            return SaveResult.conflict(current);
+
+        List<String> errors = validate(data);
+        if (!errors.isEmpty()) return SaveResult.invalid(errors);
+
+        plugin.getConfig().set(path, null);
+        writeMap(path, data);
+        plugin.saveConfig();
+        return SaveResult.saved(revision(path));
+    }
+
+    DeleteResult delete(UUID owner, String rawName, String expectedRevision) {
+        String path = ownerRoot(owner) + "." + sanitize(rawName);
+        if (!plugin.getConfig().contains(path)) return new DeleteResult(false, false, null);
+        String current = revision(path);
+        if (expectedRevision != null && !expectedRevision.isBlank() && !expectedRevision.equals(current))
+            return new DeleteResult(false, true, current);
+        plugin.getConfig().set(path, null);
+        plugin.saveConfig();
+        return new DeleteResult(true, false, null);
+    }
+
+    List<String> validate(Map<String, Object> data) {
+        ArrayList<String> issues = new ArrayList<>();
+        Object pagesValue = data.get("message-pages");
+        List<?> pages = pagesValue instanceof List<?> list ? list : List.of(data.getOrDefault("message", ""));
+        if (pages.isEmpty()) issues.add("대화 페이지가 없습니다.");
+        if (pages.size() > MAXIMUM_PAGES) issues.add("대화는 최대 10페이지까지 사용할 수 있습니다.");
+
+        for (int page = 0; page < pages.size(); page++) {
+            String text = String.valueOf(pages.get(page) == null ? "" : pages.get(page));
+            String[] lines = text.split("\\n", -1);
+            if (lines.length > MAXIMUM_LINES) issues.add("Page " + (page + 1) + ": 대사가 4줄을 초과했습니다.");
+            for (int line = 0; line < lines.length; line++) {
+                int visible = visibleLength(lines[line]);
+                if (visible > MAXIMUM_CHARACTERS_PER_LINE)
+                    issues.add("Page " + (page + 1) + " / " + (line + 1) + "줄: 표시 문자가 30자를 초과했습니다.");
+            }
+            Object pageChoices = nested(data, "page-choices", Integer.toString(page));
+            if (pageChoices instanceof Map<?, ?> choices) {
+                int count = integer(choices.get("choice-count"));
+                if (count > MAXIMUM_CHOICES) issues.add("Page " + (page + 1) + ": 선택지가 8개를 초과했습니다.");
+                for (int choice = 1; choice <= Math.min(count, MAXIMUM_CHOICES); choice++) {
+                    int target = integer(choices.get("target-page-" + choice));
+                    if (target < 0 || target > pages.size())
+                        issues.add("Page " + (page + 1) + ": 선택지 " + choice + "의 대상 페이지가 존재하지 않습니다.");
+                }
+            }
+        }
+        return issues;
+    }
+
+    private int pageCount(String path) {
+        List<String> pages = plugin.getConfig().getStringList(path + ".message-pages");
+        return pages.isEmpty() ? 1 : pages.size();
+    }
+
+    private Map<String, Object> readSection(String path) {
+        ConfigurationSection section = plugin.getConfig().getConfigurationSection(path);
+        return section == null ? Map.of() : WebJson.sectionToMap(section);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object nested(Map<String, Object> data, String section, String key) {
+        Object root = data.get(section);
+        if (!(root instanceof Map<?, ?> map)) return null;
+        return ((Map<String, Object>) map).get(key);
+    }
+
+    private void writeMap(String root, Map<String, Object> data) {
+        data.forEach((key, value) -> {
+            String path = root + "." + key;
+            if (value instanceof Map<?, ?> map) {
+                plugin.getConfig().createSection(path);
+                Map<String, Object> child = new LinkedHashMap<>();
+                map.forEach((childKey, childValue) -> child.put(String.valueOf(childKey), childValue));
+                writeMap(path, child);
+            } else {
+                plugin.getConfig().set(path, value);
+            }
+        });
+    }
+
+    private String revision(String path) {
+        Map<String, Object> data = readSection(path);
+        String canonical = WebJson.stringify(sort(data));
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8));
+            StringBuilder result = new StringBuilder();
+            for (byte value : digest) result.append(String.format("%02x", value));
+            return result.toString();
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    private Object sort(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            TreeMap<String, Object> sorted = new TreeMap<>(Comparator.naturalOrder());
+            map.forEach((key, child) -> sorted.put(String.valueOf(key), sort(child)));
+            return sorted;
+        }
+        if (value instanceof List<?> list) return list.stream().map(this::sort).toList();
+        return value;
+    }
+
+    private int visibleLength(String text) {
+        int visible = 0;
+        boolean wordStart = true;
+        for (int offset = 0; offset < text.length();) {
+            if (offset + 9 <= text.length() && text.charAt(offset) == '{' && text.charAt(offset + 1) == '#'
+                    && text.charAt(offset + 8) == '}' && text.substring(offset + 2, offset + 8).matches("[0-9A-Fa-f]{6}")) {
+                offset += 9;
+                continue;
+            }
+            if (wordStart && offset + 8 <= text.length() && text.charAt(offset) == '#'
+                    && text.substring(offset + 1, offset + 7).matches("[0-9A-Fa-f]{6}") && text.charAt(offset + 7) == ':') {
+                offset += 8;
+                wordStart = false;
+                continue;
+            }
+            int codePoint = text.codePointAt(offset);
+            visible++;
+            wordStart = Character.isWhitespace(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+        return visible;
+    }
+
+    private int integer(Object value) {
+        if (value instanceof Number number) return number.intValue();
+        try {
+            return value == null ? 0 : Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private String ownerRoot(UUID owner) {
+        return "player-dialogues." + owner;
+    }
+
+    private String sanitize(String raw) {
+        if (raw == null || raw.isBlank()) return "default";
+        String clean = raw.replaceAll("[^\\p{L}\\p{N}_-]", "_");
+        return clean.isBlank() ? "default" : clean;
+    }
+
+    record DialogueDocument(String name, String revision, Map<String, Object> data) {}
+
+    record SaveResult(boolean saved, boolean conflict, String revision, List<String> errors) {
+        static SaveResult saved(String revision) {
+            return new SaveResult(true, false, revision, List.of());
+        }
+
+        static SaveResult conflict(String revision) {
+            return new SaveResult(false, true, revision, List.of());
+        }
+
+        static SaveResult invalid(List<String> errors) {
+            return new SaveResult(false, false, null, List.copyOf(errors));
+        }
+    }
+
+    record DeleteResult(boolean deleted, boolean conflict, String revision) {}
+}

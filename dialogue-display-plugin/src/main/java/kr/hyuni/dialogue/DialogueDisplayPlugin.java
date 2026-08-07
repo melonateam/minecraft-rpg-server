@@ -105,6 +105,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private BukkitTask tracker;
     private HttpServer packServer;
     private ExecutorService packExecutor;
+    private CharacterRegistry characterRegistry;
+    private DialogueWebApi webApi;
     private NamespacedKey hotbarItemKey, hotbarSlotKey, temporaryHandKey;
     private boolean skriptBridgeReady;
 
@@ -114,6 +116,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         hotbarSlotKey = new NamespacedKey(this, "dialogue_hotbar_slot");
         temporaryHandKey = new NamespacedKey(this, "temporary_hand");
         saveDefaultConfig();
+        characterRegistry = CharacterRegistry.load(this);
+        webApi = DialogueWebApi.start(this, new DialogueCompatibilityService(this), characterRegistry);
         installBundledExamples();
         skriptBridgeReady = Bukkit.getPluginManager().isPluginEnabled("Skript");
         if (!skriptBridgeReady) getLogger().warning("Skript bridge is disabled: Skript is not installed.");
@@ -132,6 +136,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         active.values().forEach(Dialogue::remove);
         active.clear();
         awaitingChatInputs.clear();
+        if (webApi != null) webApi.stop();
         if (packServer != null) packServer.stop(0);
         if (packExecutor != null) packExecutor.shutdownNow();
     }
