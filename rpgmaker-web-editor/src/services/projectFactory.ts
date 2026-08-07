@@ -55,18 +55,21 @@ export function createDemoProject(): RPGProject {
   offer.editorLabel = '물건 제안';
   offer.speaker = '상인';
   offer.lines = ['좋은 물건이 있어.', '한번 보고 갈래?', '', ''];
-  offer.appearance.characterId = 'merchant';
+  offer.appearance.characterId = 'villager';
+  offer.appearance.expression = '무표정';
 
   const buy = createPage('구매');
   buy.speaker = '상인';
   buy.lines = ['현명한 선택이야.', '', '', ''];
-  buy.appearance.characterId = 'merchant';
+  buy.appearance.characterId = 'villager';
+  buy.appearance.expression = '무표정';
   buy.flow.ending = true;
 
   const decline = createPage('거절');
   decline.speaker = '상인';
   decline.lines = ['다음에 또 보자.', '', '', ''];
-  decline.appearance.characterId = 'merchant';
+  decline.appearance.characterId = 'villager';
+  decline.appearance.expression = '무표정';
   decline.flow.ending = true;
 
   offer.choices = [

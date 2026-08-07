@@ -1,4 +1,5 @@
 import type { CharacterDefinition, DialoguePage } from '../../domain/project';
+import { ServerPreviewBadges } from './ServerPreviewBadges';
 
 interface Props {
   page: DialoguePage;
@@ -16,6 +17,7 @@ export function MinecraftPreview({ page, characters }: Props) {
           <span>MINECRAFT PREVIEW</span>
           <span>1920×1080 · GUI Scale 2</span>
         </div>
+        <ServerPreviewBadges page={page} />
         <div className="relative min-h-[400px] rounded-2xl border border-white/5 bg-black/30 p-8 shadow-2xl backdrop-blur-sm">
           <div className="absolute inset-x-8 bottom-8 rounded-lg border-2 border-[#5a5961] bg-[#18181c]/95 px-6 py-5 shadow-[0_0_0_3px_rgba(0,0,0,0.65)]">
             {page.appearance.visible && character && (

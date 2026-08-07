@@ -11,6 +11,11 @@ Minecraft RPGMaker 플러그인의 대화 제작 기능을 서버와 분리된 �
 - 화자 및 4줄 대사 편집
 - Mock 캐릭터 선택 및 표정
 - 선택지 생성/삭제 및 대상 페이지 연결
+- 서버와 동일한 BEFORE/AFTER 조건 분기 및 종결 흐름 설정
+- VARIABLE/ITEM/BOTH/ANY 표시 조건과 AND/OR/XOR/NOT 변수 조합
+- 아이템 지급·소모, 변수 연산·삭제·채팅 입력, 사운드·메시지 효과
+- 이전 진행 대상과 OP 전용 서버 명령 설정
+- 선택지별 표시 조건, 화자 오버라이드, 도착 후 종료 설정
 - 입력 즉시 반영되는 Minecraft 스타일 Preview
 - IndexedDB 자동 저장
 - Ctrl+S 즉시 저장
