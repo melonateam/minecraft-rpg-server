@@ -1,0 +1,101 @@
+﻿distance: 1.8
+vertical-offset: -1.3700000000000003
+frame-x-offset: 0.03
+duration-ticks: 160
+typing-interval-ticks: 2
+frame-scale: 0.22
+frame-scale-x: 0.7800000000000005
+frame-scale-y: 0.5200000000000002
+portrait-scale: 0.16499999999999998
+portrait-x-offset: -1.8700000000000008
+portrait-vertical-offset: 1.450000000000001
+text-scale: 0.62
+text-x-offset: -0.019999999999999324
+finish-close-delay-ticks: 60
+choice-scale: 0.5799999833106995
+choice-x-offset: 1.440000000000001
+text-vertical-offset: 0.3500000000000001
+choice-vertical-offset: 1.4500000000000008
+pack-server-port: 25566
+pack-file: RPGMaker-Pack-20260807-045607.zip
+dialogues: {}
+content:
+  speaker: ?⑷툑 湲곕줉愿???섑샇??
+  message: ?ш린源뚯? ???멸컙? ?ㅻ옖留뚯씠援? 遊됱씤??湲곕줉???쎌쓣 ?먭꺽???덈뒗吏 ?듯빐??
+  choice-1: 湲곕줉??蹂댁뿬以?
+  response-1: 醫뗫떎. 吏꾩떎??媛먮떦??媛곸삤遺??利앸챸?대씪.
+  choice-2: ??붾? ?앸궦??
+  response-2: ?뚭쿋??
+speaker-vertical-offset: 1.0200000000000005
+speaker-scale: 0.66
+speaker-x-offset: 0.040000000000000646
+player-dialogues:
+  88ab4f4b-bed0-45ac-a1ce-befcd67fd548:
+    달빛_아래_피어난_약속:
+      title: 달빛 아래 피어난 약속
+      speaker: 세레나
+      message-pages:
+      - |-
+        왕도 축제의 밤이 찾아왔다.
+        분수 앞에 한 소녀가 서 있다.
+        그녀는 조용히 미소 지었다.
+        "잠깐 이야기할 수 있을까요?"
+      - ''
+      - ''
+      camera-direction: NORTH
+      portrait: FEMALE_NOBLE
+      expression: EMBARRASSED
+      page-effects:
+        '0':
+          item: ''
+          amount: 0
+          take-item: ''
+          take-amount: 0
+          item-name: ''
+          item-color: '#FFFFFF'
+          variable: ''
+          value: ''
+          variable-action: SET
+          sound: ''
+          sound-volume: 1.0
+          sound-pitch: 1.0
+          command: ''
+          command-target: PLAYER
+      page-conditions:
+        '0':
+          type: NONE
+          variable: ''
+          value: ''
+          extra-variables: ''
+          variable-logic: AND
+          item: ''
+          amount: 1
+          name-match: false
+          item-name: ''
+          replacement: ''
+      page-choices:
+        '0':
+          choice-1: ㅇㅇ
+          response-pages-1:
+          - ㅇㅇㅇㅇ
+          response-portrait-1:
+            '0': SENTINEL
+          response-expression-1:
+            '0': HAPPY
+          end-1: false
+          choice-count: 1
+          response-page-choices-1:
+            '0':
+              choice-1: ㄴㄴㄴ
+              response-pages-1:
+              - ㄴㄴㄴㄴ
+              response-portrait-1:
+                '0': MALE_NOBLE
+              response-expression-1:
+                '0': HAPPY
+              end-1: false
+              choice-count: 1
+
+
+
+

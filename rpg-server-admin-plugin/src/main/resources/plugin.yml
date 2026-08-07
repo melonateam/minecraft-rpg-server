@@ -1,0 +1,11 @@
+name: RPGServerAdmin
+version: "${version}"
+main: kr.hyuni.serveradmin.RPGServerAdminPlugin
+api-version: "1.21.8"
+commands:
+  serveradmin:
+    description: RPG server rule controls
+    usage: /serveradmin <pvp|mob|time|weather> <on|off>
+permissions:
+  rpgserveradmin.use:
+    default: op
