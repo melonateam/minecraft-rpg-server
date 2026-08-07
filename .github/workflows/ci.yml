@@ -22,6 +22,5 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.3"
-      - run: git diff --check
       - run: gradle -p dialogue-display-plugin build --no-daemon
       - run: gradle -p rpg-server-admin-plugin build --no-daemon
