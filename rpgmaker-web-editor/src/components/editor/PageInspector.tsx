@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CharacterDefinition, Dialogue, DialoguePage } from '../../domain/project';
 import { CharacterSelectorModal } from './CharacterSelectorModal';
+import { ServerSettingsPanel } from './ServerSettingsPanel';
 
 interface Props {
   page: DialoguePage;
@@ -16,7 +17,7 @@ export function PageInspector({ page, dialogue, characters, onChange, onAddChoic
   const character = characters.find((candidate) => candidate.id === page.appearance.characterId);
 
   return (
-    <aside className="scrollbar-thin w-[360px] shrink-0 overflow-y-auto border-l border-[#242933] bg-[#15181e] p-5">
+    <aside className="scrollbar-thin w-[420px] shrink-0 overflow-y-auto border-l border-[#242933] bg-[#15181e] p-5">
       <div className="text-xs font-semibold tracking-wider text-[#6f7784]">PAGE</div>
       <div className="mt-1 text-lg font-semibold">{page.editorLabel || '페이지 설정'}</div>
 
@@ -149,6 +150,8 @@ export function PageInspector({ page, dialogue, characters, onChange, onAddChoic
           + 선택지 추가
         </button>
       </section>
+
+      <ServerSettingsPanel page={page} dialogue={dialogue} onChange={onChange} />
 
       {characterOpen && (
         <CharacterSelectorModal
