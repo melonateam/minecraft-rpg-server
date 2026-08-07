@@ -42,3 +42,25 @@
 {"level":"info","run_id":"6f9195e7-67ac-4970-9743-1b1bc8f078ff","component":"Cloudflare API","target":"api.cloudflare.com:443","status":"pass","details":"API is reachable","time":"2026-08-07T17:17:37Z","message":"precheck"}
 {"level":"info","run_id":"6f9195e7-67ac-4970-9743-1b1bc8f078ff","hard_fail":false,"suggested_protocol":"quic","time":"2026-08-07T17:17:37Z","message":"precheck complete"}
 {"level":"info","event":0,"connection":"82163c18-16bf-43f6-8998-8b5f0b59a4d2","connIndex":0,"location":"icn05","ip":"198.41.200.193","protocol":"quic","time":"2026-08-07T17:17:38Z","message":"Registered tunnel connection"}
+{"level":"error","event":0,"ip":"198.41.200.193","connIndex":0,"error":"failed to accept QUIC stream: timeout: no recent network activity","time":"2026-08-07T19:33:49Z","message":"failed to accept incoming stream requests"}
+{"level":"error","event":0,"ip":"198.41.200.193","connIndex":0,"error":"timeout: no recent network activity","time":"2026-08-07T19:33:49Z","message":"failed to run the datagram handler"}
+{"level":"error","event":0,"ip":"198.41.200.193","connIndex":0,"error":"accept stream listener encountered a failure while serving","time":"2026-08-07T19:33:49Z","message":"failed to serve tunnel connection"}
+{"level":"error","event":0,"ip":"198.41.200.193","connIndex":0,"error":"accept stream listener encountered a failure while serving","time":"2026-08-07T19:33:49Z","message":"Serve tunnel error"}
+{"level":"info","event":0,"ip":"198.41.200.193","connIndex":0,"time":"2026-08-07T19:33:49Z","message":"Retrying connection in up to 1s"}
+{"level":"info","event":0,"ip":"198.41.200.193","connIndex":0,"time":"2026-08-07T19:33:50Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.193","connIndex":0,"error":"failed to dial to edge with quic: timeout: no recent network activity","time":"2026-08-07T19:33:55Z","message":"Failed to dial a quic connection"}
+{"level":"info","event":0,"ip":"198.41.200.193","connIndex":0,"time":"2026-08-07T19:33:55Z","message":"Retrying connection in up to 4s"}
+{"level":"info","event":0,"ip":"198.41.192.167","connIndex":0,"time":"2026-08-07T19:33:58Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.192.167","connIndex":0,"error":"failed to dial to edge with quic: timeout: no recent network activity","time":"2026-08-07T19:34:03Z","message":"Failed to dial a quic connection"}
+{"level":"info","event":0,"ip":"198.41.192.167","connIndex":0,"time":"2026-08-07T19:34:03Z","message":"Retrying connection in up to 8s"}
+{"level":"info","event":0,"ip":"198.41.192.47","connIndex":0,"time":"2026-08-07T19:34:09Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256]"}
+{"level":"info","event":0,"connection":"0187a7e0-2e00-46f5-ac65-622f0104eb24","connIndex":0,"location":"icn06","ip":"198.41.192.47","protocol":"quic","time":"2026-08-07T19:34:10Z","message":"Registered tunnel connection"}
+{"level":"info","time":"2026-08-07T20:35:55Z","message":"Initiating graceful shutdown due to signal terminated ..."}
+{"level":"error","event":0,"ip":"198.41.192.47","connIndex":0,"error":"Application error 0x0 (remote)","time":"2026-08-07T20:35:55Z","message":"failed to run the datagram handler"}
+{"level":"error","event":0,"ip":"198.41.192.47","connIndex":0,"error":"accept stream listener encountered a failure while serving","time":"2026-08-07T20:35:55Z","message":"failed to serve tunnel connection"}
+{"level":"error","event":0,"ip":"198.41.192.47","connIndex":0,"error":"accept stream listener encountered a failure while serving","time":"2026-08-07T20:35:55Z","message":"Serve tunnel error"}
+{"level":"info","event":0,"ip":"198.41.192.47","connIndex":0,"time":"2026-08-07T20:35:55Z","message":"Retrying connection in up to 1s"}
+{"level":"error","connIndex":0,"time":"2026-08-07T20:35:55Z","message":"Connection terminated"}
+{"level":"error","time":"2026-08-07T20:35:55Z","message":"no more connections active and exiting"}
+{"level":"info","time":"2026-08-07T20:35:55Z","message":"Tunnel server stopped"}
+{"level":"info","time":"2026-08-07T20:35:55Z","message":"Metrics server stopped"}
