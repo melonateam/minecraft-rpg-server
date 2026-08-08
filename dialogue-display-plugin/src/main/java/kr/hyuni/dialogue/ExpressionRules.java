@@ -3,8 +3,14 @@ package kr.hyuni.dialogue;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class ExpressionRules {
+    private static final Pattern RANDOM_RANGE = Pattern.compile(
+            "(?i)^random\\(\\s*(-?\\d+)\\s*\\.\\.\\s*(-?\\d+)\\s*\\)$");
+
     private ExpressionRules() {}
 
     static boolean compare(String actual, String operator, String expected) {
@@ -39,10 +45,10 @@ final class ExpressionRules {
     }
 
     static String calculate(String current, String operator, String operand) {
-        String value = operand == null ? "" : operand.strip();
+        String value = resolveOperand(operand);
         if (operator == null || operator.equals("="))
             return value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false") ? value.toLowerCase(java.util.Locale.ROOT) : value;
-        if (operator.equals("+=") && !isNumber(current) || operator.equals("+=") && !isNumber(value))
+        if (operator.equals("+=") && (!isNumber(current) || !isNumber(value)))
             return (current == null ? "" : current) + value;
         try {
             BigDecimal left = new BigDecimal(current == null || current.isBlank() ? "0" : current.strip());
@@ -58,6 +64,26 @@ final class ExpressionRules {
         } catch (NumberFormatException ignored) { return current == null ? "" : current; }
     }
 
+    static String resolveOperand(String operand) {
+        String value = operand == null ? "" : operand.strip();
+        Matcher matcher = RANDOM_RANGE.matcher(value);
+        if (!matcher.matches()) return value;
+        try {
+            long first = Long.parseLong(matcher.group(1));
+            long second = Long.parseLong(matcher.group(2));
+            long minimum = Math.min(first, second);
+            long maximum = Math.max(first, second);
+            if (minimum == maximum) return Long.toString(minimum);
+            if (maximum == Long.MAX_VALUE) {
+                long generated = ThreadLocalRandom.current().nextLong(minimum, maximum);
+                return ThreadLocalRandom.current().nextBoolean() ? Long.toString(maximum) : Long.toString(generated);
+            }
+            return Long.toString(ThreadLocalRandom.current().nextLong(minimum, maximum + 1L));
+        } catch (RuntimeException ignored) {
+            return value;
+        }
+    }
+
     private static boolean isNumber(String value) {
         if (value == null || value.isBlank()) return false;
         try { new BigDecimal(value.strip()); return true; }
@@ -70,5 +96,7 @@ final class ExpressionRules {
         assert combine(List.of(true, false), "XOR");
         assert calculate("5", "+=", "3").equals("8");
         assert calculate("true", "=", "FALSE").equals("false");
+        long random = Long.parseLong(resolveOperand("random(3..7)"));
+        assert random >= 3 && random <= 7;
     }
 }
