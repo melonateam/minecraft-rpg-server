@@ -19,6 +19,10 @@ final class DialogueCompatibilityService {
     private static final int MAXIMUM_LINES = 4;
     private static final int MAXIMUM_CHARACTERS_PER_LINE = 30;
     private static final int MAXIMUM_CHOICES = 8;
+    private static final int MAXIMUM_TITLE_CHARACTERS = 60;
+    private static final int MAXIMUM_SPEAKER_CHARACTERS = 10;
+    private static final int MAXIMUM_CHOICE_CHARACTERS = 10;
+    private static final int MAXIMUM_CHOICE_DEPTH = 16;
 
     private final JavaPlugin plugin;
 
@@ -76,32 +80,88 @@ final class DialogueCompatibilityService {
 
     List<String> validate(Map<String, Object> data) {
         ArrayList<String> issues = new ArrayList<>();
+        if (codePointLength(data.get("title")) > MAXIMUM_TITLE_CHARACTERS)
+            issues.add("대화 제목은 최대 60자까지 사용할 수 있습니다.");
+        if (codePointLength(data.get("speaker")) > MAXIMUM_SPEAKER_CHARACTERS)
+            issues.add("기본 화자 이름은 최대 10자까지 사용할 수 있습니다.");
+
         Object pagesValue = data.get("message-pages");
         List<?> pages = pagesValue instanceof List<?> list ? list : List.of(data.getOrDefault("message", ""));
         if (pages.isEmpty()) issues.add("대화 페이지가 없습니다.");
         if (pages.size() > MAXIMUM_PAGES) issues.add("대화는 최대 30페이지까지 사용할 수 있습니다.");
 
+        Object speakersValue = data.get("page-speakers");
+        if (speakersValue instanceof Map<?, ?> speakers) speakers.forEach((page, speaker) -> {
+            if (codePointLength(speaker) > MAXIMUM_SPEAKER_CHARACTERS)
+                issues.add("Page " + (integer(page) + 1) + ": 화자 이름은 최대 10자까지 사용할 수 있습니다.");
+        });
+
         for (int page = 0; page < pages.size(); page++) {
-            String text = String.valueOf(pages.get(page) == null ? "" : pages.get(page));
-            String[] lines = text.split("\\n", -1);
-            if (lines.length > MAXIMUM_LINES) issues.add("Page " + (page + 1) + ": 대사가 4줄을 초과했습니다.");
-            for (int line = 0; line < lines.length; line++) {
-                int visible = visibleLength(lines[line]);
-                if (visible > MAXIMUM_CHARACTERS_PER_LINE)
-                    issues.add("Page " + (page + 1) + " / " + (line + 1) + "줄: 표시 문자가 30자를 초과했습니다.");
-            }
+            validateTextPage(pages.get(page), "Page " + (page + 1), issues);
             Object pageChoices = nested(data, "page-choices", Integer.toString(page));
-            if (pageChoices instanceof Map<?, ?> choices) {
-                int count = integer(choices.get("choice-count"));
-                if (count > MAXIMUM_CHOICES) issues.add("Page " + (page + 1) + ": 선택지가 8개를 초과했습니다.");
-                for (int choice = 1; choice <= Math.min(count, MAXIMUM_CHOICES); choice++) {
-                    int target = integer(choices.get("target-page-" + choice));
-                    if (target < 0 || target > pages.size())
-                        issues.add("Page " + (page + 1) + ": 선택지 " + choice + "의 대상 페이지가 존재하지 않습니다.");
+            if (pageChoices instanceof Map<?, ?> choices)
+                validateChoices(choices, pages.size(), "Page " + (page + 1), 0, issues);
+        }
+        return issues;
+    }
+
+    private void validateTextPage(Object value, String location, List<String> issues) {
+        String[] lines = String.valueOf(value == null ? "" : value).split("\\n", -1);
+        if (lines.length > MAXIMUM_LINES) issues.add(location + ": 대사가 4줄을 초과했습니다.");
+        for (int line = 0; line < lines.length; line++) {
+            if (visibleLength(lines[line]) > MAXIMUM_CHARACTERS_PER_LINE)
+                issues.add(location + " / " + (line + 1) + "줄: 표시 문자가 30자를 초과했습니다.");
+        }
+    }
+
+    private void validateChoices(Map<?, ?> choices, int pageCount, String location, int depth, List<String> issues) {
+        int count = integer(choices.get("choice-count"));
+        if (count == 0) return;
+        if (depth >= MAXIMUM_CHOICE_DEPTH) {
+            issues.add(location + ": 중첩 선택지는 최대 16단계까지 사용할 수 있습니다.");
+            return;
+        }
+        if (count < 0 || count > MAXIMUM_CHOICES)
+            issues.add(location + ": 선택지는 0~8개까지 사용할 수 있습니다.");
+        for (int choice = 1; choice <= Math.min(Math.max(count, 0), MAXIMUM_CHOICES); choice++) {
+            String choiceLocation = location + " / 선택지 " + choice;
+            Object labelValue = choices.get("choice-" + choice);
+            String label = labelValue == null ? "" : String.valueOf(labelValue);
+            if (label.isBlank()) issues.add(choiceLocation + ": 선택지 이름이 비어 있습니다.");
+            else if (visibleLength(label) > MAXIMUM_CHOICE_CHARACTERS)
+                issues.add(choiceLocation + ": 선택지 이름은 최대 10자까지 사용할 수 있습니다.");
+            if (codePointLength(choices.get("speaker-" + choice)) > MAXIMUM_SPEAKER_CHARACTERS)
+                issues.add(choiceLocation + ": 화자 이름은 최대 10자까지 사용할 수 있습니다.");
+
+            int target = integer(choices.get("target-page-" + choice));
+            if (target < 0 || target > pageCount)
+                issues.add(choiceLocation + ": 대상 페이지가 존재하지 않습니다.");
+
+            Object responseValue = choices.get("response-pages-" + choice);
+            List<?> responses = responseValue instanceof List<?> list ? list : List.of();
+            if (responses.size() > MAXIMUM_PAGES)
+                issues.add(choiceLocation + ": 후속 대사는 최대 30페이지까지 사용할 수 있습니다.");
+            for (int response = 0; response < responses.size(); response++)
+                validateTextPage(responses.get(response), choiceLocation + " / 후속 Page " + (response + 1), issues);
+
+            Object nestedValue = choices.get("response-page-choices-" + choice);
+            if (nestedValue instanceof Map<?, ?> nestedPages) {
+                for (Map.Entry<?, ?> entry : nestedPages.entrySet()) {
+                    int response = integer(entry.getKey());
+                    if (response < 0 || response >= responses.size()) {
+                        issues.add(choiceLocation + ": 존재하지 않는 후속 Page의 선택지가 설정되어 있습니다.");
+                        continue;
+                    }
+                    if (entry.getValue() instanceof Map<?, ?> nested)
+                        validateChoices(nested, pageCount, choiceLocation + " / 후속 Page " + (response + 1), depth + 1, issues);
                 }
             }
         }
-        return issues;
+    }
+
+    private int codePointLength(Object value) {
+        String text = value == null ? "" : String.valueOf(value);
+        return text.codePointCount(0, text.length());
     }
 
     private int pageCount(String path) {
