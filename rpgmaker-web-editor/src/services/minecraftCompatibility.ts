@@ -1,4 +1,10 @@
-import type { Dialogue, DialogueChoice, DialoguePage } from '../domain/project';
+import type {
+  Dialogue,
+  DialogueChoice,
+  DialogueChoiceResponsePage,
+  DialoguePage,
+  PageAppearance,
+} from '../domain/project';
 import { emptyChoiceSettings, emptyCondition, emptyServerPage } from '../domain/serverSettings';
 import type { ServerCondition, ServerEffects, ServerPageSettings } from '../domain/serverSettings';
 import {
@@ -10,8 +16,6 @@ import {
 } from './characterRegistry';
 
 type JsonMap = Record<string, unknown>;
-type ChoiceWithServer = DialogueChoice & { server?: ReturnType<typeof emptyChoiceSettings> };
-type PageWithServer = DialoguePage & { server?: ServerPageSettings };
 
 const map = (value: unknown): JsonMap =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonMap) : {};
@@ -136,10 +140,124 @@ function effectsFromServer(raw: unknown): ServerEffects {
   return result;
 }
 
-function pageText(lines: DialoguePage['lines']) {
+function pageText(lines: [string, string, string, string]) {
   const copy = [...lines];
   while (copy.length > 1 && copy.at(-1) === '') copy.pop();
   return copy.join('\n');
+}
+
+function appearanceToServer(appearance: PageAppearance, manifest: CharacterManifest) {
+  const character = getCharacter(manifest, appearance.characterId);
+  if (!character || !appearance.visible) return { portrait: '', expression: '' };
+  const gender = normalizedGender(character, appearance.gender);
+  return {
+    portrait: resolvePortraitId(character, gender),
+    expression: appearance.expression ?? 'NEUTRAL',
+  };
+}
+
+function responsePageFromServer(
+  message: string,
+  portrait: string,
+  expression: string,
+  rawEffects: unknown,
+  rawChoices: unknown,
+  pageIds: string[],
+  manifest: CharacterManifest,
+): DialogueChoiceResponsePage {
+  const split = message.split('\n');
+  const found = findCharacterByPortrait(manifest, portrait);
+  const server = emptyServerPage();
+  server.effects = effectsFromServer(rawEffects);
+  return {
+    id: crypto.randomUUID(),
+    lines: [split[0] ?? '', split[1] ?? '', split[2] ?? '', split[3] ?? ''],
+    appearance: {
+      visible: Boolean(found),
+      inheritPrevious: false,
+      characterId: found?.character.id,
+      gender: found?.gender === 'FEMALE' ? 'female' : found?.gender === 'MALE' ? 'male' : undefined,
+      expression: expression || 'NEUTRAL',
+    },
+    choices: choicesFromServer(rawChoices, pageIds, manifest),
+    server,
+  };
+}
+
+function choicesToServer(
+  choices: DialogueChoice[],
+  pageIndex: Map<string, number>,
+  manifest: CharacterManifest,
+): JsonMap {
+  const output: JsonMap = { 'choice-count': choices.length };
+  choices.slice(0, 8).forEach((choice, choiceIndex) => {
+    const slot = choiceIndex + 1;
+    output[`choice-${slot}`] = choice.label;
+    output[`target-page-${slot}`] = choice.targetPageId ? pageIndex.get(choice.targetPageId) ?? 0 : 0;
+    output[`end-${slot}`] = choice.endAfterTarget ?? false;
+    if (choice.speakerOverride) output[`speaker-${slot}`] = choice.speakerOverride;
+    if (choice.server?.condition && choice.server.condition.mode !== 'none')
+      output[`condition-${slot}`] = conditionToServer(choice.server.condition);
+
+    const responsePages = choice.responsePages ?? [];
+    if (!responsePages.length) return;
+    output[`response-pages-${slot}`] = responsePages.map((response) => pageText(response.lines));
+
+    const portraits: JsonMap = {};
+    const expressions: JsonMap = {};
+    const effects: JsonMap = {};
+    const nestedChoices: JsonMap = {};
+    responsePages.forEach((response, responseIndex) => {
+      const appearance = appearanceToServer(response.appearance, manifest);
+      if (appearance.portrait) portraits[responseIndex] = appearance.portrait;
+      if (appearance.expression) expressions[responseIndex] = appearance.expression;
+      const responseEffects = effectsToServer((response.server ?? emptyServerPage()).effects);
+      if (Object.keys(responseEffects).length) effects[responseIndex] = responseEffects;
+      if (response.choices.length)
+        nestedChoices[responseIndex] = choicesToServer(response.choices, pageIndex, manifest);
+    });
+    if (Object.keys(portraits).length) output[`response-portrait-${slot}`] = portraits;
+    if (Object.keys(expressions).length) output[`response-expression-${slot}`] = expressions;
+    if (Object.keys(effects).length) output[`response-effects-${slot}`] = effects;
+    if (Object.keys(nestedChoices).length) output[`response-page-choices-${slot}`] = nestedChoices;
+  });
+  return output;
+}
+
+function choicesFromServer(raw: unknown, pageIds: string[], manifest: CharacterManifest): DialogueChoice[] {
+  const data = map(raw);
+  const count = Math.min(8, number(data['choice-count']));
+  return Array.from({ length: count }, (_, choiceIndex) => {
+    const slot = choiceIndex + 1;
+    const targetNumber = number(data[`target-page-${slot}`]);
+    const responseMessages = list(data[`response-pages-${slot}`]).map((value) => text(value));
+    if (!responseMessages.length && data[`response-${slot}`] != null)
+      responseMessages.push(text(data[`response-${slot}`]));
+    const portraits = map(data[`response-portrait-${slot}`]);
+    const expressions = map(data[`response-expression-${slot}`]);
+    const effects = map(data[`response-effects-${slot}`]);
+    const nested = map(data[`response-page-choices-${slot}`]);
+    const responsePages = responseMessages.map((message, responseIndex) =>
+      responsePageFromServer(
+        message,
+        text(portraits[responseIndex]),
+        text(expressions[responseIndex], 'NEUTRAL'),
+        effects[responseIndex] ?? (responseIndex === 0 ? data[`effect-${slot}`] : undefined),
+        nested[responseIndex],
+        pageIds,
+        manifest,
+      ),
+    );
+    return {
+      id: crypto.randomUUID(),
+      label: text(data[`choice-${slot}`]),
+      targetPageId: targetNumber > 0 ? pageIds[targetNumber - 1] : undefined,
+      endAfterTarget: bool(data[`end-${slot}`]),
+      speakerOverride: text(data[`speaker-${slot}`]) || undefined,
+      responsePages,
+      server: { condition: conditionFromServer(data[`condition-${slot}`]) },
+    };
+  });
 }
 
 export function exportMinecraftDialogue(dialogue: Dialogue, manifest: CharacterManifest): JsonMap {
@@ -159,34 +277,16 @@ export function exportMinecraftDialogue(dialogue: Dialogue, manifest: CharacterM
   const flows: JsonMap = {};
   const operations: JsonMap = {};
 
-  dialogue.pages.forEach((rawPage, index) => {
-    const page = rawPage as PageWithServer;
+  dialogue.pages.forEach((page, index) => {
     const server = page.server ?? emptyServerPage();
     speakers[index] = page.speaker;
     visible[index] = page.appearance.visible;
 
-    const character = getCharacter(manifest, page.appearance.characterId);
-    if (character) {
-      const gender = normalizedGender(character, page.appearance.gender);
-      portraits[index] = resolvePortraitId(character, gender);
-      expressions[index] = page.appearance.expression ?? 'NEUTRAL';
-    }
+    const appearance = appearanceToServer(page.appearance, manifest);
+    if (appearance.portrait) portraits[index] = appearance.portrait;
+    if (appearance.expression) expressions[index] = appearance.expression;
 
-    if (page.choices.length) {
-      const choiceData: JsonMap = { 'choice-count': page.choices.length };
-      page.choices.forEach((rawChoice, choiceIndex) => {
-        const choice = rawChoice as ChoiceWithServer;
-        const slot = choiceIndex + 1;
-        choiceData[`choice-${slot}`] = choice.label;
-        choiceData[`target-page-${slot}`] = choice.targetPageId ? pageIndex.get(choice.targetPageId) ?? 0 : 0;
-        choiceData[`end-${slot}`] = choice.endAfterTarget ?? false;
-        if (choice.speakerOverride) choiceData[`speaker-${slot}`] = choice.speakerOverride;
-        const condition = choice.server?.condition;
-        if (condition && condition.mode !== 'none')
-          choiceData[`condition-${slot}`] = conditionToServer(condition);
-      });
-      choices[index] = choiceData;
-    }
+    if (page.choices.length) choices[index] = choicesToServer(page.choices, pageIndex, manifest);
 
     if (server.displayCondition.mode !== 'none') conditions[index] = conditionToServer(server.displayCondition);
     const pageEffects = effectsToServer(server.effects);
@@ -256,23 +356,7 @@ export function importMinecraftDialogue(
       text(serverFlow['jump-timing'], 'AFTER').toUpperCase() === 'BEFORE' ? 'before' : 'after';
     server.flow.condition = conditionFromServer(serverFlow.condition);
 
-    const pageChoices = map(choiceMap[index]);
-    const choiceCount = Math.min(8, number(pageChoices['choice-count']));
-    const choicesForPage: DialogueChoice[] = Array.from({ length: choiceCount }, (_, choiceIndex) => {
-      const slot = choiceIndex + 1;
-      const targetNumber = number(pageChoices[`target-page-${slot}`]);
-      const choice: ChoiceWithServer = {
-        id: crypto.randomUUID(),
-        label: text(pageChoices[`choice-${slot}`]),
-        targetPageId: targetNumber > 0 ? pageIds[targetNumber - 1] : undefined,
-        endAfterTarget: bool(pageChoices[`end-${slot}`]),
-        speakerOverride: text(pageChoices[`speaker-${slot}`]) || undefined,
-        server: { condition: conditionFromServer(pageChoices[`condition-${slot}`]) },
-      };
-      return choice;
-    });
-
-    const page: PageWithServer = {
+    return {
       id: pageIds[index],
       editorLabel: `Page ${index + 1}`,
       speaker: text(speakerMap[index], defaultSpeaker),
@@ -284,17 +368,15 @@ export function importMinecraftDialogue(
         gender: found?.gender === 'FEMALE' ? 'female' : found?.gender === 'MALE' ? 'male' : undefined,
         expression: inheritedExpression || 'NEUTRAL',
       },
-      choices: choicesForPage,
+      choices: choicesFromServer(choiceMap[index], pageIds, manifest),
       flow: { ending: server.flow.ending },
       effects: [],
       operationOnly: server.operationOnly,
       server,
     };
-    return page;
   });
 
-  pages.forEach((rawPage, index) => {
-    const page = rawPage as PageWithServer;
+  pages.forEach((page, index) => {
     const serverFlow = map(flowMap[index]);
     const next = number(serverFlow['next-page']);
     const jump = number(serverFlow['jump-target']);
