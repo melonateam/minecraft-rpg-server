@@ -3,6 +3,7 @@ package kr.hyuni.dialogue;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -32,11 +33,12 @@ final class DialogueWebApi {
     private final String token;
     private final Set<String> allowedOrigins;
     private final int maxRequestBytes;
+    private final WebPlayerSessions sessions;
 
     private DialogueWebApi(JavaPlugin plugin, DialogueCompatibilityService compatibility,
                            CharacterRegistry characters, HttpServer server,
                            ExecutorService executor, String token, Set<String> allowedOrigins,
-                           int maxRequestBytes) {
+                           int maxRequestBytes, WebPlayerSessions sessions) {
         this.plugin = plugin;
         this.compatibility = compatibility;
         this.characters = characters;
@@ -45,6 +47,7 @@ final class DialogueWebApi {
         this.token = token;
         this.allowedOrigins = allowedOrigins;
         this.maxRequestBytes = maxRequestBytes;
+        this.sessions = sessions;
     }
 
     static DialogueWebApi start(JavaPlugin plugin, DialogueCompatibilityService compatibility,
@@ -62,6 +65,7 @@ final class DialogueWebApi {
                     ? Set.of("http://localhost:5173", "http://127.0.0.1:5173")
                     : Set.copyOf(configuredOrigins);
             int maxBytes = Math.max(16_384, plugin.getConfig().getInt("web-api.max-request-bytes", 1_048_576));
+            WebPlayerSessions sessions = new WebPlayerSessions(plugin);
 
             HttpServer server = HttpServer.create(new InetSocketAddress(bind, port), 0);
             ExecutorService executor = Executors.newFixedThreadPool(2, runnable -> {
@@ -70,7 +74,7 @@ final class DialogueWebApi {
                 return thread;
             });
             DialogueWebApi api = new DialogueWebApi(plugin, compatibility, characters, server, executor,
-                    token, origins, maxBytes);
+                    token, origins, maxBytes, sessions);
             server.createContext(API_ROOT, api::handle);
             server.setExecutor(executor);
             server.start();
@@ -89,6 +93,10 @@ final class DialogueWebApi {
         executor.shutdownNow();
     }
 
+    String issuePlayerLink(Player player) {
+        return sessions.issue(player);
+    }
+
     private void handle(HttpExchange exchange) {
         try {
             String origin = exchange.getRequestHeaders().getFirst("Origin");
@@ -102,7 +110,8 @@ final class DialogueWebApi {
                 exchange.close();
                 return;
             }
-            if (!authenticated(exchange)) {
+            WebPlayerSessions.Session requestSession = sessions.resolve(exchange.getRequestHeaders().getFirst("X-RPGMaker-Session"));
+            if (!authenticated(exchange) && requestSession == null) {
                 send(exchange, 401, Map.of("error", "unauthorized"));
                 return;
             }
@@ -114,6 +123,20 @@ final class DialogueWebApi {
             }
             List<String> segments = pathSegments(path);
             String method = exchange.getRequestMethod().toUpperCase(java.util.Locale.ROOT);
+            WebPlayerSessions.Session playerSession = requestSession;
+
+            if (segments.size() == 3 && segments.get(2).equals("me") && method.equals("GET")) {
+                if (playerSession == null) {
+                    send(exchange, 403, Map.of("error", "player_session_required"));
+                    return;
+                }
+                send(exchange, 200, Map.of(
+                        "connected", true,
+                        "playerName", playerSession.playerName(),
+                        "ownerUuid", playerSession.ownerUuid().toString(),
+                        "expiresAt", playerSession.expiresAt()));
+                return;
+            }
 
             if (segments.size() == 3 && segments.get(2).equals("status") && method.equals("GET")) {
                 send(exchange, 200, Map.of(
@@ -140,6 +163,10 @@ final class DialogueWebApi {
             if (segments.size() == 3 && segments.get(2).equals("validate") && method.equals("POST")) {
                 Map<String, Object> body = readBody(exchange);
                 Map<String, Object> dialogue = object(body.get("dialogue"));
+                if (playerSession != null && !playerSession.admin() && containsServerCommand(dialogue)) {
+                    send(exchange, 403, Map.of("error", "op_command_requires_admin"));
+                    return;
+                }
                 List<String> issues = sync(() -> compatibility.validate(dialogue));
                 send(exchange, issues.isEmpty() ? 200 : 422, Map.of("valid", issues.isEmpty(), "issues", issues));
                 return;
@@ -151,6 +178,10 @@ final class DialogueWebApi {
                     owner = UUID.fromString(decode(segments.get(3)));
                 } catch (IllegalArgumentException error) {
                     send(exchange, 400, Map.of("error", "invalid_owner_uuid"));
+                    return;
+                }
+                if (playerSession != null && !playerSession.ownerUuid().equals(owner)) {
+                    send(exchange, 403, Map.of("error", "session_owner_mismatch"));
                     return;
                 }
 
@@ -172,6 +203,10 @@ final class DialogueWebApi {
                         Map<String, Object> body = readBody(exchange);
                         String expected = text(body.get("expectedRevision"));
                         Map<String, Object> dialogue = object(body.get("dialogue"));
+                        if (playerSession != null && !playerSession.admin() && containsServerCommand(dialogue)) {
+                            send(exchange, 403, Map.of("error", "op_command_requires_admin"));
+                            return;
+                        }
                         DialogueCompatibilityService.SaveResult result =
                                 sync(() -> compatibility.save(owner, name, expected, dialogue));
                         if (result.conflict()) {
@@ -281,12 +316,23 @@ final class DialogueWebApi {
         return value == null ? "" : String.valueOf(value);
     }
 
+    private boolean containsServerCommand(Map<String, Object> dialogue) {
+        Object pageEffects = dialogue.get("page-effects");
+        if (!(pageEffects instanceof Map<?, ?> effectsByPage)) return false;
+        for (Object pageEffect : effectsByPage.values()) {
+            if (!(pageEffect instanceof Map<?, ?> effect)) continue;
+            Object command = effect.get("command");
+            if (command != null && !String.valueOf(command).isBlank()) return true;
+        }
+        return false;
+    }
+
     private void addCors(HttpExchange exchange, String origin) {
         if (origin != null && allowedOrigins.contains(origin))
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", origin);
         exchange.getResponseHeaders().set("Vary", "Origin");
         exchange.getResponseHeaders().set("Access-Control-Allow-Headers",
-                "Authorization, X-RPGMaker-Token, Content-Type, If-Match");
+                "Authorization, X-RPGMaker-Token, X-RPGMaker-Session, Content-Type, If-Match");
         exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS");
         exchange.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
     }

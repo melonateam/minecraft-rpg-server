@@ -27,7 +27,7 @@ export function StructuredPageNavigator(props: Props) {
     <section className="min-h-0 flex-1 overflow-y-auto border-t border-[#242a33] p-3">
       <div className="flex items-center justify-between px-2 py-2">
         <span className="text-[11px] font-semibold tracking-[0.14em] text-[#66717f]">페이지 구조</span>
-        <span className="text-[10px] text-[#596371]">{props.dialogue.pages.length}/10</span>
+        <span className="text-[10px] text-[#596371]">{props.dialogue.pages.length}/30</span>
       </div>
       <div className="space-y-2">
         {props.dialogue.pages.map((page, index) => {
@@ -51,7 +51,7 @@ export function StructuredPageNavigator(props: Props) {
                 )}
               </button>
               <div className="hidden border-t border-[#2b313b] px-2 py-1.5 group-hover:flex">
-                <button type="button" disabled={props.dialogue.pages.length >= 10} onClick={() => props.onDuplicatePage(page)} className="rounded px-2 py-1 text-[10px] text-[#7f8997] hover:bg-[#252b34] disabled:opacity-30">복제</button>
+                <button type="button" disabled={props.dialogue.pages.length >= 30} onClick={() => props.onDuplicatePage(page)} className="rounded px-2 py-1 text-[10px] text-[#7f8997] hover:bg-[#252b34] disabled:opacity-30">복제</button>
                 <button type="button" disabled={props.dialogue.pages.length <= 1} onClick={() => props.onDeletePage(page)} className="ml-auto rounded px-2 py-1 text-[10px] text-[#7f8997] hover:bg-red-400/10 hover:text-red-300 disabled:opacity-30">삭제</button>
               </div>
             </div>
@@ -60,8 +60,8 @@ export function StructuredPageNavigator(props: Props) {
       </div>
       <button
         type="button"
-        disabled={props.dialogue.pages.length >= 10}
-        title={props.dialogue.pages.length >= 10 ? '한 대화에는 최대 10개의 페이지를 만들 수 있습니다.' : undefined}
+        disabled={props.dialogue.pages.length >= 30}
+        title={props.dialogue.pages.length >= 30 ? '한 대화에는 최대 30개의 페이지를 만들 수 있습니다.' : undefined}
         onClick={props.onCreatePage}
         className="mt-3 w-full rounded-xl border border-dashed border-[#343c48] px-3 py-3 text-sm text-[#8b99ff] enabled:hover:bg-[#1c2128] disabled:text-[#515a67]"
       >

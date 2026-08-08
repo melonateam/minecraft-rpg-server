@@ -15,7 +15,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 final class DialogueCompatibilityService {
-    private static final int MAXIMUM_PAGES = 10;
+    private static final int MAXIMUM_PAGES = 30;
     private static final int MAXIMUM_LINES = 4;
     private static final int MAXIMUM_CHARACTERS_PER_LINE = 30;
     private static final int MAXIMUM_CHOICES = 8;
@@ -79,7 +79,7 @@ final class DialogueCompatibilityService {
         Object pagesValue = data.get("message-pages");
         List<?> pages = pagesValue instanceof List<?> list ? list : List.of(data.getOrDefault("message", ""));
         if (pages.isEmpty()) issues.add("대화 페이지가 없습니다.");
-        if (pages.size() > MAXIMUM_PAGES) issues.add("대화는 최대 10페이지까지 사용할 수 있습니다.");
+        if (pages.size() > MAXIMUM_PAGES) issues.add("대화는 최대 30페이지까지 사용할 수 있습니다.");
 
         for (int page = 0; page < pages.size(); page++) {
             String text = String.valueOf(pages.get(page) == null ? "" : pages.get(page));

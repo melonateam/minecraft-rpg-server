@@ -44,6 +44,6 @@ export function migrateProject(project: RPGProject): RPGProject {
     }
   }
   next.schemaVersion = 2;
-  delete next.characters;
+  next.characters = [];
   return next;
 }

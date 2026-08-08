@@ -181,13 +181,13 @@ export function validateProject(project: RPGProject, manifest: CharacterManifest
         message: '대화 제목은 최대 60자입니다.',
       });
     }
-    if (dialogue.pages.length > 10) {
+    if (dialogue.pages.length > 30) {
       issues.push({
         id: `pages-${dialogue.id}`,
         severity: 'error',
         dialogueId: dialogue.id,
         section: 'flow',
-        message: '한 대화에는 최대 10개의 페이지만 사용할 수 있습니다.',
+        message: '한 대화에는 최대 30개의 페이지만 사용할 수 있습니다.',
       });
     }
 
