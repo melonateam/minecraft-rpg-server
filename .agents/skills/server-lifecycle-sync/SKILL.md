@@ -36,7 +36,7 @@ The PowerShell script resolves the repository root from `$PSScriptRoot`, so it d
 2. Validate that `minecraft-server-1.21.8/start.bat` exists.
 3. Start the RPGMaker web editor with `npm run dev` in `rpgmaker-web-editor`.
 4. Run the web editor in a hidden window so no extra CMD window is shown.
-5. Call the existing `minecraft-server-1.21.8/start.bat` in the active console.
+5. Call the existing `minecraft-server-1.21.8/start.bat` in the active console using a normal CMD `call "<path>"` command. Do not use backslashes as quote escapes in the generated CMD command line.
 6. The existing Minecraft `start.bat` starts the resource-pack tunnel first and then launches Paper with the repository's bundled Java runtime.
 7. Keep standard Minecraft console input available. The operator shuts the server down normally by entering `stop` in the console.
 
@@ -49,9 +49,9 @@ After Paper exits normally:
 1. Return control to `start-with-web-and-sync.ps1` immediately. The Minecraft `start.bat` must not contain a final `pause`.
 2. Terminate the hidden RPGMaker web editor process and its child process tree.
 3. Synchronize server-state changes to GitHub.
-4. Exit the wrapper automatically. `start-with-web-and-sync.bat` must not pause after PowerShell finishes.
+4. Exit the wrapper automatically on success. `start-with-web-and-sync.bat` may pause only when the PowerShell launcher returns a non-zero exit code so startup failures remain visible.
 
-The expected user experience is one visible server console window during operation. After `stop` finishes and Git synchronization completes, that window closes automatically.
+The expected user experience is one visible server console window during operation. After `stop` finishes and Git synchronization completes successfully, that window closes automatically. If launcher startup fails, the root batch file should keep the error visible instead of flashing closed.
 
 ## Direct Server-State Sync
 
@@ -125,20 +125,21 @@ When modifying this lifecycle:
 - Do not convert server shutdown sync into a PR-based workflow.
 - Do not make ordinary authored changes direct-push to `main`.
 - Keep PR metadata in Korean.
-- Preserve automatic wrapper exit after synchronization.
+- Preserve automatic wrapper exit after successful synchronization.
+- Preserve an error-only pause in the root batch launcher so non-zero startup failures remain readable.
 - Keep the automatic shutdown commit message exactly `서버 동기화` unless the user explicitly requests another format.
 
 ## Validation Checklist
 
 After changing the launcher or sync logic, verify the following:
 
-1. `start-with-web-and-sync.bat` launches the PowerShell wrapper without an end-of-script `pause`.
+1. `start-with-web-and-sync.bat` launches the PowerShell wrapper, closes automatically on success, and pauses only when the wrapper returns a non-zero exit code.
 2. `npm run dev` starts successfully and does not create a visible extra console window.
-3. Minecraft starts through the existing `minecraft-server-1.21.8/start.bat`.
+3. Minecraft starts through the existing `minecraft-server-1.21.8/start.bat` using a correctly quoted CMD `call` command.
 4. The Minecraft console accepts normal commands, including `stop`.
 5. After `stop`, the web editor process tree is terminated.
 6. Only `minecraft-server-1.21.8` changes are staged by the shutdown sync.
 7. A changed server produces one `서버 동기화` commit.
 8. The commit rebases against the latest `origin/main` and pushes directly to `main`.
 9. Unrelated local edits remain unstaged and intact.
-10. The launcher window closes automatically after synchronization completes.
+10. The launcher window closes automatically after successful synchronization completes.
