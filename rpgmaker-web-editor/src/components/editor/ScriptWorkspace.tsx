@@ -33,7 +33,6 @@ export function ScriptWorkspace({
   page,
   pageNumber,
   manifest,
-  variableNames = [],
   activePanel,
   onOpenPanel,
   onChange,
@@ -45,7 +44,6 @@ export function ScriptWorkspace({
     ? (page.appearance.expression as ManifestExpression)
     : expressions[0];
   const sprite = character && expression ? portraitSprite(manifest, character, gender, expression) : undefined;
-  const variableExamples = variableNames.slice(0, 8);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0f1216]">
@@ -118,27 +116,8 @@ export function ScriptWorkspace({
                 <span className="text-xs text-[#626c79]">최대 4줄 · 줄당 표시 문자 30자</span>
               </div>
 
-              <div className="mt-3 rounded-xl border border-[#2b4151] bg-[#111a22] p-4">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#72d8d2]">
-                  <span className="rounded-md bg-[#183036] px-2 py-1">변수 출력 방법</span>
-                  <span className="text-[#81909d]">삽입 창 없이 대사에 직접 작성합니다.</span>
-                </div>
-                <div className="mt-3 text-sm text-[#c9d3dc]">
-                  대사 안에 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">{'{{변수명}}'}</code>을 입력하면
-                  플레이 시 해당 변수 값으로 바뀝니다.
-                </div>
-                <div className="mt-2 text-xs leading-5 text-[#7f8c99]">
-                  예: <code className="text-[#d8c28a]">안녕하세요, {'{{player_name}}'}님.</code> · 직접 만든 변수는 효과 → 변수에서 값을 저장한 뒤 같은 이름으로 사용하세요.
-                </div>
-                {variableExamples.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {variableExamples.map((name) => (
-                      <code key={name} className="rounded-md border border-[#304252] bg-[#0d151c] px-2 py-1 text-[11px] text-[#91a8ba]">
-                        {`{{${name}}}`}
-                      </code>
-                    ))}
-                  </div>
-                )}
+              <div className="mt-3 rounded-xl border border-[#2b4151] bg-[#111a22] px-4 py-3 text-sm text-[#c9d3dc]">
+                <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">{'{{변수}}'}</code>으로 대화문에 변수값을 출력할 수 있습니다.
               </div>
 
               <div className="mt-3 space-y-3">
