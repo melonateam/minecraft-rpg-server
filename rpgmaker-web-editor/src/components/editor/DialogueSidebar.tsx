@@ -9,7 +9,7 @@ interface Props {
   issues: ValidationIssue[];
   onSelectDialogue: (dialogue: Dialogue) => void;
   onCreateDialogue: () => void;
-  onDeleteDialogue: () => void;
+  onDeleteDialogue?: () => void;
   onSelectPage: (pageId: string) => void;
   onCreatePage: () => void;
   onDuplicatePage: (pageId: string) => void;
@@ -57,13 +57,15 @@ export function DialogueSidebar(props: Props) {
           >
             + 새 대화
           </button>
-          <button
-            type="button"
-            onClick={props.onDeleteDialogue}
-            className="rounded-lg px-2.5 py-2 text-xs text-[#8b929d] hover:bg-red-400/10 hover:text-red-300"
-          >
-            대화 삭제
-          </button>
+          {props.onDeleteDialogue && (
+            <button
+              type="button"
+              onClick={props.onDeleteDialogue}
+              className="rounded-lg px-2.5 py-2 text-xs text-[#8b929d] hover:bg-red-400/10 hover:text-red-300"
+            >
+              대화 삭제
+            </button>
+          )}
         </div>
       </section>
 
