@@ -56,6 +56,8 @@ const BUILTIN_VARIABLES = [
   'held_item_amount',
 ];
 
+const normalizedName = (value: string) => value.trim().toLocaleLowerCase();
+
 function sectionForIssue(section: ValidationIssue['section']): InspectorSection | undefined {
   if (section === 'character') return 'character';
   if (section === 'choices') return 'choices';
@@ -149,10 +151,8 @@ export function DialogueStudioV2() {
 
   useEffect(() => {
     if (!project) return;
-    const active =
-      project.dialogues.find((candidate) => candidate.id === activeDialogueId) ?? project.dialogues[0];
-    if (active && active.id !== activeDialogueId)
-      selectDialogue(active.id, active.pages[0]?.id);
+    const active = project.dialogues.find((candidate) => candidate.id === activeDialogueId) ?? project.dialogues[0];
+    if (active && active.id !== activeDialogueId) selectDialogue(active.id, active.pages[0]?.id);
   }, [project, activeDialogueId, selectDialogue]);
 
   useEffect(() => {
@@ -161,10 +161,8 @@ export function DialogueStudioV2() {
     setTestMode(false);
   }, [projectId, resetHistory]);
 
-  const dialogue =
-    project?.dialogues.find((candidate) => candidate.id === activeDialogueId) ?? project?.dialogues[0];
-  const page =
-    dialogue?.pages.find((candidate) => candidate.id === activePageId) ?? dialogue?.pages[0];
+  const dialogue = project?.dialogues.find((candidate) => candidate.id === activeDialogueId) ?? project?.dialogues[0];
+  const page = dialogue?.pages.find((candidate) => candidate.id === activePageId) ?? dialogue?.pages[0];
 
   const issues = useMemo(
     () => (project && manifest ? validateProject(project, manifest) : []),
@@ -264,15 +262,24 @@ export function DialogueStudioV2() {
   if (!project) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#0f1115] text-[#9aa3af]">
-        프로젝트를 찾을 수 없습니다.
+        작업공간을 찾을 수 없습니다.
       </main>
     );
   }
 
   if (!dialogue || !page) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#0f1115] text-[#9aa3af]">
-        대화 페이지를 찾을 수 없습니다.
+      <main className="grid min-h-screen place-items-center bg-[#0f1115] p-8 text-center text-[#9aa3af]">
+        <div>
+          <div>현재 작업공간에 대화가 없습니다.</div>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="mt-4 rounded-lg bg-[#252b35] px-4 py-2 text-sm text-white"
+          >
+            대화 목록으로
+          </button>
+        </div>
       </main>
     );
   }
@@ -298,15 +305,59 @@ export function DialogueStudioV2() {
   }
 
   const createNewDialogue = () => {
-    const next = createDialogue(`대화 ${project.dialogues.length + 1}`);
+    const entered = window.prompt('새 대화 이름', `대화 ${project.dialogues.length + 1}`);
+    if (entered === null) return;
+    const name = entered.trim();
+    if (!name) {
+      window.alert('대화 이름을 입력해 주세요.');
+      return;
+    }
+    if (project.dialogues.some((candidate) => normalizedName(candidate.name) === normalizedName(name))) {
+      window.alert(`'${name}' 이름의 대화가 이미 있습니다. 생성하지 않았습니다.`);
+      return;
+    }
+    const next = createDialogue(name);
     mutateProject(project.id, (draft) => void draft.dialogues.push(next));
     selectDialogue(next.id, next.pages[0]?.id);
     setRightPanel(undefined);
   };
 
+  const deleteCurrentDialogue = () => {
+    if (!window.confirm(`'${dialogue.name}' 대화를 삭제할까요?\n서버에 연결된 대화라면 다음 '서버에 반영' 때 서버에서도 삭제됩니다.`)) return;
+    const fallback = project.dialogues.find((candidate) => candidate.id !== dialogue.id);
+    mutateProject(project.id, (draft) => {
+      const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
+      if (target?.server?.ownerUuid && target.server.remoteName) {
+        draft.pendingServerDeletes ??= [];
+        const duplicate = draft.pendingServerDeletes.some(
+          (entry) => entry.ownerUuid === target.server!.ownerUuid && entry.remoteName === target.server!.remoteName,
+        );
+        if (!duplicate) {
+          draft.pendingServerDeletes.push({
+            ownerUuid: target.server.ownerUuid,
+            remoteName: target.server.remoteName,
+            revision: target.server.revision,
+          });
+        }
+      }
+      draft.dialogues = draft.dialogues.filter((candidate) => candidate.id !== dialogue.id);
+    });
+    setRightPanel(undefined);
+    if (fallback) selectDialogue(fallback.id, fallback.pages[0]?.id);
+    else navigate('/');
+  };
+
   const createNewPage = () => {
     if (dialogue.pages.length >= 30) return;
     const next = createPage(`Page ${dialogue.pages.length + 1}`);
+    const previous = dialogue.pages.at(-1);
+    if (previous) {
+      next.speaker = previous.speaker;
+      next.appearance = {
+        ...structuredClone(previous.appearance),
+        inheritPrevious: false,
+      };
+    }
     mutateProject(project.id, (draft) => {
       const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
       target?.pages.push(next);
@@ -341,10 +392,8 @@ export function DialogueStudioV2() {
         if (choice.targetPageId === pageId)
           references.push(`Page ${index + 1} / 선택지 "${choice.label || '이름 없음'}"`);
       });
-      if (candidate.server?.flow.nextPageId === pageId)
-        references.push(`Page ${index + 1} / 다음 페이지`);
-      if (candidate.server?.flow.conditionalTargetPageId === pageId)
-        references.push(`Page ${index + 1} / 조건부 Jump`);
+      if (candidate.server?.flow.nextPageId === pageId) references.push(`Page ${index + 1} / 다음 페이지`);
+      if (candidate.server?.flow.conditionalTargetPageId === pageId) references.push(`Page ${index + 1} / 조건부 Jump`);
     });
 
     const message = [
@@ -393,18 +442,91 @@ export function DialogueStudioV2() {
       connection.ownerUuid,
       manifest,
     );
+    const existing = project.dialogues.find(
+      (candidate) =>
+        (candidate.server?.ownerUuid === connection.ownerUuid && candidate.server?.remoteName === document.name) ||
+        normalizedName(candidate.name) === normalizedName(imported.name) ||
+        normalizedName(candidate.name) === normalizedName(document.name),
+    );
+    if (existing) imported.id = existing.id;
+
     mutateProject(project.id, (draft) => {
       const existingIndex = draft.dialogues.findIndex(
         (candidate) =>
-          candidate.server?.ownerUuid === connection.ownerUuid &&
-          candidate.server?.remoteName === document.name,
+          (candidate.server?.ownerUuid === connection.ownerUuid && candidate.server?.remoteName === document.name) ||
+          normalizedName(candidate.name) === normalizedName(imported.name) ||
+          normalizedName(candidate.name) === normalizedName(document.name),
       );
       if (existingIndex >= 0) draft.dialogues[existingIndex] = imported;
       else draft.dialogues.push(imported);
+      draft.pendingServerDeletes = (draft.pendingServerDeletes ?? []).filter(
+        (entry) => !(entry.ownerUuid === connection.ownerUuid && entry.remoteName === document.name),
+      );
     });
     selectDialogue(imported.id, imported.pages[0]?.id);
     setServerStatus('connected');
     setServerMessage(`${connection.playerName} · 서버에서 ${document.name}을 불러왔습니다.`);
+  };
+
+  const pullFromServer = async () => {
+    if (!connection) {
+      setServerModal(true);
+      setServerMessage('게임에서 /rpgmaker web 링크로 먼저 연결하세요.');
+      return;
+    }
+    setServerStatus('syncing');
+    setServerMessage(`${connection.playerName} · 서버 대화 목록을 동기화하는 중`);
+    try {
+      const api = new PlayerSessionApiClient(connection.sessionId);
+      const summaries = await api.listDialogues(connection.ownerUuid);
+      const documents = await Promise.all(
+        summaries.map((summary) => api.getDialogue(connection.ownerUuid, summary.name)),
+      );
+      const imported = documents.map((document) =>
+        importMinecraftDialogue(document.name, document.dialogue, document.revision, connection.ownerUuid, manifest),
+      );
+      const remoteNames = new Set(summaries.map((summary) => normalizedName(summary.name)));
+
+      imported.forEach((next) => {
+        const existing = project.dialogues.find(
+          (candidate) =>
+            (candidate.server?.ownerUuid === connection.ownerUuid &&
+              normalizedName(candidate.server?.remoteName ?? '') === normalizedName(next.server?.remoteName ?? '')) ||
+            normalizedName(candidate.name) === normalizedName(next.name) ||
+            normalizedName(candidate.name) === normalizedName(next.server?.remoteName ?? ''),
+        );
+        if (existing) next.id = existing.id;
+      });
+
+      mutateProject(project.id, (draft) => {
+        draft.dialogues = draft.dialogues.filter((candidate) => {
+          if (candidate.server?.ownerUuid !== connection.ownerUuid || !candidate.server.remoteName) return true;
+          return remoteNames.has(normalizedName(candidate.server.remoteName));
+        });
+        for (const next of imported) {
+          const index = draft.dialogues.findIndex(
+            (candidate) =>
+              (candidate.server?.ownerUuid === connection.ownerUuid &&
+                normalizedName(candidate.server?.remoteName ?? '') === normalizedName(next.server?.remoteName ?? '')) ||
+              normalizedName(candidate.name) === normalizedName(next.name) ||
+              normalizedName(candidate.name) === normalizedName(next.server?.remoteName ?? ''),
+          );
+          if (index >= 0) draft.dialogues[index] = next;
+          else draft.dialogues.push(next);
+        }
+        draft.pendingServerDeletes = (draft.pendingServerDeletes ?? []).filter(
+          (entry) => entry.ownerUuid !== connection.ownerUuid,
+        );
+      });
+
+      const preferred = imported.find((candidate) => candidate.id === dialogue.id) ?? imported[0];
+      if (preferred) selectDialogue(preferred.id, preferred.pages[0]?.id);
+      setServerStatus('connected');
+      setServerMessage(`${connection.playerName} · 서버 대화 ${summaries.length}개를 웹에 동기화했습니다.`);
+    } catch (error) {
+      setServerStatus('error');
+      setServerMessage(error instanceof Error ? error.message : '서버 대화를 불러오지 못했습니다.');
+    }
   };
 
   const applyToServer = async () => {
@@ -419,39 +541,94 @@ export function DialogueStudioV2() {
       return;
     }
 
-    const name = dialogue.server?.remoteName || dialogue.name;
-    const payload = exportMinecraftDialogue(dialogue, manifest);
+    const duplicateNames = project.dialogues
+      .map((candidate) => normalizedName(candidate.server?.remoteName || candidate.name))
+      .filter((name, index, all) => all.indexOf(name) !== index);
+    if (duplicateNames.length) {
+      setServerStatus('error');
+      setServerMessage('같은 이름의 대화가 두 개 이상 있어 서버에 반영할 수 없습니다. 중복 이름을 먼저 정리하세요.');
+      return;
+    }
+
     setServerStatus('syncing');
-    setServerMessage(`${connection.playerName} 계정에 저장 중 · 검증 → 저장 → reload`);
+    setServerMessage(`${connection.playerName} · 전체 대화 추가/수정/삭제를 서버에 반영하는 중`);
 
     try {
       const api = new PlayerSessionApiClient(connection.sessionId);
-      await api.validate(payload);
-      const saved = await api.saveDialogue(
-        connection.ownerUuid,
-        name,
-        dialogue.server?.revision,
-        payload,
-      );
-      await api.reloadDialogue(connection.ownerUuid, name);
-      mutateProject(project.id, (draft) => {
-        const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
-        if (!target) return;
-        target.server = {
-          ownerUuid: connection.ownerUuid,
-          remoteName: name,
+      const summaries = await api.listDialogues(connection.ownerUuid);
+      const remoteByName = new Map(summaries.map((summary) => [normalizedName(summary.name), summary]));
+
+      for (const local of project.dialogues) {
+        const remoteName = local.server?.remoteName || local.name;
+        const current = remoteByName.get(normalizedName(remoteName));
+        if (
+          local.server?.ownerUuid === connection.ownerUuid &&
+          local.server.revision &&
+          current &&
+          local.server.revision !== current.revision
+        ) {
+          throw new RevisionConflictError(current.revision);
+        }
+      }
+
+      for (const pending of project.pendingServerDeletes ?? []) {
+        if (pending.ownerUuid !== connection.ownerUuid) continue;
+        const current = remoteByName.get(normalizedName(pending.remoteName));
+        if (current) await api.deleteDialogue(connection.ownerUuid, current.name);
+      }
+
+      const savedMetadata = new Map<
+        string,
+        { remoteName: string; revision: string; raw: Record<string, unknown> }
+      >();
+      for (const local of project.dialogues) {
+        const remoteName = local.server?.remoteName || local.name;
+        const payload = exportMinecraftDialogue(local, manifest);
+        await api.validate(payload);
+        const current = remoteByName.get(normalizedName(remoteName));
+        const expectedRevision =
+          local.server?.ownerUuid === connection.ownerUuid && local.server.revision
+            ? local.server.revision
+            : current?.revision;
+        const saved = await api.saveDialogue(
+          connection.ownerUuid,
+          remoteName,
+          expectedRevision,
+          payload,
+        );
+        await api.reloadDialogue(connection.ownerUuid, remoteName);
+        savedMetadata.set(local.id, {
+          remoteName,
           revision: saved.revision,
           raw: structuredClone(payload),
-          lastSyncedAt: new Date().toISOString(),
-        };
+        });
+      }
+
+      mutateProject(project.id, (draft) => {
+        for (const target of draft.dialogues) {
+          const saved = savedMetadata.get(target.id);
+          if (!saved) continue;
+          target.server = {
+            ownerUuid: connection.ownerUuid,
+            remoteName: saved.remoteName,
+            revision: saved.revision,
+            raw: saved.raw,
+            lastSyncedAt: new Date().toISOString(),
+          };
+        }
+        draft.pendingServerDeletes = (draft.pendingServerDeletes ?? []).filter(
+          (entry) => entry.ownerUuid !== connection.ownerUuid,
+        );
       });
       setServerStatus('applied');
-      setServerMessage(`${connection.playerName} · 서버 반영 완료 · revision ${saved.revision.slice(0, 8)}`);
+      setServerMessage(
+        `${connection.playerName} · 서버 반영 완료 · 대화 ${project.dialogues.length}개 저장, 삭제 예약 처리 완료`,
+      );
     } catch (error) {
       if (error instanceof RevisionConflictError) {
         setServerStatus('conflict');
         setServerMessage(
-          `서버 revision ${error.serverRevision.slice(0, 8)}가 변경되었습니다. 서버에서 다시 불러온 뒤 병합하세요.`,
+          `서버 revision ${error.serverRevision.slice(0, 8)}가 변경되었습니다. '서버에서 불러오기' 후 다시 반영하세요.`,
         );
       } else {
         setServerStatus('error');
@@ -482,7 +659,7 @@ export function DialogueStudioV2() {
             setTestMode(true);
           }}
           onValidate={() => setRightPanel({ kind: 'validation' })}
-          onServer={() => setServerModal(true)}
+          onServer={() => void pullFromServer()}
           onApplyServer={() => void applyToServer()}
         />
       )}
@@ -503,6 +680,7 @@ export function DialogueStudioV2() {
                 setRightPanel(undefined);
               }}
               onCreateDialogue={createNewDialogue}
+              onDeleteDialogue={deleteCurrentDialogue}
               onSelectPage={(pageId) => {
                 selectPage(pageId);
                 setRightPanel(undefined);
