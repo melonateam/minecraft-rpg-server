@@ -21,7 +21,7 @@ specialized Minecraft skill.
 | Skill | Primary use cases | Choose this instead when |
 |---|---|---|
 | `minecraft-rpg-project-context` | Bootstrap this repository in a fresh chat: project layout, required reading order, RPGMaker architecture, skill paths, Git policy, and task routing | You already have current project context and only need a specialized Minecraft implementation/operations skill |
-| `minecraft-rpg-git-workflow` | Authored repository changes: `chatgpt/*` branch, normal PR creation, immediate squash merge when clean, auto-merge only when pending repository gates block an otherwise ready PR | You are synchronizing server-generated runtime state on shutdown (`server-lifecycle-sync`) |
+| `minecraft-rpg-git-workflow` | Authored repository changes: `chatgpt/*` branch, normal PR creation, immediate squash merge when clean, auto-merge only when pending repository gates block an otherwise ready PR | You are maintaining the explicit code-only shutdown sync (`server-lifecycle-sync`) |
 | `minecraft-modding` | Build NeoForge or Fabric mods (blocks, items, entities, GUIs, datagen) | You need a single shared codebase for both loaders (`minecraft-multiloader`) |
 | `minecraft-multiloader` | Architectury projects that ship both NeoForge and Fabric from one repo | You only need one loader (`minecraft-modding`) |
 | `minecraft-plugin-dev` | Write Paper/Bukkit/Spigot plugins in Java 21 | You need server operations or deployment guidance (`minecraft-server-admin`) |
@@ -39,7 +39,7 @@ specialized Minecraft skill.
 ## Overlap Boundaries
 
 - Use `minecraft-rpg-project-context` to restore repository-specific context and choose what to read next; it does not replace the specialized skill or current source inspection.
-- Use `minecraft-rpg-git-workflow` whenever authored repository files are changed. It owns PR creation/merge behavior and must not be replaced by the server runtime sync exception.
+- Use `minecraft-rpg-git-workflow` whenever authored repository files are changed. The only direct-main exception is the explicit automatic classifier documented by `server-lifecycle-sync`; runtime server data is never part of it.
 - Use `minecraft-server-admin` for platform-level operations (hosting, proxy, backups, performance).
 - Use `minecraft-worldedit-ops` for command-driven build/admin changes in-world.
 - Use `minecraft-essentials-ops` for EssentialsX-specific commands, config, and permissions.
