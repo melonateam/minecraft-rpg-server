@@ -17,6 +17,24 @@ function Assert-LastExitCode([string]$Message) {
     }
 }
 
+function Get-NativeVersionLine([string]$CommandPath, [string[]]$Arguments) {
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $CommandPath @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+
+    if ($exitCode -ne 0) {
+        throw "Command failed while checking version: $CommandPath"
+    }
+
+    return [string]($output | Select-Object -First 1)
+}
+
 function Ensure-Gradle {
     $wrapper = Join-Path $pluginDir "gradlew.bat"
     if (Test-Path $wrapper) {
@@ -91,7 +109,8 @@ if (-not $java) {
     exit 1
 }
 
-Write-Host "Java: $(& $java.Source -version 2>&1 | Select-Object -First 1)"
+$javaVersion = Get-NativeVersionLine $java.Source @("-version")
+Write-Host "Java: $javaVersion"
 $gradleCommand = Ensure-Gradle
 
 Write-Host "Building RPGMaker v$expectedVersion..."
