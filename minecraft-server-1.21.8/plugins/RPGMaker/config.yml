@@ -572,6 +572,38 @@ player-dialogues:
       page-show-portraits:
         '0': false
       show-portrait: true
+    첫_대화:
+      title: 첫 대화
+      message-pages:
+      - |-
+        안녕
+        ㅁㅁㅁㅁ
+      speaker: 도적
+      page-speakers:
+        '0': 도적
+      page-portraits:
+        '0': FEMALE_ROGUE
+      page-expressions:
+        '0': HAPPY
+      page-show-portraits:
+        '0': true
+      page-choices: {}
+      page-conditions: {}
+      page-effects:
+        '0':
+          variables-set: variable=random(1..100)
+          message-color: '#FFFFFF'
+          return-mode: NONE
+          command-target: PLAYER
+          chat-input-variable: ''
+          variables-delete: ''
+      page-flow:
+        '0':
+          next-page: 0
+          terminal: false
+          jump-target: 0
+          jump-timing: AFTER
+      page-operation-only: {}
   ae2c3ff1-4041-449f-97d6-4888509568a3:
     초보_상점_이용법:
       example-version: 3
