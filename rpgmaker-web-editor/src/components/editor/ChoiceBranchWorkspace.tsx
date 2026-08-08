@@ -8,6 +8,7 @@ import {
   type ManifestExpression,
 } from '../../services/characterRegistry';
 import { visibleLength } from '../../services/projectValidator';
+import { useProjectStore } from '../../store/projectStore';
 
 interface Props {
   page: DialoguePage;
@@ -59,7 +60,9 @@ export function ChoiceBranchWorkspace({ page, manifest, onChange }: Props) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b09cff]">선택지 상세 편집</div>
-          <p className="mt-2 text-xs leading-5 text-[#776f80]">선택지 문구 → 후속 대사 → 후속 대사 안의 선택지를 한 구조에서 편집합니다. 후속 대사는 서버의 response-pages 구조로 저장됩니다.</p>
+          <p className="mt-2 text-xs leading-5 text-[#776f80]">
+            선택지 문구 → 후속 대사 → 후속 대사 안의 선택지를 한 구조에서 편집합니다. 각 분기가 끝난 뒤 이어질 다른 대화도 지정할 수 있습니다.
+          </p>
         </div>
         <span className="rounded-full bg-[#2b2234] px-2 py-1 text-[10px] text-[#c0aaff]">{page.choices.length}/8</span>
       </div>
@@ -93,6 +96,7 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
   onChange: Props['onChange'];
   onDelete: () => void;
 }) {
+  const dialogues = useProjectStore((state) => state.projects.flatMap((project) => project.dialogues));
   const mutateChoice = (mutator: (draft: DialogueChoice) => void) =>
     onChange((draftPage) => {
       const target = visitChoice(draftPage.choices, choice.id);
@@ -117,6 +121,21 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
           <input className={`${input} mt-1.5`} value={choice.speakerOverride ?? ''} maxLength={10} placeholder="비워두면 원래 페이지 화자를 사용" onChange={(event) => mutateChoice((draft) => void (draft.speakerOverride = event.target.value || undefined))} />
         </label>
 
+        <label className="block text-xs text-[#c0aaff]">
+          이 선택지가 끝난 뒤 대화 이동
+          <select
+            className={`${input} mt-1.5`}
+            value={choice.targetDialogueName ?? ''}
+            onChange={(event) => mutateChoice((draft) => void (draft.targetDialogueName = event.target.value || undefined))}
+          >
+            <option value="">이동 안 함 · 현재 대화 흐름 사용</option>
+            {dialogues.map((dialogue) => (
+              <option key={dialogue.id} value={dialogue.name}>{dialogue.name}</option>
+            ))}
+          </select>
+          <span className="mt-1.5 block text-[10px] leading-4 text-[#766b7e]">후속 대사와 중첩 선택지가 모두 끝난 다음 지정한 대화를 시작합니다.</span>
+        </label>
+
         <div className="rounded-xl border border-[#30283a] bg-[#120f16] p-3">
           <div className="flex items-center justify-between">
             <div><div className="text-xs font-semibold text-[#d4c8dc]">후속 대사</div><div className="mt-1 text-[10px] text-[#73697b]">선택 직후 순서대로 표시되는 대사 페이지입니다.</div></div>
@@ -126,7 +145,7 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
             {(choice.responsePages ?? []).map((response, responseIndex) => (
               <ResponsePageEditor key={response.id} response={response} index={responseIndex} depth={depth} manifest={manifest} onChange={onChange} onDelete={() => mutateChoice((draft) => void (draft.responsePages = (draft.responsePages ?? []).filter((item) => item.id !== response.id)))} />
             ))}
-            {!choice.responsePages?.length && <div className="rounded-lg border border-dashed border-[#30283a] px-3 py-5 text-center text-[11px] text-[#6e6476]">후속 대사가 없으면 선택 즉시 대화 이동 규칙을 적용합니다.</div>}
+            {!choice.responsePages?.length && <div className="rounded-lg border border-dashed border-[#30283a] px-3 py-5 text-center text-[11px] text-[#6e6476]">후속 대사가 없으면 선택 직후 대화 이동 규칙을 적용합니다.</div>}
           </div>
         </div>
         <div className="flex justify-end"><button type="button" onClick={onDelete} className="rounded-lg px-3 py-2 text-xs text-[#86798e] hover:bg-red-400/10 hover:text-red-300">선택지 삭제</button></div>
@@ -205,10 +224,12 @@ function ResponsePageEditor({ response, index, depth, manifest, onChange, onDele
           <summary className="cursor-pointer text-xs font-semibold text-[#a99db1]">후속 대사 효과</summary>
           <div className="mt-3 space-y-2">
             <input className={input} value={response.server?.effects.variablesSet ?? ''} placeholder="변수 설정: score+=1, roll=random(1..10)" onChange={(event) => mutate((draft) => void (draft.server!.effects.variablesSet = event.target.value))} />
+            <input className={input} value={response.server?.effects.variablesDelete ?? ''} placeholder="변수 삭제" onChange={(event) => mutate((draft) => void (draft.server!.effects.variablesDelete = event.target.value))} />
             <input className={input} value={response.server?.effects.giveItems ?? ''} placeholder="아이템 지급: minecraft:bread:1" onChange={(event) => mutate((draft) => void (draft.server!.effects.giveItems = event.target.value))} />
             <input className={input} value={response.server?.effects.takeItems ?? ''} placeholder="아이템 회수" onChange={(event) => mutate((draft) => void (draft.server!.effects.takeItems = event.target.value))} />
             <input className={input} value={response.server?.effects.sounds ?? ''} placeholder="사운드" onChange={(event) => mutate((draft) => void (draft.server!.effects.sounds = event.target.value))} />
             <input className={input} value={response.server?.effects.message ?? ''} placeholder="메시지" onChange={(event) => mutate((draft) => void (draft.server!.effects.message = event.target.value))} />
+            <input className={input} value={response.server?.effects.chatInputVariable ?? ''} placeholder="채팅 입력 변수" onChange={(event) => mutate((draft) => void (draft.server!.effects.chatInputVariable = event.target.value))} />
           </div>
         </details>
 
