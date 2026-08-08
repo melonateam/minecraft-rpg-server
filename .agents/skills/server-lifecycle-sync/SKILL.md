@@ -68,13 +68,13 @@ minecraft-server-1.21.8
 
 3. Leave unrelated local edits unstaged.
 4. Skip the commit when no server files changed.
-5. Commit all staged server-state changes as one commit with this format:
+5. Commit all staged server-state changes as one commit with exactly this message:
 
 ```text
-server-sync: YYYY-MM-DD HH:mm:ss
+서버 동기화
 ```
 
-6. Rebase the new server-sync commit onto the latest `origin/main` using `--autostash` so unrelated local edits remain safe.
+6. Rebase the new server synchronization commit onto the latest `origin/main` using `--autostash` so unrelated local edits remain safe.
 7. Push directly to `origin main`.
 
 Repository rules intentionally allow this runtime synchronization to bypass the pull-request requirement. These direct server-sync pushes still remain visible in the Git commit history; they simply do not create pull-request records.
@@ -88,7 +88,7 @@ Treat runtime synchronization and authored repository changes differently.
 ### Runtime server synchronization
 
 - No pull request.
-- One direct `server-sync: <timestamp>` commit per shutdown when server files changed.
+- One direct `서버 동기화` commit per shutdown when server files changed.
 - Direct push to `main` is expected.
 
 ### Human or agent-authored changes
@@ -126,6 +126,7 @@ When modifying this lifecycle:
 - Do not make ordinary authored changes direct-push to `main`.
 - Keep PR metadata in Korean.
 - Preserve automatic wrapper exit after synchronization.
+- Keep the automatic shutdown commit message exactly `서버 동기화` unless the user explicitly requests another format.
 
 ## Validation Checklist
 
@@ -137,7 +138,7 @@ After changing the launcher or sync logic, verify the following:
 4. The Minecraft console accepts normal commands, including `stop`.
 5. After `stop`, the web editor process tree is terminated.
 6. Only `minecraft-server-1.21.8` changes are staged by the shutdown sync.
-7. A changed server produces one `server-sync: <timestamp>` commit.
+7. A changed server produces one `서버 동기화` commit.
 8. The commit rebases against the latest `origin/main` and pushes directly to `main`.
 9. Unrelated local edits remain unstaged and intact.
 10. The launcher window closes automatically after synchronization completes.
