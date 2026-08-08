@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { DialoguePage } from '../../domain/project';
 import {
   availableExpressions,
@@ -9,6 +10,8 @@ import {
 } from '../../services/characterRegistry';
 import { visibleLength } from '../../services/projectValidator';
 import { PortraitSprite } from '../characters/PortraitSprite';
+import { ChoiceBranchWorkspace } from './ChoiceBranchWorkspace';
+import { DialogueMovementWorkspace } from './DialogueMovementWorkspace';
 import type { InspectorSection } from './EditorInspector';
 
 interface Props {
@@ -23,10 +26,9 @@ interface Props {
 
 const panelButtons: Array<[InspectorSection, string, string]> = [
   ['character', '캐릭터', '인물·표정'],
-  ['choices', '선택지', '분기·결과'],
   ['condition', '조건', '표시 규칙'],
   ['effects', '효과', '아이템·변수'],
-  ['flow', '페이지 흐름', '이동·종료'],
+  ['flow', '대화 이동', '페이지·대화 이동'],
 ];
 
 export function ScriptWorkspace({
@@ -44,6 +46,12 @@ export function ScriptWorkspace({
     ? (page.appearance.expression as ManifestExpression)
     : expressions[0];
   const sprite = character && expression ? portraitSprite(manifest, character, gender, expression) : undefined;
+
+  useEffect(() => {
+    const open = () => onOpenPanel('choices');
+    window.addEventListener('rpgmaker:open-choices', open);
+    return () => window.removeEventListener('rpgmaker:open-choices', open);
+  }, [onOpenPanel]);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0f1216]">
@@ -163,21 +171,19 @@ export function ScriptWorkspace({
           <div className="my-8 h-px bg-[#20262e]" />
 
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6e7887]">필요한 기능 열기</div>
-            <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6e7887]">페이지 기능</div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
               {panelButtons.map(([panel, title, description]) => {
                 const count =
-                  panel === 'choices'
-                    ? page.choices.length
-                    : panel === 'effects'
-                      ? effectCount(page)
-                      : panel === 'condition'
-                        ? page.server?.displayCondition.mode !== 'none' && page.server?.displayCondition.mode
-                          ? 1
-                          : 0
-                        : panel === 'flow'
-                          ? flowCount(page)
-                          : 0;
+                  panel === 'effects'
+                    ? effectCount(page)
+                    : panel === 'condition'
+                      ? page.server?.displayCondition.mode !== 'none' && page.server?.displayCondition.mode
+                        ? 1
+                        : 0
+                      : panel === 'flow'
+                        ? flowCount(page)
+                        : 0;
                 return (
                   <button
                     key={panel}
@@ -202,35 +208,48 @@ export function ScriptWorkspace({
             </div>
           </div>
 
-          {page.choices.length > 0 && (
-            <>
-              <div className="my-8 h-px bg-[#20262e]" />
+          <div className="my-8 h-px bg-[#20262e]" />
+          <div>
+            <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6e7887]">현재 선택지</div>
-                  <button type="button" onClick={() => onOpenPanel('choices')} className="text-xs text-[#8b99ff]">
-                    편집
-                  </button>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {page.choices.map((choice, index) => (
-                    <button
-                      key={choice.id}
-                      type="button"
-                      onClick={() => onOpenPanel('choices')}
-                      className="flex items-center rounded-xl border border-[#252c35] bg-[#15191f] px-4 py-3 text-left hover:bg-[#191e25]"
-                    >
-                      <span className="mr-3 text-xs font-semibold text-[#7c8cff]">[{index + 1}]</span>
-                      <span className="min-w-0 flex-1 truncate text-sm">
-                        {choice.label || <span className="text-[#596270]">이름 없는 선택지</span>}
-                      </span>
-                      <span className="text-xs text-[#687281]">→</span>
-                    </button>
-                  ))}
-                </div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6e7887]">현재 페이지 선택지</div>
+                <div className="mt-1 text-xs text-[#5f6976]">선택지는 왼쪽 사이드바의 ‘선택지 추가’에서도 만들 수 있습니다.</div>
               </div>
-            </>
-          )}
+              <button type="button" onClick={() => onOpenPanel('choices')} className="text-xs text-[#b09cff]">
+                {page.choices.length ? '선택지 편집' : '선택지 만들기'}
+              </button>
+            </div>
+            {page.choices.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {page.choices.map((choice, index) => (
+                  <button
+                    key={choice.id}
+                    type="button"
+                    onClick={() => onOpenPanel('choices')}
+                    className="flex items-center rounded-xl border border-[#30283d] bg-[#18151f] px-4 py-3 text-left hover:bg-[#201b29]"
+                  >
+                    <span className="mr-3 text-xs font-semibold text-[#b09cff]">[{index + 1}]</span>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {choice.label || <span className="text-[#596270]">이름 없는 선택지</span>}
+                    </span>
+                    <span className="mr-3 text-[10px] text-[#707987]">후속 {choice.responsePages?.length ?? 0}p</span>
+                    <span className="text-xs text-[#687281]">→</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenPanel('choices')}
+                className="mt-3 w-full rounded-xl border border-dashed border-[#3a3048] px-4 py-5 text-sm text-[#8f7daf] hover:bg-[#191621]"
+              >
+                선택지를 추가해 플레이어 분기를 만드세요.
+              </button>
+            )}
+          </div>
+
+          {activePanel === 'flow' && <DialogueMovementWorkspace page={page} />}
+          {activePanel === 'choices' && <ChoiceBranchWorkspace page={page} manifest={manifest} onChange={onChange} />}
         </div>
       </div>
     </section>
