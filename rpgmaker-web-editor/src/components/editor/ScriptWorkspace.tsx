@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import type { DialoguePage } from '../../domain/project';
 import {
   availableExpressions,
@@ -15,6 +16,7 @@ interface Props {
   page: DialoguePage;
   pageNumber: number;
   manifest: CharacterManifest;
+  variableNames?: string[];
   activePanel?: InspectorSection;
   onOpenPanel: (panel: InspectorSection) => void;
   onChange: (mutator: (page: DialoguePage) => void) => void;
@@ -26,13 +28,13 @@ const panelButtons: Array<[InspectorSection, string, string]> = [
   ['condition', '조건', '표시 규칙'],
   ['effects', '효과', '아이템·변수'],
   ['flow', '페이지 흐름', '이동·종료'],
-  ['other', '기타', '별칭·제한'],
 ];
 
 export function ScriptWorkspace({
   page,
   pageNumber,
   manifest,
+  variableNames = [],
   activePanel,
   onOpenPanel,
   onChange,
@@ -44,6 +46,27 @@ export function ScriptWorkspace({
     ? (page.appearance.expression as ManifestExpression)
     : expressions[0];
   const sprite = character && expression ? portraitSprite(manifest, character, gender, expression) : undefined;
+  const [activeLineIndex, setActiveLineIndex] = useState(0);
+  const [variableToInsert, setVariableToInsert] = useState(variableNames[0] ?? '');
+  const lineRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const insertVariable = () => {
+    const name = variableToInsert.trim();
+    if (!name) return;
+    const inputElement = lineRefs.current[activeLineIndex];
+    const currentLine = page.lines[activeLineIndex] ?? '';
+    const start = inputElement?.selectionStart ?? currentLine.length;
+    const end = inputElement?.selectionEnd ?? start;
+    const placeholder = `{{${name}}}`;
+    onChange((draft) => {
+      draft.lines[activeLineIndex] = `${currentLine.slice(0, start)}${placeholder}${currentLine.slice(end)}`;
+    });
+    requestAnimationFrame(() => {
+      const next = start + placeholder.length;
+      lineRefs.current[activeLineIndex]?.focus();
+      lineRefs.current[activeLineIndex]?.setSelectionRange(next, next);
+    });
+  };
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0f1216]">
@@ -116,6 +139,37 @@ export function ScriptWorkspace({
                 <span className="text-xs text-[#626c79]">최대 4줄 · 줄당 표시 문자 30자</span>
               </div>
 
+              <div className="mt-3 rounded-xl border border-[#283243] bg-[#141a22] p-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    list="dialogue-variable-names"
+                    value={variableToInsert}
+                    onChange={(event) => setVariableToInsert(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        insertVariable();
+                      }
+                    }}
+                    placeholder="출력할 변수 이름"
+                    className="min-w-0 flex-1 rounded-lg border border-[#303948] bg-[#101419] px-3 py-2 text-sm outline-none focus:border-[#7c8cff]"
+                  />
+                  <datalist id="dialogue-variable-names">
+                    {variableNames.map((name) => <option key={name} value={name} />)}
+                  </datalist>
+                  <button
+                    type="button"
+                    onClick={insertVariable}
+                    className="rounded-lg bg-[#2b3454] px-3 py-2 text-xs font-semibold text-[#c4cbff] hover:bg-[#35416b]"
+                  >
+                    변수 삽입
+                  </button>
+                </div>
+                <div className="mt-2 text-[11px] text-[#6f7b8b]">
+                  선택한 대사 줄의 커서 위치에 <code className="text-[#9ca8ff]">{'{{변수명}}'}</code> 형식으로 삽입합니다.
+                </div>
+              </div>
+
               <div className="mt-3 space-y-3">
                 {page.lines.map((line, index) => {
                   const length = visibleLength(line);
@@ -131,7 +185,11 @@ export function ScriptWorkspace({
                     >
                       <span className="text-center text-xs font-semibold text-[#5f6978]">{index + 1}</span>
                       <input
+                        ref={(element) => {
+                          lineRefs.current[index] = element;
+                        }}
                         value={line}
+                        onFocus={() => setActiveLineIndex(index)}
                         onChange={(event) =>
                           onChange((draft) => {
                             draft.lines[index] = event.target.value;

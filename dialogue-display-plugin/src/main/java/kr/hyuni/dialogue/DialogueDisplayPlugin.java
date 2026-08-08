@@ -80,7 +80,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private static final int MAXIMUM_LINES = 4;
     private static final int MAXIMUM_CHARACTERS_PER_LINE = 30;
     private static final int MAXIMUM_LINE_PIXELS = MAXIMUM_CHARACTERS_PER_LINE * 9;
-    private static final int MAXIMUM_PAGES = 10;
+    private static final int MAXIMUM_PAGES = 30;
     private static final int DEFAULT_TEXT_SIZE = 62;
     private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{([a-zA-Z0-9._-]+)}}");
     private static final java.util.regex.Pattern VARIABLE_ASSIGNMENT = java.util.regex.Pattern.compile("^([^=+*/-]+?)\\s*([+*/-]?=)\\s*(.*)$");
@@ -699,6 +699,18 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             return true;
         }
         String sub = args[0].toLowerCase();
+        if (sub.equals("web")) {
+            if (webApi == null) {
+                player.sendMessage(Component.text("웹 에디터 API가 비활성화되어 있습니다.", NamedTextColor.RED));
+                return true;
+            }
+            String link = webApi.issuePlayerLink(player);
+            player.sendMessage(Component.text("[웹 에디터 열기]", NamedTextColor.AQUA)
+                    .decorate(TextDecoration.BOLD)
+                    .clickEvent(ClickEvent.openUrl(link)));
+            player.sendMessage(Component.text(player.getName() + " 계정으로 자동 연결됩니다. 이 링크는 다른 사람과 공유하지 마세요.", NamedTextColor.GRAY));
+            return true;
+        }
         if (List.of("edit", "edit2", "adjust", "save", "show").contains(sub)
                 || (sub.equals("close") && args.length > 1)) {
             if (!player.hasPermission("rpgmaker.admin")) {
@@ -993,7 +1005,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (!player.isOp()) player.setGameMode(GameMode.ADVENTURE);
         Bukkit.getScheduler().runTaskLater(this, () -> {
             ensureExamples(player);
-            player.sendMessage(Component.text("[RPGMaker] /rpgmaker help · /rpgmaker editor", NamedTextColor.GOLD));
+            player.sendMessage(Component.text("[RPGMaker] /rpgmaker help · /rpgmaker editor · /rpgmaker web", NamedTextColor.GOLD));
             player.sendMessage(Component.text("G키: 대화문·아이템 편집 및 새 대화문 만들기", NamedTextColor.GREEN));
             player.sendMessage(Component.text("대화 중 Space: 대화문 스킵 · Shift: 다음 대사", NamedTextColor.AQUA));
         }, 30L);
@@ -1277,7 +1289,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (showPortrait) buttons.addAll(List.of(characterButton, genderButton, expressionButton));
         buttons.addAll(List.of(portraitToggle, previous, next, deletePage, addChoice, viewChoices,
                 discard, save, settings, preview, delete, back));
-        Dialog dialog = Dialog.create(factory -> factory.empty().base(DialogBase.builder(Component.text((index + 1) + " / " + messages.size() + " 페이지 (최대 10)", NamedTextColor.GOLD))
+        Dialog dialog = Dialog.create(factory -> factory.empty().base(DialogBase.builder(Component.text((index + 1) + " / " + messages.size() + " 페이지 (최대 30)", NamedTextColor.GOLD))
                 .pause(false).canCloseWithEscape(true).inputs(inputs).build()).type(DialogType.multiAction(buttons).columns(3).build()));
         player.showDialog(dialog);
     }

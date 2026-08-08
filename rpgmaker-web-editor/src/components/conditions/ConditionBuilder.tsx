@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { VariableDefinition } from '../../domain/project';
 import type { ServerCondition } from '../../domain/serverSettings';
 import { conditionSummary } from '../../services/previewEngine';
@@ -73,16 +74,22 @@ function parseItem(value: string) {
 }
 
 export function ConditionBuilder({ value, variables, showReplacement = false, onChange }: Props) {
-  const extraRows = parseExtra(value.extraVariables);
+  const [extraRows, setExtraRows] = useState<ExtraRow[]>(() => parseExtra(value.extraVariables));
   const item = parseItem(value.itemSpec);
   const needsVariable = ['variable', 'both', 'any'].includes(value.mode);
   const needsItem = ['item', 'both', 'any'].includes(value.mode);
   const valueDisabled = value.operator === 'is-set' || value.operator === 'is-unset';
 
-  const changeExtra = (rows: ExtraRow[]) =>
+  useEffect(() => {
+    setExtraRows(parseExtra(value.extraVariables));
+  }, [value.extraVariables]);
+
+  const changeExtra = (rows: ExtraRow[]) => {
+    setExtraRows(rows);
     onChange((condition) => {
       condition.extraVariables = serializeExtra(rows);
     });
+  };
 
   return (
     <div className="space-y-5">
