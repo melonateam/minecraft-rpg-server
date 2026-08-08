@@ -32,6 +32,17 @@ plain-choice-x-offset: -0.06
 plain-choice-vertical-offset: -0.2
 pack-server-port: 25566
 pack-file: RPGMaker-Pack.zip
+web-api:
+  enabled: true
+  bind: 127.0.0.1
+  port: 25567
+  editor-url: http://localhost:5173/
+  session-ttl-minutes: 15
+  token: dev-local-token-change-me
+  allowed-origins:
+    - http://localhost:5173
+    - http://127.0.0.1:5173
+  max-request-bytes: 1048576
 examples-version: 3
 example-item-templates:
   moon_letter:

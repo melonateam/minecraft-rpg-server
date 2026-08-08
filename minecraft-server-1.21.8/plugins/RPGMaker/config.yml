@@ -539,6 +539,7 @@ player-dialogues:
           variable-logic: AND
           item-spec: ''
           replacement: ''
+          operator: EQ
       page-effects:
         '0':
           items: ''
