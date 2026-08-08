@@ -64,6 +64,11 @@ final class ExpressionRules {
         } catch (NumberFormatException ignored) { return current == null ? "" : current; }
     }
 
+    static boolean isRandomRange(String operand) {
+        if (operand == null) return false;
+        return RANDOM_RANGE.matcher(operand.strip()).matches();
+    }
+
     static String resolveOperand(String operand) {
         String value = operand == null ? "" : operand.strip();
         Matcher matcher = RANDOM_RANGE.matcher(value);
@@ -74,14 +79,24 @@ final class ExpressionRules {
             long minimum = Math.min(first, second);
             long maximum = Math.max(first, second);
             if (minimum == maximum) return Long.toString(minimum);
-            if (maximum == Long.MAX_VALUE) {
-                long generated = ThreadLocalRandom.current().nextLong(minimum, maximum);
-                return ThreadLocalRandom.current().nextBoolean() ? Long.toString(maximum) : Long.toString(generated);
-            }
-            return Long.toString(ThreadLocalRandom.current().nextLong(minimum, maximum + 1L));
+            return Long.toString(nextLongInclusive(minimum, maximum));
         } catch (RuntimeException ignored) {
             return value;
         }
+    }
+
+    private static long nextLongInclusive(long minimum, long maximum) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        if (minimum == Long.MIN_VALUE && maximum == Long.MAX_VALUE) return random.nextLong();
+        if (maximum != Long.MAX_VALUE) return random.nextLong(minimum, maximum + 1L);
+
+        // nextLong(origin, bound) cannot represent Long.MAX_VALUE + 1. Rejection
+        // sampling keeps the inclusive top endpoint unbiased without overflowing.
+        long candidate;
+        do {
+            candidate = random.nextLong();
+        } while (candidate < minimum);
+        return candidate;
     }
 
     private static boolean isNumber(String value) {
@@ -96,7 +111,12 @@ final class ExpressionRules {
         assert combine(List.of(true, false), "XOR");
         assert calculate("5", "+=", "3").equals("8");
         assert calculate("true", "=", "FALSE").equals("false");
-        long random = Long.parseLong(resolveOperand("random(3..7)"));
-        assert random >= 3 && random <= 7;
+        assert isRandomRange("random(3..7)");
+        assert isRandomRange("RANDOM(-7..-3)");
+        assert resolveOperand("random(4..4)").equals("4");
+        for (int index = 0; index < 100; index++) {
+            long random = Long.parseLong(resolveOperand("random(7..3)"));
+            assert random >= 3 && random <= 7;
+        }
     }
 }
