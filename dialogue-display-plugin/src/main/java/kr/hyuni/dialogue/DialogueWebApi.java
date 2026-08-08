@@ -24,6 +24,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ import java.util.function.Supplier;
 final class DialogueWebApi implements Listener {
     private static final String API_ROOT = "/api/v1/";
     private static final String EDITOR_DIALOG_SUFFIX = " rpgmaker:editor";
+    private static final String TRANSITION_COMMAND = "rpgmaker-transition ";
 
     private final JavaPlugin plugin;
     private final DialogueCompatibilityService compatibility;
@@ -115,17 +117,20 @@ final class DialogueWebApi implements Listener {
             List<String> inherited = plugin.onTabComplete(sender, currentCommand, alias, args);
             ArrayList<String> result = new ArrayList<>(inherited == null ? List.of() : inherited);
             if (args.length == 1 && "web".startsWith(args[0].toLowerCase(java.util.Locale.ROOT))
-                    && result.stream().noneMatch(value -> value.equalsIgnoreCase("web"))) {
-                result.add("web");
-            }
+                    && result.stream().noneMatch(value -> value.equalsIgnoreCase("web"))) result.add("web");
             result.sort(String.CASE_INSENSITIVE_ORDER);
             return result;
         });
     }
 
     @EventHandler(ignoreCancelled = true)
-    public void onEditorDialogCommand(ServerCommandEvent event) {
+    public void onServerCommand(ServerCommandEvent event) {
         String command = event.getCommand().strip();
+        if (command.startsWith(TRANSITION_COMMAND)) {
+            event.setCancelled(true);
+            executeTransition(command.substring(TRANSITION_COMMAND.length()));
+            return;
+        }
         if (!command.startsWith("dialog show ") || !command.endsWith(EDITOR_DIALOG_SUFFIX)) return;
         String playerName = command.substring("dialog show ".length(), command.length() - EDITOR_DIALOG_SUFFIX.length()).strip();
         Player player = Bukkit.getPlayerExact(playerName);
@@ -133,6 +138,30 @@ final class DialogueWebApi implements Listener {
         if (editorMenuBypass.remove(player.getUniqueId())) return;
         event.setCancelled(true);
         showEditorLauncher(player);
+    }
+
+    private void executeTransition(String arguments) {
+        String[] parts = arguments.split(" ", 4);
+        if (parts.length < 4) return;
+        Player player = Bukkit.getPlayerExact(parts[0]);
+        if (player == null) return;
+        String targetDialogue = decode(parts[1]);
+        String originalCommand = "-".equals(parts[2]) ? "" : decode(parts[2]);
+        String commandTarget = parts[3].toUpperCase(java.util.Locale.ROOT);
+        if (!originalCommand.isBlank()) {
+            String target = switch (commandTarget) {
+                case "ALL" -> "@a";
+                case "NEAREST" -> "@p";
+                default -> player.getName();
+            };
+            String resolved = originalCommand.replace("{player}", player.getName()).replace("{target}", target).strip();
+            if (resolved.startsWith("/")) resolved = resolved.substring(1);
+            if (!resolved.isBlank()) Bukkit.dispatchCommand(Bukkit.getConsoleSender(), resolved);
+        }
+        if (targetDialogue.isBlank()) return;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) Bukkit.dispatchCommand(player, "rpgmaker play " + targetDialogue);
+        });
     }
 
     @EventHandler
@@ -266,8 +295,7 @@ final class DialogueWebApi implements Listener {
                 if (segments.size() >= 5) {
                     String name = decode(segments.get(4));
                     if (segments.size() == 5 && method.equals("GET")) {
-                        DialogueCompatibilityService.DialogueDocument document =
-                                sync(() -> compatibility.get(owner, name));
+                        DialogueCompatibilityService.DialogueDocument document = sync(() -> compatibility.get(owner, name));
                         if (document == null) send(exchange, 404, Map.of("error", "dialogue_not_found"));
                         else send(exchange, 200, documentMap(document));
                         return;
@@ -280,8 +308,9 @@ final class DialogueWebApi implements Listener {
                             send(exchange, 403, Map.of("error", "op_command_requires_admin"));
                             return;
                         }
+                        Map<String, Object> runtimeDialogue = prepareRuntimeTransitions(dialogue);
                         DialogueCompatibilityService.SaveResult result =
-                                sync(() -> compatibility.save(owner, name, expected, dialogue));
+                                sync(() -> compatibility.save(owner, name, expected, runtimeDialogue));
                         if (result.conflict()) {
                             send(exchange, 409, Map.of("error", "revision_conflict",
                                     "serverRevision", result.revision() == null ? "" : result.revision()));
@@ -296,8 +325,7 @@ final class DialogueWebApi implements Listener {
                     }
                     if (segments.size() == 5 && method.equals("DELETE")) {
                         String expected = exchange.getRequestHeaders().getFirst("If-Match");
-                        DialogueCompatibilityService.DeleteResult result =
-                                sync(() -> compatibility.delete(owner, name, expected));
+                        DialogueCompatibilityService.DeleteResult result = sync(() -> compatibility.delete(owner, name, expected));
                         if (result.conflict()) {
                             send(exchange, 409, Map.of("error", "revision_conflict",
                                     "serverRevision", result.revision() == null ? "" : result.revision()));
@@ -311,8 +339,7 @@ final class DialogueWebApi implements Listener {
                         return;
                     }
                     if (segments.size() == 6 && segments.get(5).equals("reload") && method.equals("POST")) {
-                        DialogueCompatibilityService.DialogueDocument document =
-                                sync(() -> compatibility.get(owner, name));
+                        DialogueCompatibilityService.DialogueDocument document = sync(() -> compatibility.get(owner, name));
                         if (document == null) send(exchange, 404, Map.of("error", "dialogue_not_found"));
                         else send(exchange, 200, Map.of(
                                 "reloaded", true,
@@ -331,6 +358,88 @@ final class DialogueWebApi implements Listener {
             plugin.getLogger().warning("Web API request failed: " + error.getMessage());
             safeSend(exchange, 500, Map.of("error", "internal_error"));
         }
+    }
+
+    private Map<String, Object> prepareRuntimeTransitions(Map<String, Object> source) {
+        Map<String, Object> dialogue = deepCopyMap(source);
+        String nextDialogue = text(dialogue.get("next-dialogue")).strip();
+        List<?> pages = dialogue.get("message-pages") instanceof List<?> list ? list : List.of(dialogue.getOrDefault("message", ""));
+        if (!nextDialogue.isBlank() && !pages.isEmpty()) {
+            Map<String, Object> pageEffects = mutableSection(dialogue, "page-effects");
+            injectTransition(pageEffects, Integer.toString(pages.size() - 1), nextDialogue);
+        }
+        Object pageChoices = dialogue.get("page-choices");
+        if (pageChoices instanceof Map<?, ?> choicesByPage) {
+            for (Object value : choicesByPage.values()) if (value instanceof Map<?, ?> choices) prepareChoiceTransitions(castMap(choices));
+        }
+        return dialogue;
+    }
+
+    private void prepareChoiceTransitions(Map<String, Object> choices) {
+        int count = integer(choices.get("choice-count"));
+        for (int slot = 1; slot <= Math.min(8, count); slot++) {
+            String targetDialogue = text(choices.get("target-dialogue-" + slot)).strip();
+            if (!targetDialogue.isBlank()) {
+                choices.put("end-" + slot, true);
+                List<?> responsePages = choices.get("response-pages-" + slot) instanceof List<?> list ? list : List.of();
+                if (responsePages.isEmpty()) injectTransition(choices, "effect-" + slot, targetDialogue);
+                else {
+                    Map<String, Object> effects = mutableSection(choices, "response-effects-" + slot);
+                    injectTransition(effects, Integer.toString(responsePages.size() - 1), targetDialogue);
+                }
+            }
+            Object nestedValue = choices.get("response-page-choices-" + slot);
+            if (nestedValue instanceof Map<?, ?> nestedPages) {
+                for (Object nested : nestedPages.values()) if (nested instanceof Map<?, ?> nestedChoices)
+                    prepareChoiceTransitions(castMap(nestedChoices));
+            }
+        }
+    }
+
+    private void injectTransition(Map<String, Object> parent, String key, String targetDialogue) {
+        Map<String, Object> effect = parent.get(key) instanceof Map<?, ?> map ? castMap(map) : new LinkedHashMap<>();
+        parent.put(key, effect);
+        String originalCommand = text(effect.get("command")).strip();
+        String originalTarget = text(effect.get("command-target")).strip();
+        if (originalTarget.isBlank()) originalTarget = "PLAYER";
+        effect.put("command", TRANSITION_COMMAND.stripTrailing() + " {player} "
+                + encode(targetDialogue) + " " + (originalCommand.isBlank() ? "-" : encode(originalCommand)) + " "
+                + originalTarget.toUpperCase(java.util.Locale.ROOT));
+        effect.put("command-target", "PLAYER");
+    }
+
+    private Map<String, Object> deepCopyMap(Map<String, Object> source) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        source.forEach((key, value) -> copy.put(key, deepCopyValue(value)));
+        return copy;
+    }
+
+    private Object deepCopyValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            map.forEach((key, child) -> copy.put(String.valueOf(key), deepCopyValue(child)));
+            return copy;
+        }
+        if (value instanceof List<?> list) return list.stream().map(this::deepCopyValue).toList();
+        return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castMap(Map<?, ?> map) {
+        return (Map<String, Object>) map;
+    }
+
+    private Map<String, Object> mutableSection(Map<String, Object> parent, String key) {
+        if (parent.get(key) instanceof Map<?, ?> map) return castMap(map);
+        Map<String, Object> created = new LinkedHashMap<>();
+        parent.put(key, created);
+        return created;
+    }
+
+    private int integer(Object value) {
+        if (value instanceof Number number) return number.intValue();
+        try { return value == null ? 0 : Integer.parseInt(String.valueOf(value)); }
+        catch (NumberFormatException ignored) { return 0; }
     }
 
     private boolean authenticated(HttpExchange exchange) {
@@ -363,8 +472,31 @@ final class DialogueWebApi implements Listener {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("name", document.name());
         result.put("revision", document.revision());
-        result.put("dialogue", document.data());
+        result.put("dialogue", stripRuntimeTransitions(document.data()));
         return result;
+    }
+
+    private Map<String, Object> stripRuntimeTransitions(Map<String, Object> source) {
+        Map<String, Object> copy = deepCopyMap(source);
+        stripRuntimeValue(copy);
+        return copy;
+    }
+
+    private void stripRuntimeValue(Object value) {
+        if (value instanceof Map<?, ?> raw) {
+            Map<String, Object> map = castMap(raw);
+            Object command = map.get("command");
+            if (command instanceof String text && text.startsWith(TRANSITION_COMMAND)) {
+                String[] parts = text.substring(TRANSITION_COMMAND.length()).split(" ", 4);
+                if (parts.length == 4) {
+                    String original = "-".equals(parts[2]) ? "" : decode(parts[2]);
+                    if (original.isBlank()) map.remove("command");
+                    else map.put("command", original);
+                    map.put("command-target", parts[3]);
+                }
+            }
+            for (Object child : new ArrayList<>(map.values())) stripRuntimeValue(child);
+        } else if (value instanceof List<?> list) for (Object child : list) stripRuntimeValue(child);
     }
 
     private List<String> pathSegments(String path) {
@@ -375,6 +507,10 @@ final class DialogueWebApi implements Listener {
 
     private String decode(String value) {
         return URLDecoder.decode(value, StandardCharsets.UTF_8);
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     @SuppressWarnings("unchecked")
@@ -390,12 +526,18 @@ final class DialogueWebApi implements Listener {
     }
 
     private boolean containsServerCommand(Map<String, Object> dialogue) {
-        Object pageEffects = dialogue.get("page-effects");
-        if (!(pageEffects instanceof Map<?, ?> effectsByPage)) return false;
-        for (Object pageEffect : effectsByPage.values()) {
-            if (!(pageEffect instanceof Map<?, ?> effect)) continue;
-            Object command = effect.get("command");
-            if (command != null && !String.valueOf(command).isBlank()) return true;
+        return containsServerCommandValue(dialogue);
+    }
+
+    private boolean containsServerCommandValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (String.valueOf(entry.getKey()).equals("command") && entry.getValue() != null
+                        && !String.valueOf(entry.getValue()).isBlank()) return true;
+                if (containsServerCommandValue(entry.getValue())) return true;
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object child : list) if (containsServerCommandValue(child)) return true;
         }
         return false;
     }
@@ -415,11 +557,8 @@ final class DialogueWebApi implements Listener {
     }
 
     private void safeSend(HttpExchange exchange, int status, Object body) {
-        try {
-            send(exchange, status, body);
-        } catch (IOException ignored) {
-            exchange.close();
-        }
+        try { send(exchange, status, body); }
+        catch (IOException ignored) { exchange.close(); }
     }
 
     private void sendRaw(HttpExchange exchange, int status, String json) throws IOException {
@@ -427,9 +566,7 @@ final class DialogueWebApi implements Listener {
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(status, bytes.length);
-        try (var response = exchange.getResponseBody()) {
-            response.write(bytes);
-        }
+        try (var response = exchange.getResponseBody()) { response.write(bytes); }
     }
 
     private static final class RequestTooLarge extends Exception {}
