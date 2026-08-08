@@ -39,6 +39,7 @@ try {
         -FilePath 'cmd.exe' `
         -ArgumentList '/d', '/c', 'npm run dev' `
         -WorkingDirectory $WebPath `
+        -WindowStyle Hidden `
         -PassThru
 
     Write-Host "Web editor started. PID: $($webProcess.Id)"
