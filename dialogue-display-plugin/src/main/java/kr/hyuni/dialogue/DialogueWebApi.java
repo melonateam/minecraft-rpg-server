@@ -2,8 +2,23 @@ package kr.hyuni.dialogue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import io.papermc.paper.connection.PlayerGameConnection;
+import io.papermc.paper.dialog.Dialog;
+import io.papermc.paper.event.player.PlayerCustomClickEvent;
+import io.papermc.paper.registry.data.dialog.ActionButton;
+import io.papermc.paper.registry.data.dialog.DialogBase;
+import io.papermc.paper.registry.data.dialog.action.DialogAction;
+import io.papermc.paper.registry.data.dialog.type.DialogType;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.nbt.api.BinaryTagHolder;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -17,13 +32,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-final class DialogueWebApi {
+final class DialogueWebApi implements Listener {
     private static final String API_ROOT = "/api/v1/";
+    private static final String EDITOR_DIALOG_SUFFIX = " rpgmaker:editor";
 
     private final JavaPlugin plugin;
     private final DialogueCompatibilityService compatibility;
@@ -34,6 +51,7 @@ final class DialogueWebApi {
     private final Set<String> allowedOrigins;
     private final int maxRequestBytes;
     private final WebPlayerSessions sessions;
+    private final Set<UUID> editorMenuBypass = ConcurrentHashMap.newKeySet();
 
     private DialogueWebApi(JavaPlugin plugin, DialogueCompatibilityService compatibility,
                            CharacterRegistry characters, HttpServer server,
@@ -78,6 +96,8 @@ final class DialogueWebApi {
             server.createContext(API_ROOT, api::handle);
             server.setExecutor(executor);
             server.start();
+            Bukkit.getPluginManager().registerEvents(api, plugin);
+            api.installCommandCompletion();
             plugin.getLogger().info("RPGMaker Web API listening on http://" + bind + ":" + port + API_ROOT);
             if (token.equals("dev-local-token-change-me"))
                 plugin.getLogger().warning("RPGMaker Web API uses the development token. Change web-api.token before exposing the port.");
@@ -86,6 +106,59 @@ final class DialogueWebApi {
             plugin.getLogger().severe("Failed to start RPGMaker Web API: " + error.getMessage());
             return null;
         }
+    }
+
+    private void installCommandCompletion() {
+        var command = plugin.getCommand("rpgmaker");
+        if (command == null) return;
+        command.setTabCompleter((sender, currentCommand, alias, args) -> {
+            List<String> inherited = plugin.onTabComplete(sender, currentCommand, alias, args);
+            ArrayList<String> result = new ArrayList<>(inherited == null ? List.of() : inherited);
+            if (args.length == 1 && "web".startsWith(args[0].toLowerCase(java.util.Locale.ROOT))
+                    && result.stream().noneMatch(value -> value.equalsIgnoreCase("web"))) {
+                result.add("web");
+            }
+            result.sort(String.CASE_INSENSITIVE_ORDER);
+            return result;
+        });
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEditorDialogCommand(ServerCommandEvent event) {
+        String command = event.getCommand().strip();
+        if (!command.startsWith("dialog show ") || !command.endsWith(EDITOR_DIALOG_SUFFIX)) return;
+        String playerName = command.substring("dialog show ".length(), command.length() - EDITOR_DIALOG_SUFFIX.length()).strip();
+        Player player = Bukkit.getPlayerExact(playerName);
+        if (player == null) return;
+        if (editorMenuBypass.remove(player.getUniqueId())) return;
+        event.setCancelled(true);
+        showEditorLauncher(player);
+    }
+
+    @EventHandler
+    public void onEditorLauncherClick(PlayerCustomClickEvent event) {
+        if (!event.getIdentifier().equals(Key.key("rpgmakerweb", "open_editor"))) return;
+        if (!(event.getCommonConnection() instanceof PlayerGameConnection connection)) return;
+        Player player = connection.getPlayer();
+        editorMenuBypass.add(player.getUniqueId());
+        Bukkit.getScheduler().runTask(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                "dialog show " + player.getName() + " rpgmaker:editor"));
+    }
+
+    private void showEditorLauncher(Player player) {
+        ActionButton web = ActionButton.builder(Component.text("웹 열기", NamedTextColor.AQUA)).width(200)
+                .tooltip(Component.text("이 플레이어 계정으로 RPGMaker 웹 편집기를 엽니다."))
+                .action(DialogAction.staticAction(ClickEvent.openUrl(issuePlayerLink(player))))
+                .build();
+        ActionButton editor = ActionButton.builder(Component.text("게임 내 편집기", NamedTextColor.GOLD)).width(200)
+                .tooltip(Component.text("기존 G키 RPGMaker 편집 메뉴를 엽니다."))
+                .action(DialogAction.customClick(Key.key("rpgmakerweb", "open_editor"), BinaryTagHolder.binaryTagHolder("{}")))
+                .build();
+        Dialog dialog = Dialog.create(factory -> factory.empty()
+                .base(DialogBase.builder(Component.text("RPGMaker", NamedTextColor.GOLD))
+                        .pause(false).canCloseWithEscape(true).build())
+                .type(DialogType.multiAction(List.of(web, editor)).columns(2).build()));
+        player.showDialog(dialog);
     }
 
     void stop() {
