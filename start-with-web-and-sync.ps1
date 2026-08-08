@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 # Resolve the repository root from this script's own location.
 $RepoPath   = $PSScriptRoot
