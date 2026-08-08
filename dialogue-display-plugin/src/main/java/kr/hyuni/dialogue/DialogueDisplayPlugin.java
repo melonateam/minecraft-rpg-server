@@ -1325,7 +1325,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         sender.sendMessage(Component.text("단어 색상: #FF0000:단어  |  변수 출력: {{변수이름}}", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("채팅 입력 저장에는 변수 이름만 입력합니다. 예: nickname", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("해당 대사를 넘긴 뒤 플레이어의 다음 채팅 1회가 저장되며, 채팅에는 표시되지 않습니다. 이후 {{nickname}}으로 출력합니다.", NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("변수는 문자열·true/false를 저장하며 +=, -=, *=, /= 연산을 지원합니다.", NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("변수는 문자열·true/false를 저장하며 +=, -=, *=, /= 및 random(최소..최대) 난수를 지원합니다.", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("기본 변수: {{player_name}}, {{player_world}}, {{player_x}}, {{player_y}}, {{player_z}}", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("손 아이템 변수: {{held_item_name}}, {{held_item_type}}, {{held_item_amount}}", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("이미지·성별·표정은 페이지마다 설정합니다. 다음 대사는 현재 내용을 저장하고 새 페이지를 엽니다.", NamedTextColor.GRAY));
@@ -1795,7 +1795,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 title = "변수 설정";
                 inputs.add(DialogInput.text("effect_chat_input_variable", Component.text("플레이어의 채팅 입력값을 아래 변수에 저장합니다")).width(500)
                         .initial(effect.chatInputVariable).maxLength(100).build());
-                inputs.add(DialogInput.text("effect_variables_set", Component.text("설정·연산 · 이름=문자/true, 점수+=1, 값*=2, 값/=2")).width(500)
+                inputs.add(DialogInput.text("effect_variables_set", Component.text("설정·연산 · 이름=값, 점수+=1, 값*=2, 값/=2, damage_roll=random(5..20)")).width(500)
                         .initial(effect.variablesSet).maxLength(2000).build());
                 inputs.add(DialogInput.text("effect_variables_delete", Component.text("삭제 · 이름, 이름2")).width(500)
                         .initial(effect.variablesDelete).maxLength(1000).build());
@@ -1852,6 +1852,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 variableHelpButton("저장 변수 · 변수 설정에서 이름=값 입력"),
                 variableHelpButton("문자/Boolean · 이름=문자열, 완료=true 또는 false"),
                 variableHelpButton("사칙연산 · 점수+=1, -=1, *=2, /=2"),
+                variableHelpButton("난수 · damage_roll=random(5..20) · 5~20 정수 중 하나"),
                 variableHelpButton("조건 비교 · 점수>=10, 이름!=값, 미설정=null"),
                 variableHelpButton("조건 조합 · AND, OR, XOR, NOT"),
                 variableHelpButton("채팅 저장 1 · 변수 이름만 입력 (예: nickname)"),
