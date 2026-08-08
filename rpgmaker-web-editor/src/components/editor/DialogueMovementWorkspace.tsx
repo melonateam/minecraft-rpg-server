@@ -5,6 +5,11 @@ interface Props {
   page: DialoguePage;
 }
 
+function playableDialogueName(name: string) {
+  const clean = name.replace(/[^\p{L}\p{N}_-]/gu, '_');
+  return clean || 'default';
+}
+
 export function DialogueMovementWorkspace({ page }: Props) {
   const projects = useProjectStore((state) => state.projects);
   const mutateProject = useProjectStore((state) => state.mutateProject);
@@ -37,9 +42,14 @@ export function DialogueMovementWorkspace({ page }: Props) {
         <option value="">다음 대화 없음 · 현재 대화 종료</option>
         {project.dialogues
           .filter((candidate) => candidate.id !== dialogue.id)
-          .map((candidate) => (
-            <option key={candidate.id} value={candidate.name}>{candidate.name}</option>
-          ))}
+          .map((candidate) => {
+            const targetName = candidate.server?.remoteName || playableDialogueName(candidate.name);
+            return (
+              <option key={candidate.id} value={targetName}>
+                {candidate.name}
+              </option>
+            );
+          })}
       </select>
       {dialogue.nextDialogueName && (
         <div className="mt-3 rounded-lg bg-[#211c12] px-3 py-2 text-xs text-[#d8bf82]">
