@@ -6,7 +6,7 @@ $RepoPath   = $PSScriptRoot
 $WebPath    = Join-Path $RepoPath 'rpgmaker-web-editor'
 $ServerPath = Join-Path $RepoPath 'minecraft-server-1.21.8'
 $StartBat   = Join-Path $ServerPath 'start.bat'
-$GitSync    = Join-Path $RepoPath 'git-sync.ps1'
+$GitSync    = Join-Path (Split-Path -Parent $RepoPath) 'git-sync.ps1'
 
 $webProcess = $null
 $serverExitCode = $null
