@@ -1,7 +1,7 @@
 plugins { java }
 
 group = "kr.hyuni.dialogue"
-version = "1.1.0"
+version = "1.1.1"
 
 repositories { maven("https://repo.papermc.io/repository/maven-public/") }
 
@@ -16,5 +16,19 @@ tasks.processResources {
     filesMatching("plugin.yml") { expand("version" to project.version) }
     from("../dialogue-resource-pack/rpgmaker-character-manifest.json") {
         into("")
+    }
+}
+
+val serverPluginDirectory = layout.projectDirectory.dir("../minecraft-server-1.21.8/plugins")
+
+tasks.register<Copy>("deployToServer") {
+    group = "distribution"
+    description = "Builds RPGMaker and replaces minecraft-server-1.21.8/plugins/RPGMaker.jar."
+    dependsOn(tasks.jar)
+    from(tasks.jar.flatMap { it.archiveFile })
+    into(serverPluginDirectory)
+    rename { "RPGMaker.jar" }
+    doLast {
+        logger.lifecycle("RPGMaker ${project.version} deployed to ${serverPluginDirectory.file("RPGMaker.jar").asFile}")
     }
 }
