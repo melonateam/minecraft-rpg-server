@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createDialogue } from '../../services/projectFactory';
 import { useEditorStore } from '../../store/editorStore';
 import { useProjectStore } from '../../store/projectStore';
+import { DashboardModal } from './DashboardModals';
 
 function formatRelative(iso: string) {
   const minutes = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -14,6 +16,7 @@ function formatRelative(iso: string) {
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const [modal, setModal] = useState<'settings' | 'help'>();
   const projects = useProjectStore((state) => state.projects);
   const mutateProject = useProjectStore((state) => state.mutateProject);
   const selectDialogue = useEditorStore((state) => state.selectDialogue);
@@ -82,9 +85,22 @@ export function Dashboard() {
           <h1 className="mt-2 text-2xl font-semibold">대화</h1>
           <p className="mt-1 text-xs text-[#8091a1]">대화 제작 · 조건 · 효과 · 서버 동기화</p>
         </div>
-        <button className="rounded-lg border border-[#33485b] bg-[#14202b] px-3 py-2 text-sm text-[#aab8c5] hover:border-[#9d8cff]/60 hover:bg-[#1a2734]">
-          설정
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setModal('help')}
+            className="rounded-lg border border-[#33485b] bg-[#14202b] px-3 py-2 text-sm text-[#aab8c5] hover:border-[#42d4d0]/60 hover:bg-[#1a2734]"
+          >
+            도움말
+          </button>
+          <button
+            type="button"
+            onClick={() => setModal('settings')}
+            className="rounded-lg border border-[#33485b] bg-[#14202b] px-3 py-2 text-sm text-[#aab8c5] hover:border-[#9d8cff]/60 hover:bg-[#1a2734]"
+          >
+            설정
+          </button>
+        </div>
       </header>
 
       <section className="mx-auto mt-12 max-w-6xl">
@@ -149,6 +165,8 @@ export function Dashboard() {
           </div>
         )}
       </section>
+
+      {modal && <DashboardModal kind={modal} onClose={() => setModal(undefined)} />}
     </main>
   );
 }
