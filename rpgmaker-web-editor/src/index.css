@@ -50,6 +50,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 [class~="text-[#7c8cff]"], [class~="text-[#8b99ff]"] { color: var(--rpg-violet) !important; }
 
+/* Give the editor's right-side inspectors more room for conditions/effects. */
+aside.w-\[410px\],
+aside.w-\[430px\] {
+  width: 520px !important;
+}
+
 /* Semantic editing sections. */
 [data-rpg-section="condition"] {
   border-radius: 0.9rem;
