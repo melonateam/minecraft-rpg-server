@@ -11,6 +11,7 @@ import {
 import { visibleLength } from '../../services/projectValidator';
 import { PortraitSprite } from '../characters/PortraitSprite';
 import { ChoiceBranchWorkspace } from './ChoiceBranchWorkspace';
+import { DialogueMovementWorkspace } from './DialogueMovementWorkspace';
 import type { InspectorSection } from './EditorInspector';
 
 interface Props {
@@ -27,7 +28,7 @@ const panelButtons: Array<[InspectorSection, string, string]> = [
   ['character', '캐릭터', '인물·표정'],
   ['condition', '조건', '표시 규칙'],
   ['effects', '효과', '아이템·변수'],
-  ['flow', '대화 이동', '진행·이동·종료'],
+  ['flow', '대화 이동', '페이지·대화 이동'],
 ];
 
 export function ScriptWorkspace({
@@ -247,6 +248,7 @@ export function ScriptWorkspace({
             )}
           </div>
 
+          {activePanel === 'flow' && <DialogueMovementWorkspace page={page} />}
           {activePanel === 'choices' && <ChoiceBranchWorkspace page={page} manifest={manifest} onChange={onChange} />}
         </div>
       </div>
