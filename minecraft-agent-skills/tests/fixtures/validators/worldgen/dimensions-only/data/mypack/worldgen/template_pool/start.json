@@ -1,5 +1,0 @@
-{
-  "name": "mypack:start",
-  "fallback": "minecraft:empty",
-  "elements": []
-}
