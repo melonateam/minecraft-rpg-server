@@ -28,6 +28,8 @@ export interface Dialogue {
   name: string;
   pages: DialoguePage[];
   startPageId: PageId;
+  /** Dialogue to start after this dialogue reaches its natural end. */
+  nextDialogueName?: string;
   editor?: {
     nodePositions?: Record<string, { x: number; y: number }>;
   };
@@ -65,24 +67,22 @@ export interface PageAppearance {
  * A player-facing choice on a page.
  *
  * `responsePages` are the follow-up dialogue pages shown after the player selects
- * this choice. Those pages may contain nested choices. `targetPageId` / `endAfterTarget`
- * are the final movement applied after the response branch is finished.
+ * this choice. Those pages may contain nested choices. `targetPageId` remains the
+ * same-dialogue page jump used by the existing runtime; `targetDialogueName` is
+ * the dialogue started after the selected branch finishes.
  */
 export interface DialogueChoice {
   id: string;
   label: string;
   targetPageId?: PageId;
+  targetDialogueName?: string;
   endAfterTarget?: boolean;
   speakerOverride?: string;
   responsePages?: DialogueChoiceResponsePage[];
   server?: ServerChoiceSettings;
 }
 
-/**
- * Runtime-compatible follow-up page inside a choice response branch.
- * Paper currently stores per-response-page text, portrait, expression, effects,
- * and nested choices, so the web editor keeps those fields explicitly.
- */
+/** Runtime-compatible follow-up page inside a choice response branch. */
 export interface DialogueChoiceResponsePage {
   id: string;
   lines: [string, string, string, string];
