@@ -12,10 +12,15 @@ Use this index as a quick router before opening individual `SKILL.md` files.
 Some skills also include local `references/` and `scripts/` support assets; the
 table below is a router, not an exhaustive layout listing.
 
+For this specific repository, a fresh chat or an agent recovering from stale/missing
+conversation memory should read `minecraft-rpg-project-context` before routing to a
+specialized Minecraft skill.
+
 ## Skill Catalog
 
 | Skill | Primary use cases | Choose this instead when |
 |---|---|---|
+| `minecraft-rpg-project-context` | Bootstrap this repository in a fresh chat: project layout, required reading order, RPGMaker architecture, skill paths, Git policy, and task routing | You already have current project context and only need a specialized Minecraft implementation/operations skill |
 | `minecraft-modding` | Build NeoForge or Fabric mods (blocks, items, entities, GUIs, datagen) | You need a single shared codebase for both loaders (`minecraft-multiloader`) |
 | `minecraft-multiloader` | Architectury projects that ship both NeoForge and Fabric from one repo | You only need one loader (`minecraft-modding`) |
 | `minecraft-plugin-dev` | Write Paper/Bukkit/Spigot plugins in Java 21 | You need server operations or deployment guidance (`minecraft-server-admin`) |
@@ -32,6 +37,7 @@ table below is a router, not an exhaustive layout listing.
 
 ## Overlap Boundaries
 
+- Use `minecraft-rpg-project-context` to restore repository-specific context and choose what to read next; it does not replace the specialized skill or current source inspection.
 - Use `minecraft-server-admin` for platform-level operations (hosting, proxy, backups, performance).
 - Use `minecraft-worldedit-ops` for command-driven build/admin changes in-world.
 - Use `minecraft-essentials-ops` for EssentialsX-specific commands, config, and permissions.
