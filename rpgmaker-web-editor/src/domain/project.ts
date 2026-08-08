@@ -61,12 +61,34 @@ export interface PageAppearance {
   expression?: string;
 }
 
+/**
+ * A player-facing choice on a page.
+ *
+ * `responsePages` are the follow-up dialogue pages shown after the player selects
+ * this choice. Those pages may contain nested choices. `targetPageId` / `endAfterTarget`
+ * are the final movement applied after the response branch is finished.
+ */
 export interface DialogueChoice {
   id: string;
   label: string;
   targetPageId?: PageId;
   endAfterTarget?: boolean;
   speakerOverride?: string;
+  responsePages?: DialogueChoiceResponsePage[];
+  server?: ServerChoiceSettings;
+}
+
+/**
+ * Runtime-compatible follow-up page inside a choice response branch.
+ * Paper currently stores per-response-page text, portrait, expression, effects,
+ * and nested choices, so the web editor keeps those fields explicitly.
+ */
+export interface DialogueChoiceResponsePage {
+  id: string;
+  lines: [string, string, string, string];
+  appearance: PageAppearance;
+  choices: DialogueChoice[];
+  server?: ServerPageSettings;
 }
 
 export interface PageFlow {
