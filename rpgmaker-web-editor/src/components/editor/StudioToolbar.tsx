@@ -56,6 +56,8 @@ function statusDot(status: ServerUiStatus) {
 }
 
 export function StudioToolbar(props: Props) {
+  const canPullFromServer = props.serverStatus === 'stale';
+
   return (
     <header className="flex h-16 shrink-0 items-center border-b border-[#232a33] bg-[#11151a] px-4">
       <button
@@ -131,6 +133,15 @@ export function StudioToolbar(props: Props) {
           className="ml-1 rounded-lg bg-[#7c8cff] px-4 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
         >
           서버에 반영
+        </button>
+        <button
+          type="button"
+          disabled={!canPullFromServer}
+          onClick={props.onServer}
+          title={canPullFromServer ? '서버 데이터가 더 최신입니다. 서버 대화 목록에서 불러올 대화를 선택합니다.' : '서버 데이터가 더 최신일 때 사용할 수 있습니다.'}
+          className="ml-1 rounded-lg border border-[#40556a] bg-[#18232d] px-4 py-2 text-xs font-semibold text-[#b9c7d3] enabled:hover:border-[#5f7890] enabled:hover:bg-[#21303d] disabled:cursor-not-allowed disabled:opacity-35"
+        >
+          서버에서 불러오기
         </button>
       </div>
     </header>
