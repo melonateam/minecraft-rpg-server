@@ -6,7 +6,7 @@ import type {
   PageAppearance,
 } from '../domain/project';
 import { emptyChoiceSettings, emptyCondition, emptyServerPage } from '../domain/serverSettings';
-import type { ServerCondition, ServerEffects, ServerPageSettings } from '../domain/serverSettings';
+import type { ServerCondition, ServerEffects } from '../domain/serverSettings';
 import {
   findCharacterByPortrait,
   getCharacter,
@@ -194,6 +194,7 @@ function choicesToServer(
     const slot = choiceIndex + 1;
     output[`choice-${slot}`] = choice.label;
     output[`target-page-${slot}`] = choice.targetPageId ? pageIndex.get(choice.targetPageId) ?? 0 : 0;
+    if (choice.targetDialogueName) output[`target-dialogue-${slot}`] = choice.targetDialogueName;
     output[`end-${slot}`] = choice.endAfterTarget ?? false;
     if (choice.speakerOverride) output[`speaker-${slot}`] = choice.speakerOverride;
     if (choice.server?.condition && choice.server.condition.mode !== 'none')
@@ -252,6 +253,7 @@ function choicesFromServer(raw: unknown, pageIds: string[], manifest: CharacterM
       id: crypto.randomUUID(),
       label: text(data[`choice-${slot}`]),
       targetPageId: targetNumber > 0 ? pageIds[targetNumber - 1] : undefined,
+      targetDialogueName: text(data[`target-dialogue-${slot}`]) || undefined,
       endAfterTarget: bool(data[`end-${slot}`]),
       speakerOverride: text(data[`speaker-${slot}`]) || undefined,
       responsePages,
@@ -266,6 +268,8 @@ export function exportMinecraftDialogue(dialogue: Dialogue, manifest: CharacterM
   output.title = dialogue.name;
   output['message-pages'] = dialogue.pages.map((page) => pageText(page.lines));
   output.speaker = dialogue.pages[0]?.speaker ?? '';
+  if (dialogue.nextDialogueName) output['next-dialogue'] = dialogue.nextDialogueName;
+  else delete output['next-dialogue'];
 
   const speakers: JsonMap = {};
   const portraits: JsonMap = {};
@@ -389,6 +393,7 @@ export function importMinecraftDialogue(
     name: text(raw.title, remoteName),
     pages,
     startPageId: pages[0]?.id ?? '',
+    nextDialogueName: text(raw['next-dialogue']) || undefined,
     server: {
       ownerUuid,
       remoteName,
