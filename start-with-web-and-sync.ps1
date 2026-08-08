@@ -51,6 +51,7 @@ try {
     Push-Location $ServerPath
     try {
         # Run the original start.bat in this console so Minecraft console input works normally.
+        # cmd.exe does not use backslashes to escape quotes, so build a normal call "path" command.
         $cmdLine = 'call "' + $StartBat + '"'
         & cmd.exe /d /c $cmdLine
         $serverExitCode = $LASTEXITCODE
