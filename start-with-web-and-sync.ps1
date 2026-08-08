@@ -98,8 +98,7 @@ finally {
             Write-Host 'No server changes to sync.'
         }
         else {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            Invoke-Git -Arguments @('commit', '-m', "server-sync: $timestamp")
+            Invoke-Git -Arguments @('commit', '-m', '서버 동기화')
 
             # Keep unrelated local edits safe while rebasing the server-sync commit
             # on top of the latest remote main.
