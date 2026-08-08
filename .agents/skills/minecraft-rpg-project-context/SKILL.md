@@ -289,7 +289,7 @@ Its intended model is:
 2. launch Minecraft through the existing server start script while preserving an interactive server console;
 3. allow normal `stop` shutdown;
 4. terminate the hidden web process after Paper exits;
-5. synchronize only server runtime state according to the lifecycle skill;
+5. synchronize only recognized code changes according to the lifecycle skill while keeping runtime server data local;
 6. close the wrapper automatically.
 
 Do not replace normal `stop` shutdown with a forced kill unless the user explicitly requests a different operational model.
@@ -329,17 +329,21 @@ squash merge
 
 Follow the current `AGENTS.md` exactly if it becomes stricter than this summary.
 
-### Automatic server runtime synchronization
+### Automatic code synchronization
 
-The server lifecycle skill defines a special exception for runtime state under:
+The server lifecycle skill defines a special exception for its explicit code-path classifier, including plugin/web/resource-pack source, root launch scripts, direct plugin JARs, and `.sk` files.
+
+Runtime state under paths such as:
 
 ```text
-minecraft-server-1.21.8
+minecraft-server-1.21.8/world*
+minecraft-server-1.21.8/plugins/* runtime data/configuration
+minecraft-server-1.21.8/plugins/Skript/variables.csv
 ```
 
-That automated shutdown sync can commit/push server-generated state directly to `main` according to `server-lifecycle-sync`.
+stays local and must not be staged by automatic shutdown synchronization.
 
-Do not generalize that exception to authored code. Source changes still use a branch and PR.
+The recognized code-only shutdown sync can commit/push directly to `main` according to `server-lifecycle-sync`. Ordinary agent-authored changes outside that automatic flow still use a branch and PR.
 
 ---
 

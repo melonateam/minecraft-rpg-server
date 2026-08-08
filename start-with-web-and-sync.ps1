@@ -5,21 +5,10 @@ $RepoPath   = $PSScriptRoot
 $WebPath    = Join-Path $RepoPath 'rpgmaker-web-editor'
 $ServerPath = Join-Path $RepoPath 'minecraft-server-1.21.8'
 $StartBat   = Join-Path $ServerPath 'start.bat'
+$SyncScript = Join-Path $RepoPath 'sync.ps1'
 
 $webProcess = $null
 $serverExitCode = $null
-
-function Invoke-Git {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string[]]$Arguments
-    )
-
-    & git @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
-    }
-}
 
 try {
     if (-not (Test-Path -LiteralPath $WebPath)) {
@@ -74,46 +63,17 @@ finally {
 
     Write-Host ''
     Write-Host '========================================'
-    Write-Host ' Direct Server Sync to GitHub'
+    Write-Host ' Code-Only Git Sync'
     Write-Host '========================================'
 
-    Push-Location $RepoPath
-    try {
-        $currentBranch = (& git branch --show-current).Trim()
+    if (-not (Test-Path -LiteralPath $SyncScript)) {
+        Write-Warning "Code sync script not found: $SyncScript"
+    }
+    else {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $SyncScript
         if ($LASTEXITCODE -ne 0) {
-            throw 'Could not determine the current Git branch.'
+            Write-Warning "Code sync failed with exit code $LASTEXITCODE"
         }
-
-        if ($currentBranch -ne 'main') {
-            throw "Direct server sync requires the local branch to be 'main'. Current branch: $currentBranch"
-        }
-
-        # Only stage Minecraft server files. Manual edits elsewhere remain untouched
-        # and should be handled through a normal branch + pull request.
-        Invoke-Git -Arguments @('add', '--', 'minecraft-server-1.21.8')
-
-        & git diff --cached --quiet -- 'minecraft-server-1.21.8'
-        $hasServerChanges = ($LASTEXITCODE -ne 0)
-
-        if (-not $hasServerChanges) {
-            Write-Host 'No server changes to sync.'
-        }
-        else {
-            Invoke-Git -Arguments @('commit', '-m', '서버 동기화')
-
-            # Keep unrelated local edits safe while rebasing the server-sync commit
-            # on top of the latest remote main.
-            Invoke-Git -Arguments @('pull', '--rebase', '--autostash', 'origin', 'main')
-            Invoke-Git -Arguments @('push', 'origin', 'main')
-
-            Write-Host 'Server files pushed directly to main.'
-        }
-    }
-    catch {
-        Write-Warning "Direct server sync failed: $($_.Exception.Message)"
-    }
-    finally {
-        Pop-Location
     }
 
     Write-Host ''
