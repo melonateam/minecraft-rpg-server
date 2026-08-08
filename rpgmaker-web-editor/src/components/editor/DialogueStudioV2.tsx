@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { Dialogue, DialoguePage } from '../../domain/project';
+import type { Dialogue, DialogueChoice, DialoguePage } from '../../domain/project';
 import { emptyServerPage } from '../../domain/serverSettings';
 import {
   loadCharacterManifest,
@@ -57,6 +57,24 @@ const BUILTIN_VARIABLES = [
 ];
 
 const normalizedName = (value: string) => value.trim().toLocaleLowerCase();
+const serverNameKey = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed ? trimmed.replace(/[^\p{L}\p{N}_-]/gu, '_').toLocaleLowerCase() : '';
+};
+
+function forEachChoice(choices: DialogueChoice[], visit: (choice: DialogueChoice) => void) {
+  for (const choice of choices) {
+    visit(choice);
+    for (const response of choice.responsePages ?? []) forEachChoice(response.choices, visit);
+  }
+}
+
+function renewBranchIds(choices: DialogueChoice[]) {
+  forEachChoice(choices, (choice) => {
+    choice.id = crypto.randomUUID();
+    for (const response of choice.responsePages ?? []) response.id = crypto.randomUUID();
+  });
+}
 
 function sectionForIssue(section: ValidationIssue['section']): InspectorSection | undefined {
   if (section === 'character') return 'character';
@@ -316,6 +334,10 @@ export function DialogueStudioV2() {
       window.alert(`'${name}' 이름의 대화가 이미 있습니다. 생성하지 않았습니다.`);
       return;
     }
+    if (project.dialogues.some((candidate) => serverNameKey(candidate.server?.remoteName || candidate.name) === serverNameKey(name))) {
+      window.alert(`'${name}'은 서버에서 기존 대화와 같은 저장 이름이 됩니다. 다른 이름을 사용해 주세요.`);
+      return;
+    }
     const next = createDialogue(name);
     mutateProject(project.id, (draft) => void draft.dialogues.push(next));
     selectDialogue(next.id, next.pages[0]?.id);
@@ -372,7 +394,7 @@ export function DialogueStudioV2() {
     const duplicate = structuredClone(source);
     duplicate.id = crypto.randomUUID();
     duplicate.editorLabel = `${source.editorLabel || `Page ${dialogue.pages.indexOf(source) + 1}`} 복사본`;
-    duplicate.choices = duplicate.choices.map((choice) => ({ ...choice, id: crypto.randomUUID() }));
+    renewBranchIds(duplicate.choices);
     mutateProject(project.id, (draft) => {
       const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
       const sourceIndex = target?.pages.findIndex((candidate) => candidate.id === pageId) ?? -1;
@@ -388,7 +410,7 @@ export function DialogueStudioV2() {
 
     const references: string[] = [];
     dialogue.pages.forEach((candidate, index) => {
-      candidate.choices.forEach((choice) => {
+      forEachChoice(candidate.choices, (choice) => {
         if (choice.targetPageId === pageId)
           references.push(`Page ${index + 1} / 선택지 "${choice.label || '이름 없음'}"`);
       });
@@ -407,7 +429,7 @@ export function DialogueStudioV2() {
       if (!target) return;
       target.pages = target.pages.filter((candidate) => candidate.id !== pageId);
       target.pages.forEach((candidate) => {
-        candidate.choices.forEach((choice) => {
+        forEachChoice(candidate.choices, (choice) => {
           if (choice.targetPageId === pageId) choice.targetPageId = undefined;
         });
         if (candidate.server?.flow.nextPageId === pageId) candidate.server.flow.nextPageId = undefined;
@@ -444,18 +466,20 @@ export function DialogueStudioV2() {
     );
     const existing = project.dialogues.find(
       (candidate) =>
-        (candidate.server?.ownerUuid === connection.ownerUuid && candidate.server?.remoteName === document.name) ||
+        (candidate.server?.ownerUuid === connection.ownerUuid &&
+          serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(document.name)) ||
         normalizedName(candidate.name) === normalizedName(imported.name) ||
-        normalizedName(candidate.name) === normalizedName(document.name),
+        serverNameKey(candidate.name) === serverNameKey(document.name),
     );
     if (existing) imported.id = existing.id;
 
     mutateProject(project.id, (draft) => {
       const existingIndex = draft.dialogues.findIndex(
         (candidate) =>
-          (candidate.server?.ownerUuid === connection.ownerUuid && candidate.server?.remoteName === document.name) ||
+          (candidate.server?.ownerUuid === connection.ownerUuid &&
+            serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(document.name)) ||
           normalizedName(candidate.name) === normalizedName(imported.name) ||
-          normalizedName(candidate.name) === normalizedName(document.name),
+          serverNameKey(candidate.name) === serverNameKey(document.name),
       );
       if (existingIndex >= 0) draft.dialogues[existingIndex] = imported;
       else draft.dialogues.push(imported);
@@ -485,15 +509,15 @@ export function DialogueStudioV2() {
       const imported = documents.map((document) =>
         importMinecraftDialogue(document.name, document.dialogue, document.revision, connection.ownerUuid, manifest),
       );
-      const remoteNames = new Set(summaries.map((summary) => normalizedName(summary.name)));
+      const remoteNames = new Set(summaries.map((summary) => serverNameKey(summary.name)));
 
       imported.forEach((next) => {
         const existing = project.dialogues.find(
           (candidate) =>
             (candidate.server?.ownerUuid === connection.ownerUuid &&
-              normalizedName(candidate.server?.remoteName ?? '') === normalizedName(next.server?.remoteName ?? '')) ||
+              serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(next.server?.remoteName ?? '')) ||
             normalizedName(candidate.name) === normalizedName(next.name) ||
-            normalizedName(candidate.name) === normalizedName(next.server?.remoteName ?? ''),
+            serverNameKey(candidate.name) === serverNameKey(next.server?.remoteName ?? ''),
         );
         if (existing) next.id = existing.id;
       });
@@ -501,15 +525,15 @@ export function DialogueStudioV2() {
       mutateProject(project.id, (draft) => {
         draft.dialogues = draft.dialogues.filter((candidate) => {
           if (candidate.server?.ownerUuid !== connection.ownerUuid || !candidate.server.remoteName) return true;
-          return remoteNames.has(normalizedName(candidate.server.remoteName));
+          return remoteNames.has(serverNameKey(candidate.server.remoteName));
         });
         for (const next of imported) {
           const index = draft.dialogues.findIndex(
             (candidate) =>
               (candidate.server?.ownerUuid === connection.ownerUuid &&
-                normalizedName(candidate.server?.remoteName ?? '') === normalizedName(next.server?.remoteName ?? '')) ||
+                serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(next.server?.remoteName ?? '')) ||
               normalizedName(candidate.name) === normalizedName(next.name) ||
-              normalizedName(candidate.name) === normalizedName(next.server?.remoteName ?? ''),
+              serverNameKey(candidate.name) === serverNameKey(next.server?.remoteName ?? ''),
           );
           if (index >= 0) draft.dialogues[index] = next;
           else draft.dialogues.push(next);
@@ -542,7 +566,7 @@ export function DialogueStudioV2() {
     }
 
     const duplicateNames = project.dialogues
-      .map((candidate) => normalizedName(candidate.server?.remoteName || candidate.name))
+      .map((candidate) => serverNameKey(candidate.server?.remoteName || candidate.name))
       .filter((name, index, all) => all.indexOf(name) !== index);
     if (duplicateNames.length) {
       setServerStatus('error');
@@ -556,11 +580,11 @@ export function DialogueStudioV2() {
     try {
       const api = new PlayerSessionApiClient(connection.sessionId);
       const summaries = await api.listDialogues(connection.ownerUuid);
-      const remoteByName = new Map(summaries.map((summary) => [normalizedName(summary.name), summary]));
+      const remoteByName = new Map(summaries.map((summary) => [serverNameKey(summary.name), summary]));
 
       for (const local of project.dialogues) {
         const remoteName = local.server?.remoteName || local.name;
-        const current = remoteByName.get(normalizedName(remoteName));
+        const current = remoteByName.get(serverNameKey(remoteName));
         if (
           local.server?.ownerUuid === connection.ownerUuid &&
           local.server.revision &&
@@ -573,8 +597,9 @@ export function DialogueStudioV2() {
 
       for (const pending of project.pendingServerDeletes ?? []) {
         if (pending.ownerUuid !== connection.ownerUuid) continue;
-        const current = remoteByName.get(normalizedName(pending.remoteName));
-        if (current) await api.deleteDialogue(connection.ownerUuid, current.name);
+        const current = remoteByName.get(serverNameKey(pending.remoteName));
+        if (current)
+          await api.deleteDialogue(connection.ownerUuid, current.name, pending.revision ?? current.revision);
       }
 
       const savedMetadata = new Map<
@@ -585,7 +610,7 @@ export function DialogueStudioV2() {
         const remoteName = local.server?.remoteName || local.name;
         const payload = exportMinecraftDialogue(local, manifest);
         await api.validate(payload);
-        const current = remoteByName.get(normalizedName(remoteName));
+        const current = remoteByName.get(serverNameKey(remoteName));
         const expectedRevision =
           local.server?.ownerUuid === connection.ownerUuid && local.server.revision
             ? local.server.revision

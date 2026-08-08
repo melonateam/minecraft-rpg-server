@@ -1,4 +1,4 @@
-import type { Dialogue, DialoguePage, RPGProject } from '../domain/project';
+import type { Dialogue, DialogueChoice, DialoguePage, RPGProject } from '../domain/project';
 import { emptyServerPage } from '../domain/serverSettings';
 import type { ServerCondition, ServerPageSettings } from '../domain/serverSettings';
 import {
@@ -46,6 +46,13 @@ function validateItemSpec(value: string) {
   return itemId.test(value.trim()) || customItem.test(value.trim());
 }
 
+function forEachChoice(choices: DialogueChoice[], visit: (choice: DialogueChoice) => void) {
+  for (const choice of choices) {
+    visit(choice);
+    for (const response of choice.responsePages ?? []) forEachChoice(response.choices, visit);
+  }
+}
+
 function conditionProblems(condition: ServerCondition) {
   const problems: string[] = [];
   if (condition.mode === 'none') return problems;
@@ -66,7 +73,7 @@ function conditionProblems(condition: ServerCondition) {
 function pageEdges(dialogue: Dialogue, page: PageWithServer, index: number): string[] {
   const server = page.server ?? emptyServerPage();
   const edges = new Set<string>();
-  page.choices.forEach((choice) => {
+  forEachChoice(page.choices, (choice) => {
     if (choice.targetPageId) edges.add(choice.targetPageId);
   });
   if (server.flow.conditionalTargetPageId) edges.add(server.flow.conditionalTargetPageId);
@@ -228,59 +235,113 @@ export function validateProject(project: RPGProject, manifest: CharacterManifest
           });
         }
       });
-      if (page.choices.length > 8) {
-        issues.push({
-          id: `choices-${page.id}`,
-          severity: 'error',
-          dialogueId: dialogue.id,
-          pageId: page.id,
-          section: 'choices',
-          message: `${prefix}: 선택지는 최대 8개입니다.`,
+      const validateChoices = (choices: DialogueChoice[], location: string, depth = 0) => {
+        if (!choices.length) return;
+        if (depth >= 16) {
+          issues.push({
+            id: `choice-depth-${choices[0].id}-${depth}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'choices',
+            message: `${location}: 중첩 선택지는 최대 16단계입니다.`,
+          });
+          return;
+        }
+        if (choices.length > 8) {
+          issues.push({
+            id: `choices-${choices[0].id}`,
+            severity: 'error',
+            dialogueId: dialogue.id,
+            pageId: page.id,
+            section: 'choices',
+            message: `${location}: 선택지는 최대 8개입니다.`,
+          });
+        }
+        choices.forEach((rawChoice, choiceIndex) => {
+          const choiceLocation = `${location} / 선택지 ${choiceIndex + 1}`;
+          if (!rawChoice.label.trim()) {
+            issues.push({
+              id: `choice-empty-${rawChoice.id}`,
+              severity: 'error',
+              dialogueId: dialogue.id,
+              pageId: page.id,
+              section: 'choices',
+              message: `${choiceLocation}: 이름이 비어 있습니다.`,
+            });
+          }
+          if (visibleLength(rawChoice.label) > 10) {
+            issues.push({
+              id: `choice-length-${rawChoice.id}`,
+              severity: 'error',
+              dialogueId: dialogue.id,
+              pageId: page.id,
+              section: 'choices',
+              message: `${choiceLocation}: 이름은 최대 10자입니다.`,
+            });
+          }
+          if ((rawChoice.speakerOverride?.length ?? 0) > 10) {
+            issues.push({
+              id: `choice-speaker-${rawChoice.id}`,
+              severity: 'error',
+              dialogueId: dialogue.id,
+              pageId: page.id,
+              section: 'choices',
+              message: `${choiceLocation}: 화자는 최대 10자입니다.`,
+            });
+          }
+          if (rawChoice.targetPageId && !dialogue.pages.some((target) => target.id === rawChoice.targetPageId)) {
+            issues.push({
+              id: `choice-target-${rawChoice.id}`,
+              severity: 'error',
+              dialogueId: dialogue.id,
+              pageId: page.id,
+              section: 'choices',
+              message: `${choiceLocation}: 대상 페이지가 존재하지 않습니다.`,
+            });
+          }
+          const condition = rawChoice.server?.condition;
+          conditionProblems(condition ?? { ...server.displayCondition, mode: 'none' }).forEach((problem, index) =>
+            issues.push({
+              id: `choice-condition-${rawChoice.id}-${index}`,
+              severity: 'error',
+              dialogueId: dialogue.id,
+              pageId: page.id,
+              section: 'choices',
+              message: `${choiceLocation}: ${problem}`,
+            }),
+          );
+          const responses = rawChoice.responsePages ?? [];
+          if (responses.length > 30) {
+            issues.push({
+              id: `choice-responses-${rawChoice.id}`,
+              severity: 'error',
+              dialogueId: dialogue.id,
+              pageId: page.id,
+              section: 'choices',
+              message: `${choiceLocation}: 후속 대사는 최대 30페이지입니다.`,
+            });
+          }
+          responses.forEach((response, responseIndex) => {
+            const responseLocation = `${choiceLocation} / 후속 Page ${responseIndex + 1}`;
+            response.lines.forEach((line, lineIndex) => {
+              const length = visibleLength(line);
+              if (length > 30) {
+                issues.push({
+                  id: `choice-line-${response.id}-${lineIndex}`,
+                  severity: 'error',
+                  dialogueId: dialogue.id,
+                  pageId: page.id,
+                  section: 'choices',
+                  message: `${responseLocation} / ${lineIndex + 1}줄이 표시 문자 30자를 ${length - 30}자 초과했습니다.`,
+                });
+              }
+            });
+            validateChoices(response.choices, responseLocation, depth + 1);
+          });
         });
-      }
-      page.choices.forEach((rawChoice, choiceIndex) => {
-        if (!rawChoice.label.trim()) {
-          issues.push({
-            id: `choice-empty-${rawChoice.id}`,
-            severity: 'error',
-            dialogueId: dialogue.id,
-            pageId: page.id,
-            section: 'choices',
-            message: `${prefix}: ${choiceIndex + 1}번 선택지 이름이 비어 있습니다.`,
-          });
-        }
-        if (rawChoice.label.length > 10) {
-          issues.push({
-            id: `choice-length-${rawChoice.id}`,
-            severity: 'error',
-            dialogueId: dialogue.id,
-            pageId: page.id,
-            section: 'choices',
-            message: `${prefix}: 선택지 이름은 최대 10자입니다.`,
-          });
-        }
-        if (rawChoice.targetPageId && !dialogue.pages.some((target) => target.id === rawChoice.targetPageId)) {
-          issues.push({
-            id: `choice-target-${rawChoice.id}`,
-            severity: 'error',
-            dialogueId: dialogue.id,
-            pageId: page.id,
-            section: 'choices',
-            message: `${prefix}: ${choiceIndex + 1}번 선택지의 대상 페이지가 존재하지 않습니다.`,
-          });
-        }
-        const condition = (rawChoice as { server?: { condition?: ServerCondition } }).server?.condition;
-        conditionProblems(condition ?? { ...server.displayCondition, mode: 'none' }).forEach((problem, index) =>
-          issues.push({
-            id: `choice-condition-${rawChoice.id}-${index}`,
-            severity: 'error',
-            dialogueId: dialogue.id,
-            pageId: page.id,
-            section: 'choices',
-            message: `${prefix}: ${problem}`,
-          }),
-        );
-      });
+      };
+      validateChoices(page.choices, prefix);
 
       const character = getCharacter(manifest, page.appearance.characterId);
       if (page.appearance.characterId && !character) {

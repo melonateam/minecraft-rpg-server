@@ -148,7 +148,7 @@ function pageText(lines: [string, string, string, string]) {
 
 function appearanceToServer(appearance: PageAppearance, manifest: CharacterManifest) {
   const character = getCharacter(manifest, appearance.characterId);
-  if (!character || !appearance.visible) return { portrait: '', expression: '' };
+  if (!character) return { portrait: '', expression: '' };
   const gender = normalizedGender(character, appearance.gender);
   return {
     portrait: resolvePortraitId(character, gender),
