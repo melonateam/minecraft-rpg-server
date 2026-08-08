@@ -6,4 +6,3 @@ if errorlevel 1 (
   exit /b 1
 )
 "%~dp0runtime\jdk-25.0.4+7-jre\bin\java.exe" -Xms2G -Xmx6G -Dfile.encoding=UTF-8 -jar paper.jar --nogui
-pause
