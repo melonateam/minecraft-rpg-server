@@ -9,6 +9,7 @@ interface Props {
   issues: ValidationIssue[];
   onSelectDialogue: (dialogue: Dialogue) => void;
   onCreateDialogue: () => void;
+  onDeleteDialogue: () => void;
   onSelectPage: (pageId: string) => void;
   onCreatePage: () => void;
   onDuplicatePage: (pageId: string) => void;
@@ -48,13 +49,22 @@ export function DialogueSidebar(props: Props) {
           })}
         </div>
 
-        <button
-          type="button"
-          onClick={props.onCreateDialogue}
-          className="mt-2 w-full rounded-lg px-2.5 py-2 text-left text-xs text-[#8b99ff] hover:bg-[#1b2027]"
-        >
-          + 새 대화
-        </button>
+        <div className="mt-2 grid grid-cols-[1fr_auto] gap-1">
+          <button
+            type="button"
+            onClick={props.onCreateDialogue}
+            className="rounded-lg px-2.5 py-2 text-left text-xs text-[#8b99ff] hover:bg-[#1b2027]"
+          >
+            + 새 대화
+          </button>
+          <button
+            type="button"
+            onClick={props.onDeleteDialogue}
+            className="rounded-lg px-2.5 py-2 text-xs text-[#8b929d] hover:bg-red-400/10 hover:text-red-300"
+          >
+            대화 삭제
+          </button>
+        </div>
       </section>
 
       <StructuredPageNavigator
