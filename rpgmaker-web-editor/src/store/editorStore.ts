@@ -6,10 +6,12 @@ const HISTORY_LIMIT = 60;
 interface EditorState {
   activeDialogueId?: string;
   activePageId?: string;
+  activeChoiceId?: string;
   past: RPGProject[];
   future: RPGProject[];
   selectDialogue: (dialogueId: string, firstPageId?: string) => void;
   selectPage: (pageId: string) => void;
+  selectChoice: (choiceId?: string) => void;
   record: (project: RPGProject) => void;
   takeUndo: (current: RPGProject) => RPGProject | null;
   takeRedo: (current: RPGProject) => RPGProject | null;
@@ -22,8 +24,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   past: [],
   future: [],
   selectDialogue: (dialogueId, firstPageId) =>
-    set({ activeDialogueId: dialogueId, activePageId: firstPageId }),
-  selectPage: (pageId) => set({ activePageId: pageId }),
+    set({ activeDialogueId: dialogueId, activePageId: firstPageId, activeChoiceId: undefined }),
+  selectPage: (pageId) => set({ activePageId: pageId, activeChoiceId: undefined }),
+  selectChoice: (choiceId) => set({ activeChoiceId: choiceId }),
   record: (project) =>
     set((state) => ({
       past: [...state.past.slice(-(HISTORY_LIMIT - 1)), cloneProject(project)],

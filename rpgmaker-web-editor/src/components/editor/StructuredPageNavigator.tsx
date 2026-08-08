@@ -1,6 +1,7 @@
 import type { Dialogue, DialoguePage } from '../../domain/project';
 import { emptyChoiceSettings } from '../../domain/serverSettings';
 import type { ValidationIssue } from '../../services/projectValidator';
+import { useEditorStore } from '../../store/editorStore';
 import { useProjectStore } from '../../store/projectStore';
 
 interface Props {
@@ -24,43 +25,29 @@ function flags(page: DialoguePage, issues: ValidationIssue[]) {
   return result;
 }
 
-function openChoices() {
-  const directTrigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => {
-    const text = button.textContent?.trim();
-    return text === '선택지 편집' || text === '선택지 만들기';
-  });
-
-  if (directTrigger) {
-    directTrigger.click();
-    return;
-  }
-
-  // Fallback for older workspace layouts. The direct trigger above is preferred because
-  // it calls the React state handler synchronously instead of depending on a global event listener.
-  window.dispatchEvent(new CustomEvent('rpgmaker:open-choices'));
-}
-
 export function StructuredPageNavigator(props: Props) {
   const projects = useProjectStore((state) => state.projects);
   const mutateProject = useProjectStore((state) => state.mutateProject);
+  const selectChoice = useEditorStore((state) => state.selectChoice);
   const activePage = props.dialogue.pages.find((page) => page.id === props.activePageId) ?? props.dialogue.pages[0];
 
   const addChoice = () => {
     if (!activePage || activePage.choices.length >= 8) return;
     const project = projects.find((candidate) => candidate.dialogues.some((dialogue) => dialogue.id === props.dialogue.id));
     if (!project) return;
+    const choiceId = crypto.randomUUID();
     mutateProject(project.id, (draftProject) => {
       const dialogue = draftProject.dialogues.find((candidate) => candidate.id === props.dialogue.id);
       const page = dialogue?.pages.find((candidate) => candidate.id === activePage.id);
       if (!page || page.choices.length >= 8) return;
       page.choices.push({
-        id: crypto.randomUUID(),
+        id: choiceId,
         label: `선택지 ${page.choices.length + 1}`,
         responsePages: [],
         server: emptyChoiceSettings(),
       });
     });
-    queueMicrotask(openChoices);
+    selectChoice(choiceId);
   };
 
   return (
@@ -118,7 +105,7 @@ export function StructuredPageNavigator(props: Props) {
           <button
             key={choice.id}
             type="button"
-            onClick={openChoices}
+            onClick={() => selectChoice(choice.id)}
             className="flex w-full items-center gap-2 rounded-lg border border-[#252b34] bg-[#171b21] px-3 py-2 text-left hover:border-[#4d5774] hover:bg-[#1c222b]"
           >
             <span className="text-[10px] font-bold text-[#9d8cff]">{index + 1}</span>

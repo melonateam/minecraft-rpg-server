@@ -9,6 +9,7 @@ import {
   type ManifestExpression,
 } from '../../services/characterRegistry';
 import { visibleLength } from '../../services/projectValidator';
+import { useEditorStore } from '../../store/editorStore';
 import { PortraitSprite } from '../characters/PortraitSprite';
 import { ChoiceBranchWorkspace } from './ChoiceBranchWorkspace';
 import { DialogueMovementWorkspace } from './DialogueMovementWorkspace';
@@ -46,12 +47,22 @@ export function ScriptWorkspace({
     ? (page.appearance.expression as ManifestExpression)
     : expressions[0];
   const sprite = character && expression ? portraitSprite(manifest, character, gender, expression) : undefined;
+  const activeChoiceId = useEditorStore((state) => state.activeChoiceId);
+  const selectChoice = useEditorStore((state) => state.selectChoice);
+  const selectedChoice = activeChoiceId ? page.choices.find((choice) => choice.id === activeChoiceId) : undefined;
 
   useEffect(() => {
-    const open = () => onOpenPanel('choices');
-    window.addEventListener('rpgmaker:open-choices', open);
-    return () => window.removeEventListener('rpgmaker:open-choices', open);
-  }, [onOpenPanel]);
+    if (!activeChoiceId) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') selectChoice(undefined);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [activeChoiceId, selectChoice]);
+
+  useEffect(() => {
+    if (activeChoiceId && !selectedChoice) selectChoice(undefined);
+  }, [activeChoiceId, selectedChoice, selectChoice]);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0f1216]">
@@ -215,7 +226,11 @@ export function ScriptWorkspace({
                 <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6e7887]">현재 페이지 선택지</div>
                 <div className="mt-1 text-xs text-[#5f6976]">선택지는 왼쪽 사이드바의 ‘선택지 추가’에서도 만들 수 있습니다.</div>
               </div>
-              <button type="button" onClick={() => onOpenPanel('choices')} className="text-xs text-[#b09cff]">
+              <button
+                type="button"
+                onClick={() => page.choices[0] ? selectChoice(page.choices[0].id) : onOpenPanel('choices')}
+                className="text-xs text-[#b09cff]"
+              >
                 {page.choices.length ? '선택지 편집' : '선택지 만들기'}
               </button>
             </div>
@@ -225,7 +240,7 @@ export function ScriptWorkspace({
                   <button
                     key={choice.id}
                     type="button"
-                    onClick={() => onOpenPanel('choices')}
+                    onClick={() => selectChoice(choice.id)}
                     className="flex items-center rounded-xl border border-[#30283d] bg-[#18151f] px-4 py-3 text-left hover:bg-[#201b29]"
                   >
                     <span className="mr-3 text-xs font-semibold text-[#b09cff]">[{index + 1}]</span>
@@ -252,6 +267,34 @@ export function ScriptWorkspace({
           {activePanel === 'choices' && <ChoiceBranchWorkspace page={page} manifest={manifest} onChange={onChange} />}
         </div>
       </div>
+
+      {selectedChoice && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) selectChoice(undefined);
+          }}
+        >
+          <div className="flex max-h-[92vh] w-full max-w-[980px] flex-col overflow-hidden rounded-2xl border border-[#4b3b59] bg-[#101218] shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-[#2d2634] px-6 py-4">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#a98cff]">선택지 상세 편집</div>
+                <div className="mt-1 truncate text-base font-semibold text-[#eef1f5]">{selectedChoice.label || '이름 없는 선택지'}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => selectChoice(undefined)}
+                className="rounded-lg px-3 py-2 text-sm text-[#8993a1] hover:bg-[#252b35] hover:text-white"
+              >
+                닫기 ✕
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+              <ChoiceBranchWorkspace page={page} manifest={manifest} onChange={onChange} />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
