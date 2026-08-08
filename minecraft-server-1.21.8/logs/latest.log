@@ -1,189 +1,192 @@
-[19:23:21] [ServerMain/INFO]: [bootstrap] Running Java 25 (OpenJDK 64-Bit Server VM 25.0.4+7-LTS; Eclipse Adoptium Temurin-25.0.4+7) on Windows 11 10.0 (amd64)
-[19:23:21] [ServerMain/INFO]: [bootstrap] Loading Paper 1.21.8-60-main@29c8822 (2025-09-06T21:49:13Z) for Minecraft 1.21.8
-[19:23:21] [ServerMain/INFO]: [PluginInitializerManager] Initializing plugins...
-[19:23:21] [Paper Plugin Remapper Thread - 2/INFO]: [PluginRemapper] Remapping plugin 'plugins\RPGMaker.jar'...
-[19:23:22] [Paper Plugin Remapper Thread - 2/INFO]: [PluginRemapper] Done remapping plugin 'plugins\RPGMaker.jar' in 197ms.
-[19:23:22] [ServerMain/INFO]: [PluginInitializerManager] Initialized 9 plugins
-[19:23:22] [ServerMain/INFO]: [PluginInitializerManager] Bukkit plugins (9):
- - AxiomPaper (5.0.4+1.21.8), Citizens (2.0.40-SNAPSHOT (build 3957)), FastAsyncWorldEdit (2.15.3+1704422), KAKC (1.2), NoChatReports (2.7.7), RPGMaker (1.1.2), Skript (2.16.1), WorldGuard (7.0.14+2339-43997ec), skript-reflect (2.6.3)
-[19:23:24] [ServerMain/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
-[19:23:25] [ServerMain/INFO]: Loaded 1407 recipes
-[19:23:25] [ServerMain/INFO]: Loaded 1520 advancements
-[19:23:25] [ServerMain/INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Initialising converters for DataConverter...
-[19:23:25] [ServerMain/INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Finished initialising converters for DataConverter in 175.8ms
-[19:23:25] [Server thread/INFO]: Starting minecraft server version 1.21.8
-[19:23:25] [Server thread/INFO]: Loading properties
-[19:23:25] [Server thread/INFO]: This server is running Paper version 1.21.8-60-main@29c8822 (2025-09-06T21:49:13Z) (Implementing API version 1.21.8-R0.1-SNAPSHOT)
-[19:23:25] [Server thread/INFO]: [spark] This server bundles the spark profiler. For more information please visit https://docs.papermc.io/paper/profiling
-[19:23:25] [Server thread/INFO]: Server Ping Player Sample Count: 12
-[19:23:25] [Server thread/INFO]: Using 4 threads for Netty based IO
-[19:23:26] [Server thread/INFO]: [MoonriseCommon] Paper is using 3 worker threads, 1 I/O threads
-[19:23:26] [Server thread/INFO]: [ChunkTaskScheduler] Chunk system is using population gen parallelism: true
-[19:23:26] [Server thread/INFO]: Default game type: ADVENTURE
-[19:23:26] [Server thread/INFO]: Generating keypair
-[19:23:26] [Server thread/INFO]: Starting Minecraft server on *:25565
-[19:23:26] [Server thread/INFO]: Using default channel type
-[19:23:26] [Server thread/INFO]: Paper: Using Java compression from Velocity.
-[19:23:26] [Server thread/INFO]: Paper: Using Java cipher from Velocity.
-[19:23:26] [Server thread/WARN]: [org.bukkit.craftbukkit.legacy.CraftLegacy] Initializing Legacy Material Support. Unless you have legacy plugins and/or data this is a bug!
-[19:23:30] [Server thread/WARN]: Legacy plugin KAKC v1.2 does not specify an api-version.
-[19:23:30] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loading 3 libraries... please wait
-[19:23:30] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loaded library C:\Users\hyun\OneDrive\문서\ChatGPT\New project\minecraft-server-1.21.8\libraries\ch\ethz\globis\phtree\phtree\2.8.2\phtree-2.8.2.jar
-[19:23:30] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loaded library C:\Users\hyun\OneDrive\문서\ChatGPT\New project\minecraft-server-1.21.8\libraries\org\joml\joml\1.10.8\joml-1.10.8.jar
-[19:23:30] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loaded library C:\Users\hyun\OneDrive\문서\ChatGPT\New project\minecraft-server-1.21.8\libraries\it\unimi\dsi\fastutil\8.5.16\fastutil-8.5.16.jar
-[19:23:30] [Server thread/INFO]: [FastAsyncWorldEdit] Loading server plugin FastAsyncWorldEdit v2.15.3+1704422
-[19:23:30] [Server thread/INFO]: Got request to register class com.sk89q.worldedit.bukkit.BukkitServerInterface with WorldEdit [com.sk89q.worldedit.extension.platform.PlatformManager@28dfe4f0]
-[19:23:30] [Server thread/INFO]: [WorldGuard] Loading server plugin WorldGuard v7.0.14+2339-43997ec
-[19:23:30] [Server thread/INFO]: [Skript] Loading server plugin Skript v2.16.1
-[19:23:30] [Server thread/INFO]: [skript-reflect] Loading server plugin skript-reflect v2.6.3
-[19:23:30] [Server thread/INFO]: [RPGMaker] Loading server plugin RPGMaker v1.1.2
-[19:23:30] [Server thread/INFO]: [NoChatReports] Loading server plugin NoChatReports v2.7.7
-[19:23:30] [Server thread/INFO]: [KAKC] Loading server plugin KAKC v1.2
-[19:23:30] [Server thread/INFO]: [Citizens] Loading server plugin Citizens v2.0.40-SNAPSHOT (build 3957)
-[19:23:30] [Server thread/INFO]: [AxiomPaper] Loading server plugin AxiomPaper v5.0.4+1.21.8
-[19:23:30] [Server thread/INFO]: Server permissions file permissions.yml is empty, ignoring it
-[19:23:30] [Server thread/INFO]: [FastAsyncWorldEdit] Enabling FastAsyncWorldEdit v2.15.3+1704422
-[19:23:30] [Server thread/INFO]: [com.fastasyncworldedit.core.Fawe] LZ4 Compression Binding loaded successfully
-[19:23:30] [Server thread/INFO]: [com.fastasyncworldedit.core.Fawe] ZSTD Compression Binding loaded successfully
-[19:23:30] [Server thread/INFO]: Registering commands with com.sk89q.worldedit.bukkit.BukkitServerInterface
-[19:23:30] [Server thread/INFO]: WEPIF: Using the Bukkit Permissions API.
-[19:23:31] [Server thread/INFO]: Using com.sk89q.worldedit.bukkit.adapter.impl.fawe.v1_21_6.PaperweightFaweAdapter as the Bukkit adapter
-[19:23:31] [Server thread/INFO]: Preparing level "world"
-[19:23:31] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld
-[19:23:31] [Server thread/INFO]: Preparing spawn area: 0%
-[19:23:31] [Server thread/INFO]: Time elapsed: 179 ms
-[19:23:31] [Server thread/INFO]: Preparing start region for dimension minecraft:the_nether
-[19:23:31] [Server thread/INFO]: Preparing spawn area: 0%
-[19:23:32] [Server thread/INFO]: Time elapsed: 324 ms
-[19:23:32] [Server thread/INFO]: Preparing start region for dimension minecraft:the_end
-[19:23:32] [Server thread/INFO]: Preparing spawn area: 0%
-[19:23:32] [Server thread/INFO]: Time elapsed: 81 ms
-[19:23:32] [Server thread/INFO]: [WorldGuard] Enabling WorldGuard v7.0.14+2339-43997ec
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world) TNT ignition is PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world) Lighters are PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world) Lava fire is PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world) Fire spread is UNRESTRICTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] Loaded configuration for world 'world'
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_nether) TNT ignition is PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_nether) Lighters are PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_nether) Lava fire is PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_nether) Fire spread is UNRESTRICTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] Loaded configuration for world 'world_nether'
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_the_end) TNT ignition is PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_the_end) Lighters are PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_the_end) Lava fire is PERMITTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] (world_the_end) Fire spread is UNRESTRICTED.
-[19:23:32] [Server thread/INFO]: [WorldGuard] Loaded configuration for world 'world_the_end'
-[19:23:32] [Server thread/INFO]: [WorldGuard] Loading region data...
-[19:23:32] [Server thread/INFO]: [Skript] Enabling Skript v2.16.1
-[19:23:32] [ForkJoinPool.commonPool-worker-1/INFO]: [Skript] You're currently running the latest stable version of Skript.
-[19:23:33] [Server thread/INFO]: [Skript]  ~ created by & © Peter Güttinger aka Njol ~
-[19:23:33] [Server thread/INFO]: [skript-reflect] Enabling skript-reflect v2.6.3
-[19:23:33] [Server thread/INFO]: [RPGMaker] Enabling RPGMaker v1.1.2
-[19:23:33] [Server thread/INFO]: [RPGMaker] Loaded RPGMaker character manifest v1 (19 characters)
-[19:23:33] [Server thread/INFO]: [RPGMaker] RPGMaker Web API listening on http://127.0.0.1:25567/api/v1/
-[19:23:33] [Server thread/WARN]: [RPGMaker] RPGMaker Web API uses the development token. Change web-api.token before exposing the port.
-[19:23:33] [Server thread/INFO]: [RPGMaker] Resource pack server listening on port 25566
-[19:23:33] [Server thread/INFO]: [NoChatReports] Enabling NoChatReports v2.7.7
-[19:23:33] [Server thread/INFO]: [NoChatReports] Loading support for Minecraft version: 1.21.8
-[19:23:33] [Server thread/INFO]: [KAKC] Enabling KAKC v1.2*
-[19:23:33] [Server thread/INFO]: [Citizens] Enabling Citizens v2.0.40-SNAPSHOT (build 3957)
-[19:23:34] [Server thread/INFO]: [Citizens] Detected system language [[ko]]. If you'd like you can contribute to Citizens translations via our Discord! https://discord.gg/Q6pZGSR
-[19:23:34] [Server thread/INFO]: [Citizens] Using mojmapped server, avoiding server package checks
-[19:23:34] [Server thread/INFO]: [Citizens] Loaded 0 templates.
-[19:23:34] [ForkJoinPool.commonPool-worker-1/INFO]: [Skript] Loaded 5504 aliases in 604ms
-[19:23:34] [Server thread/INFO]: [AxiomPaper] Enabling AxiomPaper v5.0.4+1.21.8
-[19:23:34] [Server thread/INFO]: [spark] Starting background profiler...
-[19:23:34] [Server thread/INFO]: [spark] The async-profiler engine is not supported for your os/arch (windows11/amd64), so the built-in Java engine will be used instead.
-[19:23:34] [Server thread/INFO]: Done preparing level "world" (3.303s)
-[19:23:34] [Server thread/INFO]: Running delayed init tasks
-[19:23:34] [Craft Scheduler Thread - 1 - NoChatReports/INFO]: [NoChatReports] Checking for updates...
-[19:23:34] [Server thread/INFO]: [com.fastasyncworldedit.bukkit.regions.WorldGuardFeature] Plugin 'WorldGuard' found. Using it now.
-[19:23:34] [Server thread/INFO]: [com.fastasyncworldedit.bukkit.FaweBukkit] Attempting to use plugin 'WorldGuard'
-[19:23:34] [Server thread/INFO]: [Skript]     Loaded regions hook for WorldGuard. Please note that Skript's region hooks are deprecated and will be removed in a future release. For WorldGuard support, we recommend using skript-worldguard: https://github.com/SkriptLang/skript-worldguard
-[19:23:34] [Server thread/INFO]: [Skript] Loading variables...
-[19:23:34] [Server thread/INFO]: [Skript] Loaded 49 variables in 0.0 seconds
-[19:23:35] [Craft Scheduler Thread - 1 - NoChatReports/INFO]: 
+[20:07:56] [ServerMain/INFO]: [bootstrap] Running Java 25 (OpenJDK 64-Bit Server VM 25.0.4+7-LTS; Eclipse Adoptium Temurin-25.0.4+7) on Windows 11 10.0 (amd64)
+[20:07:56] [ServerMain/INFO]: [bootstrap] Loading Paper 1.21.8-60-main@29c8822 (2025-09-06T21:49:13Z) for Minecraft 1.21.8
+[20:07:56] [ServerMain/INFO]: [PluginInitializerManager] Initializing plugins...
+[20:07:57] [Paper Plugin Remapper Thread - 0/INFO]: [PluginRemapper] Remapping plugin 'plugins\RPGMaker.jar'...
+[20:07:57] [Paper Plugin Remapper Thread - 0/INFO]: [PluginRemapper] Done remapping plugin 'plugins\RPGMaker.jar' in 221ms.
+[20:07:57] [ServerMain/INFO]: [PluginInitializerManager] Initialized 9 plugins
+[20:07:57] [ServerMain/INFO]: [PluginInitializerManager] Bukkit plugins (9):
+ - AxiomPaper (5.0.4+1.21.8), Citizens (2.0.40-SNAPSHOT (build 3957)), FastAsyncWorldEdit (2.15.3+1704422), KAKC (1.2), NoChatReports (2.7.7), RPGMaker (1.1.3), Skript (2.16.1), WorldGuard (7.0.14+2339-43997ec), skript-reflect (2.6.3)
+[20:08:00] [ServerMain/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[20:08:01] [ServerMain/INFO]: Loaded 1407 recipes
+[20:08:01] [ServerMain/INFO]: Loaded 1520 advancements
+[20:08:01] [ServerMain/INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Initialising converters for DataConverter...
+[20:08:02] [ServerMain/INFO]: [ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry] Finished initialising converters for DataConverter in 254.4ms
+[20:08:02] [Server thread/INFO]: Starting minecraft server version 1.21.8
+[20:08:02] [Server thread/INFO]: Loading properties
+[20:08:02] [Server thread/INFO]: This server is running Paper version 1.21.8-60-main@29c8822 (2025-09-06T21:49:13Z) (Implementing API version 1.21.8-R0.1-SNAPSHOT)
+[20:08:02] [Server thread/INFO]: [spark] This server bundles the spark profiler. For more information please visit https://docs.papermc.io/paper/profiling
+[20:08:02] [Server thread/INFO]: Using 4 threads for Netty based IO
+[20:08:02] [Server thread/INFO]: Server Ping Player Sample Count: 12
+[20:08:02] [Server thread/INFO]: [MoonriseCommon] Paper is using 3 worker threads, 1 I/O threads
+[20:08:02] [Server thread/INFO]: [ChunkTaskScheduler] Chunk system is using population gen parallelism: true
+[20:08:02] [Server thread/INFO]: Default game type: ADVENTURE
+[20:08:02] [Server thread/INFO]: Generating keypair
+[20:08:03] [Server thread/INFO]: Starting Minecraft server on *:25565
+[20:08:03] [Server thread/INFO]: Using default channel type
+[20:08:03] [Server thread/INFO]: Paper: Using Java compression from Velocity.
+[20:08:03] [Server thread/INFO]: Paper: Using Java cipher from Velocity.
+[20:08:03] [Server thread/WARN]: [org.bukkit.craftbukkit.legacy.CraftLegacy] Initializing Legacy Material Support. Unless you have legacy plugins and/or data this is a bug!
+[20:08:07] [Server thread/WARN]: Legacy plugin KAKC v1.2 does not specify an api-version.
+[20:08:07] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loading 3 libraries... please wait
+[20:08:08] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loaded library C:\Users\hyun\OneDrive\문서\ChatGPT\New project\minecraft-server-1.21.8\libraries\ch\ethz\globis\phtree\phtree\2.8.2\phtree-2.8.2.jar
+[20:08:08] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loaded library C:\Users\hyun\OneDrive\문서\ChatGPT\New project\minecraft-server-1.21.8\libraries\org\joml\joml\1.10.8\joml-1.10.8.jar
+[20:08:08] [Server thread/INFO]: [SpigotLibraryLoader] [Citizens] Loaded library C:\Users\hyun\OneDrive\문서\ChatGPT\New project\minecraft-server-1.21.8\libraries\it\unimi\dsi\fastutil\8.5.16\fastutil-8.5.16.jar
+[20:08:08] [Server thread/INFO]: [FastAsyncWorldEdit] Loading server plugin FastAsyncWorldEdit v2.15.3+1704422
+[20:08:08] [Server thread/INFO]: Got request to register class com.sk89q.worldedit.bukkit.BukkitServerInterface with WorldEdit [com.sk89q.worldedit.extension.platform.PlatformManager@206e0bad]
+[20:08:08] [Server thread/INFO]: [WorldGuard] Loading server plugin WorldGuard v7.0.14+2339-43997ec
+[20:08:08] [Server thread/INFO]: [Skript] Loading server plugin Skript v2.16.1
+[20:08:08] [Server thread/INFO]: [skript-reflect] Loading server plugin skript-reflect v2.6.3
+[20:08:08] [Server thread/INFO]: [RPGMaker] Loading server plugin RPGMaker v1.1.3
+[20:08:08] [Server thread/INFO]: [NoChatReports] Loading server plugin NoChatReports v2.7.7
+[20:08:08] [Server thread/INFO]: [KAKC] Loading server plugin KAKC v1.2
+[20:08:08] [Server thread/INFO]: [Citizens] Loading server plugin Citizens v2.0.40-SNAPSHOT (build 3957)
+[20:08:08] [Server thread/INFO]: [AxiomPaper] Loading server plugin AxiomPaper v5.0.4+1.21.8
+[20:08:08] [Server thread/INFO]: Server permissions file permissions.yml is empty, ignoring it
+[20:08:08] [Server thread/INFO]: [FastAsyncWorldEdit] Enabling FastAsyncWorldEdit v2.15.3+1704422
+[20:08:08] [Server thread/INFO]: [com.fastasyncworldedit.core.Fawe] LZ4 Compression Binding loaded successfully
+[20:08:08] [Server thread/INFO]: [com.fastasyncworldedit.core.Fawe] ZSTD Compression Binding loaded successfully
+[20:08:08] [Server thread/INFO]: Registering commands with com.sk89q.worldedit.bukkit.BukkitServerInterface
+[20:08:08] [Server thread/INFO]: WEPIF: Using the Bukkit Permissions API.
+[20:08:08] [Server thread/INFO]: Using com.sk89q.worldedit.bukkit.adapter.impl.fawe.v1_21_6.PaperweightFaweAdapter as the Bukkit adapter
+[20:08:09] [Server thread/INFO]: Preparing level "world"
+[20:08:09] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld
+[20:08:09] [Server thread/INFO]: Preparing spawn area: 0%
+[20:08:09] [Server thread/INFO]: Time elapsed: 251 ms
+[20:08:09] [Server thread/INFO]: Preparing start region for dimension minecraft:the_nether
+[20:08:09] [Server thread/INFO]: Preparing spawn area: 0%
+[20:08:10] [Server thread/INFO]: Time elapsed: 309 ms
+[20:08:10] [Server thread/INFO]: Preparing start region for dimension minecraft:the_end
+[20:08:10] [Server thread/INFO]: Preparing spawn area: 0%
+[20:08:10] [Server thread/INFO]: Time elapsed: 154 ms
+[20:08:10] [Server thread/INFO]: [WorldGuard] Enabling WorldGuard v7.0.14+2339-43997ec
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world) TNT ignition is PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world) Lighters are PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world) Lava fire is PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world) Fire spread is UNRESTRICTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] Loaded configuration for world 'world'
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_nether) TNT ignition is PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_nether) Lighters are PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_nether) Lava fire is PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_nether) Fire spread is UNRESTRICTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] Loaded configuration for world 'world_nether'
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_the_end) TNT ignition is PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_the_end) Lighters are PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_the_end) Lava fire is PERMITTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] (world_the_end) Fire spread is UNRESTRICTED.
+[20:08:10] [Server thread/INFO]: [WorldGuard] Loaded configuration for world 'world_the_end'
+[20:08:10] [Server thread/INFO]: [WorldGuard] Loading region data...
+[20:08:10] [Server thread/INFO]: [Skript] Enabling Skript v2.16.1
+[20:08:11] [ForkJoinPool.commonPool-worker-1/INFO]: [Skript] You're currently running the latest stable version of Skript.
+[20:08:11] [Server thread/INFO]: [Skript]  ~ created by & © Peter Güttinger aka Njol ~
+[20:08:11] [Server thread/INFO]: [skript-reflect] Enabling skript-reflect v2.6.3
+[20:08:11] [Server thread/INFO]: [RPGMaker] Enabling RPGMaker v1.1.3
+[20:08:11] [Server thread/INFO]: [RPGMaker] Loaded RPGMaker character manifest v1 (19 characters)
+[20:08:11] [Server thread/INFO]: [RPGMaker] RPGMaker Web API listening on http://127.0.0.1:25567/api/v1/
+[20:08:11] [Server thread/WARN]: [RPGMaker] RPGMaker Web API uses the development token. Change web-api.token before exposing the port.
+[20:08:11] [Server thread/INFO]: [RPGMaker] Resource pack server listening on port 25566
+[20:08:11] [Server thread/INFO]: [NoChatReports] Enabling NoChatReports v2.7.7
+[20:08:11] [Server thread/INFO]: [NoChatReports] Loading support for Minecraft version: 1.21.8
+[20:08:11] [Server thread/INFO]: [KAKC] Enabling KAKC v1.2*
+[20:08:11] [Server thread/INFO]: [Citizens] Enabling Citizens v2.0.40-SNAPSHOT (build 3957)
+[20:08:12] [ForkJoinPool.commonPool-worker-1/INFO]: [Skript] Loaded 5504 aliases in 656ms
+[20:08:12] [Server thread/INFO]: [Citizens] Detected system language [[ko]]. If you'd like you can contribute to Citizens translations via our Discord! https://discord.gg/Q6pZGSR
+[20:08:12] [Server thread/INFO]: [Citizens] Using mojmapped server, avoiding server package checks
+[20:08:13] [Server thread/INFO]: [Citizens] Loaded 0 templates.
+[20:08:13] [Server thread/INFO]: [AxiomPaper] Enabling AxiomPaper v5.0.4+1.21.8
+[20:08:13] [Server thread/INFO]: [spark] Starting background profiler...
+[20:08:13] [Server thread/INFO]: [spark] The async-profiler engine is not supported for your os/arch (windows11/amd64), so the built-in Java engine will be used instead.
+[20:08:13] [Server thread/INFO]: Done preparing level "world" (4.326s)
+[20:08:13] [Server thread/INFO]: Running delayed init tasks
+[20:08:13] [Craft Scheduler Thread - 1 - NoChatReports/INFO]: [NoChatReports] Checking for updates...
+[20:08:13] [Server thread/INFO]: [com.fastasyncworldedit.bukkit.regions.WorldGuardFeature] Plugin 'WorldGuard' found. Using it now.
+[20:08:13] [Server thread/INFO]: [com.fastasyncworldedit.bukkit.FaweBukkit] Attempting to use plugin 'WorldGuard'
+[20:08:13] [Server thread/INFO]: [Skript]     Loaded regions hook for WorldGuard. Please note that Skript's region hooks are deprecated and will be removed in a future release. For WorldGuard support, we recommend using skript-worldguard: https://github.com/SkriptLang/skript-worldguard
+[20:08:13] [Server thread/INFO]: [Skript] Loading variables...
+[20:08:13] [Server thread/INFO]: [Skript] Loaded 50 variables in 0.0 seconds
+[20:08:14] [Craft Scheduler Thread - 1 - NoChatReports/INFO]: 
 ===============================================================================
 A minor update to NoChatReports is available!
 Download at https://www.spigotmc.org/resources/nochatreports.102931/
 (current: 2.7.7, latest: 2.7.8)
 ===============================================================================
 
-[19:23:35] [Server thread/INFO]: [Skript] Line 35: (server-management.sk)
-[19:23:35] [Server thread/INFO]:     This command has multiple arguments, meaning it is not possible to get the 'argument'. Use 'argument 1', 'argument 2', etc. instead
-[19:23:35] [Server thread/INFO]:     Line: if arg-1 is not "pvp" and arg-1 is not "mob" and arg-1 is not "time" and arg-1 is not "weather":
-[19:23:35] [Server thread/INFO]:  
-[19:23:35] [Server thread/INFO]: [Skript] Line 45: (server-management.sk)
-[19:23:35] [Server thread/INFO]:     This command has multiple arguments, meaning it is not possible to get the 'argument'. Use 'argument 1', 'argument 2', etc. instead
-[19:23:35] [Server thread/INFO]:     Line: if arg-2 is not "on" and arg-2 is not "off":
-[19:23:35] [Server thread/INFO]:  
-[19:23:35] [Server thread/INFO]: [Skript] Loaded 2 scripts with a total of 12 structures in 0.55 seconds
-[19:23:35] [Server thread/INFO]: [Skript] Finished loading.
-[19:23:35] [Server thread/INFO]: [Citizens] Loaded 0 NPCs.
-[19:23:35] [Server thread/INFO]: Done (14.503s)! For help, type "help"
-[19:23:37] [User Authenticator #0/INFO]: UUID of player Melona500 is 88ab4f4b-bed0-45ac-a1ce-befcd67fd548
-[19:23:37] [Server thread/INFO]: [HorriblePlayerLoginEventHack] You have plugins listening to the PlayerLoginEvent, this will cause re-configuration APIs to be unavailable: [WorldGuard]
-[19:23:38] [Server thread/INFO]: [NoChatReports] Setting up player: Melona500
-[19:23:38] [Server thread/INFO]: Melona500 joined the game
-[19:23:38] [Server thread/INFO]: Melona500[/127.0.0.1:62130] logged in with entity id 12 at ([world]-2.957690422457871, 91.5, -44.24693967579334)
-[19:23:42] [Server thread/INFO]: Melona500 issued server command: /rpgmaker web
-[19:23:48] [rpgmaker-web-api/INFO]: [RPGMaker] Web API saved dialogue 88ab4f4b-bed0-45ac-a1ce-befcd67fd548/첫 대화 from /127.0.0.1:65462
-[19:23:50] [rpgmaker-web-api/INFO]: [RPGMaker] Web API saved dialogue 88ab4f4b-bed0-45ac-a1ce-befcd67fd548/첫 대화 from /127.0.0.1:65462
-[19:23:52] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
-[19:23:58] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
-[19:24:04] [Server thread/INFO]: Melona500 issued server command: /rpgmaker web
-[19:24:06] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
-[19:25:20] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
-[19:25:30] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
-[19:25:41] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
-[19:26:47] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor variables
-[19:27:08] [Server thread/INFO]: Displayed dialog to Melona500
-[19:27:09] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
-[19:28:00] [Server thread/INFO]: Melona500 issued server command: /stop
-[19:28:00] [Server thread/INFO]: [Melona500: Stopping the server]
-[19:28:00] [Server thread/INFO]: Stopping server
-[19:28:00] [Server thread/INFO]: [AxiomPaper] Disabling AxiomPaper v5.0.4+1.21.8
-[19:28:00] [Server thread/INFO]: [Citizens] Disabling Citizens v2.0.40-SNAPSHOT (build 3957)
-[19:28:00] [Server thread/INFO]: [KAKC] Disabling KAKC v1.2
-[19:28:00] [Server thread/INFO]: [NoChatReports] Disabling NoChatReports v2.7.7
-[19:28:00] [Server thread/INFO]: [RPGMaker] Disabling RPGMaker v1.1.2
-[19:28:00] [Server thread/INFO]: [skript-reflect] Disabling skript-reflect v2.6.3
-[19:28:00] [Server thread/INFO]: [Skript] Disabling Skript v2.16.1
-[19:28:00] [Server thread/INFO]: [WorldGuard] Disabling WorldGuard v7.0.14+2339-43997ec
-[19:28:00] [Server thread/INFO]: [WorldGuard] Shutting down executor and cancelling any pending tasks...
-[19:28:00] [Server thread/INFO]: [FastAsyncWorldEdit] Disabling FastAsyncWorldEdit v2.15.3+1704422
-[19:28:00] [Server thread/INFO]: Unregistering com.sk89q.worldedit.bukkit.BukkitServerInterface from WorldEdit
-[19:28:00] [Server thread/INFO]: Saving players
-[19:28:00] [Server thread/INFO]: Melona500 lost connection: Server closed
-[19:28:00] [Server thread/INFO]: Melona500 left the game
-[19:28:00] [Server thread/INFO]: Saving worlds
-[19:28:00] [Server thread/INFO]: Saving chunks for level 'ServerLevel[world]'/minecraft:overworld
-[19:28:00] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'world'
-[19:28:00] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'world'
-[19:28:00] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'world'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Saved 808 block chunks, 808 entity chunks, 0 poi chunks in world 'world' in 0.48s
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'world'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'world'
-[19:28:01] [Server thread/INFO]: Saving chunks for level 'ServerLevel[world_nether]'/minecraft:the_nether
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'world_nether'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'world_nether'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'world_nether'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Saved 49 block chunks, 49 entity chunks, 0 poi chunks in world 'world_nether' in 0.05s
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'world_nether'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'world_nether'
-[19:28:01] [Server thread/INFO]: Saving chunks for level 'ServerLevel[world_the_end]'/minecraft:the_end
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'world_the_end'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'world_the_end'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'world_the_end'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Saved 49 block chunks, 49 entity chunks, 0 poi chunks in world 'world_the_end' in 0.04s
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'world_the_end'
-[19:28:01] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'world_the_end'
-[19:28:01] [Server thread/INFO]: ThreadedAnvilChunkStorage (world): All chunks are saved
-[19:28:01] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
-[19:28:01] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
-[19:28:01] [Server thread/INFO]: ThreadedAnvilChunkStorage: All dimensions are saved
-[19:28:01] [Server thread/INFO]: Waiting for all RegionFile I/O tasks to complete...
-[19:28:01] [Server thread/INFO]: All RegionFile I/O tasks to complete
-[19:28:01] [Server thread/INFO]: [MoonriseCommon] Awaiting termination of worker pool for up to 60s...
-[19:28:01] [Server thread/INFO]: [MoonriseCommon] Awaiting termination of I/O pool for up to 60s...
+[20:08:14] [Server thread/INFO]: [Skript] Line 35: (server-management.sk)
+[20:08:14] [Server thread/INFO]:     This command has multiple arguments, meaning it is not possible to get the 'argument'. Use 'argument 1', 'argument 2', etc. instead
+[20:08:14] [Server thread/INFO]:     Line: if arg-1 is not "pvp" and arg-1 is not "mob" and arg-1 is not "time" and arg-1 is not "weather":
+[20:08:14] [Server thread/INFO]:  
+[20:08:14] [Server thread/INFO]: [Skript] Line 45: (server-management.sk)
+[20:08:14] [Server thread/INFO]:     This command has multiple arguments, meaning it is not possible to get the 'argument'. Use 'argument 1', 'argument 2', etc. instead
+[20:08:14] [Server thread/INFO]:     Line: if arg-2 is not "on" and arg-2 is not "off":
+[20:08:14] [Server thread/INFO]:  
+[20:08:14] [Server thread/INFO]: [Skript] Loaded 2 scripts with a total of 12 structures in 0.59 seconds
+[20:08:14] [Server thread/INFO]: [Skript] Finished loading.
+[20:08:14] [Server thread/INFO]: [Citizens] Loaded 0 NPCs.
+[20:08:14] [Server thread/INFO]: Done (18.854s)! For help, type "help"
+[20:08:21] [User Authenticator #0/INFO]: UUID of player Melona500 is 88ab4f4b-bed0-45ac-a1ce-befcd67fd548
+[20:08:21] [Server thread/INFO]: [HorriblePlayerLoginEventHack] You have plugins listening to the PlayerLoginEvent, this will cause re-configuration APIs to be unavailable: [WorldGuard]
+[20:08:24] [Server thread/INFO]: [NoChatReports] Setting up player: Melona500
+[20:08:24] [Server thread/INFO]: Melona500 joined the game
+[20:08:24] [Server thread/INFO]: Melona500[/127.0.0.1:60220] logged in with entity id 12 at ([world]-4.047690299304372, 84.0, 32.53409334775412)
+[20:08:26] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor variables
+[20:08:32] [Server thread/INFO]: Displayed dialog to Melona500
+[20:08:33] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
+[20:08:39] [Server thread/INFO]: Melona500 issued server command: /rpgmaker web
+[20:10:37] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
+[20:10:50] [rpgmaker-web-api/INFO]: [RPGMaker] Web API saved dialogue 88ab4f4b-bed0-45ac-a1ce-befcd67fd548/달빛_아래_피어난_약속 from /127.0.0.1:58396
+[20:11:32] [rpgmaker-web-api/INFO]: [RPGMaker] Web API saved dialogue 88ab4f4b-bed0-45ac-a1ce-befcd67fd548/첫 대화 from /127.0.0.1:58396
+[20:11:35] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
+[20:13:05] [rpgmaker-web-api/INFO]: [RPGMaker] Web API saved dialogue 88ab4f4b-bed0-45ac-a1ce-befcd67fd548/첫 대화 from /127.0.0.1:60656
+[20:13:13] [rpgmaker-web-api/INFO]: [RPGMaker] Web API saved dialogue 88ab4f4b-bed0-45ac-a1ce-befcd67fd548/첫 대화 from /127.0.0.1:60656
+[20:13:15] [Server thread/INFO]: Displayed dialog to Melona500
+[20:13:16] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
+[20:13:20] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
+[20:13:21] [Server thread/INFO]: Displayed dialog to Melona500
+[20:13:24] [rpgmaker-web-api/INFO]: [RPGMaker] Web API saved dialogue 88ab4f4b-bed0-45ac-a1ce-befcd67fd548/첫 대화 from /127.0.0.1:60656
+[20:14:40] [Server thread/INFO]: Melona500 issued server command: /rpgmaker editor list
+[20:14:41] [Server thread/INFO]: Displayed dialog to Melona500
+[20:17:08] [Server thread/INFO]: Stopping the server
+[20:17:08] [Server thread/INFO]: Stopping server
+[20:17:08] [Server thread/INFO]: [AxiomPaper] Disabling AxiomPaper v5.0.4+1.21.8
+[20:17:08] [Server thread/INFO]: [Citizens] Disabling Citizens v2.0.40-SNAPSHOT (build 3957)
+[20:17:08] [Server thread/INFO]: [KAKC] Disabling KAKC v1.2
+[20:17:08] [Server thread/INFO]: [NoChatReports] Disabling NoChatReports v2.7.7
+[20:17:08] [Server thread/INFO]: [RPGMaker] Disabling RPGMaker v1.1.3
+[20:17:08] [Server thread/INFO]: [skript-reflect] Disabling skript-reflect v2.6.3
+[20:17:08] [Server thread/INFO]: [Skript] Disabling Skript v2.16.1
+[20:17:08] [Server thread/INFO]: [WorldGuard] Disabling WorldGuard v7.0.14+2339-43997ec
+[20:17:08] [Server thread/INFO]: [WorldGuard] Shutting down executor and cancelling any pending tasks...
+[20:17:08] [Server thread/INFO]: [FastAsyncWorldEdit] Disabling FastAsyncWorldEdit v2.15.3+1704422
+[20:17:08] [Server thread/INFO]: Unregistering com.sk89q.worldedit.bukkit.BukkitServerInterface from WorldEdit
+[20:17:08] [Server thread/INFO]: Saving players
+[20:17:08] [Server thread/INFO]: Melona500 lost connection: Server closed
+[20:17:08] [Server thread/INFO]: Melona500 left the game
+[20:17:08] [Server thread/INFO]: Saving worlds
+[20:17:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[world]'/minecraft:overworld
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'world'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'world'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'world'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Saved 0 block chunks, 9 entity chunks, 0 poi chunks in world 'world' in 0.02s
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'world'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'world'
+[20:17:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[world_nether]'/minecraft:the_nether
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'world_nether'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'world_nether'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'world_nether'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Saved 0 block chunks, 1 entity chunks, 0 poi chunks in world 'world_nether' in 0.01s
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'world_nether'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'world_nether'
+[20:17:08] [Server thread/INFO]: Saving chunks for level 'ServerLevel[world_the_end]'/minecraft:the_end
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk system to halt for world 'world_the_end'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Halted chunk system for world 'world_the_end'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Saving all chunkholders for world 'world_the_end'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Saved 0 block chunks, 10 entity chunks, 0 poi chunks in world 'world_the_end' in 0.01s
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Waiting 60s for chunk I/O to halt for world 'world_the_end'
+[20:17:08] [Server thread/INFO]: [ChunkHolderManager] Halted I/O scheduler for world 'world_the_end'
+[20:17:08] [Server thread/INFO]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[20:17:08] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[20:17:08] [Server thread/INFO]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[20:17:08] [Server thread/INFO]: ThreadedAnvilChunkStorage: All dimensions are saved
+[20:17:08] [Server thread/INFO]: Waiting for all RegionFile I/O tasks to complete...
+[20:17:08] [Server thread/INFO]: All RegionFile I/O tasks to complete
+[20:17:08] [Server thread/INFO]: [MoonriseCommon] Awaiting termination of worker pool for up to 60s...
+[20:17:08] [Server thread/INFO]: [MoonriseCommon] Awaiting termination of I/O pool for up to 60s...
