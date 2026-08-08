@@ -1,15 +1,25 @@
 $ErrorActionPreference = 'Stop'
 
 # Resolve the repository root from this script's own location.
-# This avoids encoding problems with hard-coded Korean path names in Windows PowerShell 5.1.
 $RepoPath   = $PSScriptRoot
 $WebPath    = Join-Path $RepoPath 'rpgmaker-web-editor'
 $ServerPath = Join-Path $RepoPath 'minecraft-server-1.21.8'
 $StartBat   = Join-Path $ServerPath 'start.bat'
-$GitSync    = Join-Path (Split-Path -Parent $RepoPath) 'git-sync.ps1'
 
 $webProcess = $null
 $serverExitCode = $null
+
+function Invoke-Git {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    & git @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
 
 try {
     if (-not (Test-Path -LiteralPath $WebPath)) {
@@ -62,17 +72,47 @@ finally {
 
     Write-Host ''
     Write-Host '========================================'
-    Write-Host ' Running Git Sync'
+    Write-Host ' Direct Server Sync to GitHub'
     Write-Host '========================================'
 
-    if (Test-Path -LiteralPath $GitSync) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $GitSync
+    Push-Location $RepoPath
+    try {
+        $currentBranch = (& git branch --show-current).Trim()
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "git-sync.ps1 exited with code $LASTEXITCODE"
+            throw 'Could not determine the current Git branch.'
+        }
+
+        if ($currentBranch -ne 'main') {
+            throw "Direct server sync requires the local branch to be 'main'. Current branch: $currentBranch"
+        }
+
+        # Only stage Minecraft server files. Manual edits elsewhere remain untouched
+        # and should be handled through a normal branch + pull request.
+        Invoke-Git -Arguments @('add', '--', 'minecraft-server-1.21.8')
+
+        & git diff --cached --quiet -- 'minecraft-server-1.21.8'
+        $hasServerChanges = ($LASTEXITCODE -ne 0)
+
+        if (-not $hasServerChanges) {
+            Write-Host 'No server changes to sync.'
+        }
+        else {
+            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+            Invoke-Git -Arguments @('commit', '-m', "server-sync: $timestamp")
+
+            # Keep unrelated local edits safe while rebasing the server-sync commit
+            # on top of the latest remote main.
+            Invoke-Git -Arguments @('pull', '--rebase', '--autostash', 'origin', 'main')
+            Invoke-Git -Arguments @('push', 'origin', 'main')
+
+            Write-Host 'Server files pushed directly to main.'
         }
     }
-    else {
-        Write-Warning "git-sync.ps1 not found: $GitSync"
+    catch {
+        Write-Warning "Direct server sync failed: $($_.Exception.Message)"
+    }
+    finally {
+        Pop-Location
     }
 
     Write-Host ''
