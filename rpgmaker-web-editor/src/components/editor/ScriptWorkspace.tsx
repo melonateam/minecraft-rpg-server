@@ -10,6 +10,7 @@ import {
 } from '../../services/characterRegistry';
 import { visibleLength } from '../../services/projectValidator';
 import { PortraitSprite } from '../characters/PortraitSprite';
+import { ChoiceBranchWorkspace } from './ChoiceBranchWorkspace';
 import type { InspectorSection } from './EditorInspector';
 
 interface Props {
@@ -245,6 +246,8 @@ export function ScriptWorkspace({
               </button>
             )}
           </div>
+
+          {activePanel === 'choices' && <ChoiceBranchWorkspace page={page} manifest={manifest} onChange={onChange} />}
         </div>
       </div>
     </section>
