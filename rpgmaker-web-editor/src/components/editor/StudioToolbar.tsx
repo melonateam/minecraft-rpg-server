@@ -41,7 +41,7 @@ const serverText: Record<ServerUiStatus, string> = {
   disconnected: '서버 연결 안 됨',
   connecting: '서버 연결 중',
   connected: '서버 연결됨',
-  syncing: '서버 저장 중...',
+  syncing: '서버 동기화 중...',
   applied: '서버 반영 완료',
   stale: '서버 데이터가 더 최신임',
   conflict: '서버 변경 충돌',
@@ -56,7 +56,7 @@ function statusDot(status: ServerUiStatus) {
 }
 
 export function StudioToolbar(props: Props) {
-  const canPullFromServer = props.serverStatus === 'stale';
+  const canPullFromServer = !['connecting', 'syncing'].includes(props.serverStatus);
 
   return (
     <header className="flex h-16 shrink-0 items-center border-b border-[#232a33] bg-[#11151a] px-4">
@@ -138,7 +138,7 @@ export function StudioToolbar(props: Props) {
           type="button"
           disabled={!canPullFromServer}
           onClick={props.onServer}
-          title={canPullFromServer ? '서버 데이터가 더 최신입니다. 서버 대화 목록에서 불러올 대화를 선택합니다.' : '서버 데이터가 더 최신일 때 사용할 수 있습니다.'}
+          title="서버의 전체 대화 목록을 웹과 동기화합니다. 같은 이름은 중복 생성하지 않고 서버 버전으로 갱신합니다."
           className="ml-1 rounded-lg border border-[#40556a] bg-[#18232d] px-4 py-2 text-xs font-semibold text-[#b9c7d3] enabled:hover:border-[#5f7890] enabled:hover:bg-[#21303d] disabled:cursor-not-allowed disabled:opacity-35"
         >
           서버에서 불러오기

@@ -43,6 +43,7 @@ export function migrateProject(project: RPGProject): RPGProject {
       }
     }
   }
+  next.pendingServerDeletes ??= [];
   next.schemaVersion = 2;
   next.characters = [];
   return next;

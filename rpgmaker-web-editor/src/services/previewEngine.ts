@@ -119,8 +119,7 @@ function updateVariable(state: PreviewState, operation: string) {
   if (!match) return;
   const [, name, operator, raw] = match;
   const numeric = asNumber(raw);
-  const value: string | number | boolean =
-    raw === 'true' ? true : raw === 'false' ? false : numeric ?? raw;
+  const value: string | number | boolean = raw === 'true' ? true : raw === 'false' ? false : numeric ?? raw;
   if (operator === '=') state.variables[name] = value;
   else {
     const current = asNumber(state.variables[name]) ?? 0;
@@ -253,8 +252,17 @@ export function choosePreview(dialogue: Dialogue, current: PreviewState, choice:
   const page = pageById(dialogue, state.currentPageId);
   if (!page) return { ...state, ended: true };
   applyEffects(page, state);
-  if (!choice.targetPageId) return { ...state, ended: choice.endAfterTarget ?? true };
-  state.currentPageId = choice.targetPageId;
-  state.endAfterCurrent = choice.endAfterTarget ?? false;
+
+  if (choice.targetPageId) {
+    state.currentPageId = choice.targetPageId;
+    state.endAfterCurrent = choice.endAfterTarget ?? false;
+    return enterPage(dialogue, state);
+  }
+
+  if (choice.endAfterTarget) return { ...state, ended: true };
+  const target = nextPageId(dialogue, page, state);
+  if (!target) return { ...state, ended: true };
+  state.currentPageId = target;
+  state.endAfterCurrent = false;
   return enterPage(dialogue, state);
 }

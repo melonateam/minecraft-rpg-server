@@ -11,9 +11,16 @@ export interface RPGProject {
   characters: CharacterDefinition[];
   variables: VariableDefinition[];
   items: ItemDefinition[];
+  pendingServerDeletes?: PendingServerDialogueDelete[];
   createdAt: string;
   updatedAt: string;
   schemaVersion: number;
+}
+
+export interface PendingServerDialogueDelete {
+  ownerUuid: string;
+  remoteName: string;
+  revision?: string;
 }
 
 export interface Dialogue {
