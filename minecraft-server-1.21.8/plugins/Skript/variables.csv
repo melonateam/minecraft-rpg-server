@@ -22,6 +22,7 @@ rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::shop_visits, string, 800131
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::test, string, 80026869
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::testname, string, 8009EC8898ED98B8EC9E90
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::trust, string, 8003796573
+rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::variable, string, 80023633
 rpgmaker::484c0599-8adc-4d5e-bb05-c09e085ee216::______, string, 800474727565
 rpgmaker::484c0599-8adc-4d5e-bb05-c09e085ee216::affection, string, 800132
 rpgmaker::484c0599-8adc-4d5e-bb05-c09e085ee216::promise, string, 8005626567756E
