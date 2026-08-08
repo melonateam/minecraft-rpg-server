@@ -56,7 +56,7 @@ function statusDot(status: ServerUiStatus) {
 }
 
 export function StudioToolbar(props: Props) {
-  const canPullFromServer = !['disconnected', 'connecting', 'syncing'].includes(props.serverStatus);
+  const canPullFromServer = !['connecting', 'syncing'].includes(props.serverStatus);
 
   return (
     <header className="flex h-16 shrink-0 items-center border-b border-[#232a33] bg-[#11151a] px-4">
