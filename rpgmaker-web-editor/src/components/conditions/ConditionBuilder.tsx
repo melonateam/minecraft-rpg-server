@@ -11,8 +11,9 @@ interface Props {
 }
 
 const input =
-  'w-full rounded-lg border border-[#2a3039] bg-[#171b21] px-3 py-2 text-sm text-[#eef1f5] outline-none transition focus:border-[#7c8cff]';
+  'w-full rounded-lg border border-[#2a3039] bg-[#171b21] px-3 py-2 text-sm text-[#eef1f5] outline-none transition focus:border-[#42d4d0]';
 const label = 'text-xs font-medium text-[#919aa8]';
+const variableNamePattern = /^[A-Za-z0-9_.-]+$/;
 
 const operators: Array<[ServerCondition['operator'], string]> = [
   ['eq', '같음'],
@@ -45,7 +46,7 @@ function parseExtra(value: string): ExtraRow[] {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const match = entry.match(/^([\p{L}\p{N}_-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
+      const match = entry.match(/^([A-Za-z0-9_.-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/);
       return match
         ? { name: match[1], operator: match[2], value: match[3] }
         : { name: entry, operator: '=', value: '' };
@@ -79,6 +80,7 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
   const needsVariable = ['variable', 'both', 'any'].includes(value.mode);
   const needsItem = ['item', 'both', 'any'].includes(value.mode);
   const valueDisabled = value.operator === 'is-set' || value.operator === 'is-unset';
+  const variableInvalid = Boolean(value.variable) && !variableNamePattern.test(value.variable);
 
   useEffect(() => {
     setExtraRows(parseExtra(value.extraVariables));
@@ -92,7 +94,7 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" data-rpg-section="condition">
       <div>
         <div className={label}>언제 적용할까요?</div>
         <div className="mt-2 grid grid-cols-2 gap-2">
@@ -103,8 +105,8 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
               onClick={() => onChange((condition) => void (condition.mode = mode))}
               className={`rounded-xl border p-3 text-left transition ${
                 value.mode === mode
-                  ? 'border-[#7c8cff] bg-[#232943]'
-                  : 'border-[#2a3039] bg-[#171b21] hover:border-[#3b4452]'
+                  ? 'border-[#42d4d0] bg-[#163038]'
+                  : 'border-[#2a3039] bg-[#171b21] hover:border-[#3f6570]'
               }`}
             >
               <div className="text-sm font-semibold">{title}</div>
@@ -115,10 +117,12 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
       </div>
 
       {needsVariable && (
-        <section className="space-y-3 rounded-xl bg-[#171b21] p-4">
+        <section className="space-y-3 rounded-xl border border-[#264a52] bg-[#101f26] p-4">
           <div>
-            <div className="text-sm font-semibold">변수 조건</div>
-            <div className="mt-1 text-xs text-[#77818f]">내부 expression을 직접 작성할 필요가 없습니다.</div>
+            <div className="text-sm font-semibold text-[#bcefed]">변수 조건</div>
+            <div className="mt-1 text-xs text-[#7f9ca2]">
+              효과의 변수 연산과 같은 변수명 규칙을 사용합니다: 영문, 숫자, _, ., -
+            </div>
           </div>
 
           <div className="grid grid-cols-[1fr_130px_1fr] gap-2">
@@ -126,11 +130,12 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
               변수
               <input
                 list="rpgmaker-variable-list"
-                className={`${input} mt-1.5`}
+                className={`${input} mt-1.5 ${variableInvalid ? 'border-red-400/70' : ''}`}
                 value={value.variable}
-                placeholder="money"
+                placeholder="quest.progress"
                 onChange={(event) => onChange((condition) => void (condition.variable = event.target.value))}
               />
+              {variableInvalid && <span className="mt-1 block text-[10px] text-red-300">사용할 수 없는 변수명 형식입니다.</span>}
             </label>
             <label className={label}>
               비교
@@ -166,14 +171,14 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
             ))}
           </datalist>
 
-          <div className="rounded-xl border border-[#252c36] bg-[#13171c] p-3">
+          <div className="rounded-xl border border-[#27434b] bg-[#0c171c] p-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-xs font-semibold text-[#aeb5c0]">추가 변수 조건</div>
-                <div className="mt-1 text-[11px] text-[#6e7785]">여러 변수의 관계를 AND / OR / XOR / NOT으로 조합합니다.</div>
+                <div className="text-xs font-semibold text-[#b7d7da]">추가 변수 조건</div>
+                <div className="mt-1 text-[11px] text-[#728d92]">여러 변수의 관계를 AND / OR / XOR / NOT으로 조합합니다.</div>
               </div>
               <select
-                className="rounded-lg bg-[#20252d] px-2 py-1.5 text-xs"
+                className="rounded-lg border border-[#31515a] bg-[#14262d] px-2 py-1.5 text-xs"
                 value={value.variableLogic}
                 onChange={(event) =>
                   onChange((condition) =>
@@ -192,7 +197,7 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
               {extraRows.map((row, index) => (
                 <div key={`${row.name}-${index}`} className="grid grid-cols-[1fr_96px_1fr_32px] gap-2">
                   <input
-                    className={input}
+                    className={`${input} ${row.name && !variableNamePattern.test(row.name) ? 'border-red-400/70' : ''}`}
                     value={row.name}
                     placeholder="quest_done"
                     onChange={(event) => {
@@ -240,7 +245,7 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
 
             <button
               type="button"
-              className="mt-3 rounded-lg px-2 py-1.5 text-xs text-[#8b99ff] hover:bg-[#20252d]"
+              className="mt-3 rounded-lg px-2 py-1.5 text-xs text-[#54d5d1] hover:bg-[#163038]"
               onClick={() => changeExtra([...extraRows, { name: '', operator: '=', value: '' }])}
             >
               + 변수 조건 추가
@@ -250,8 +255,8 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
       )}
 
       {needsItem && (
-        <section className="rounded-xl bg-[#171b21] p-4">
-          <div className="text-sm font-semibold">아이템 조건</div>
+        <section className="rounded-xl border border-[#4b3e27] bg-[#211b11] p-4">
+          <div className="text-sm font-semibold text-[#f1d39a]">아이템 조건</div>
           <div className="mt-3 grid grid-cols-[1fr_100px] gap-2">
             <label className={label}>
               아이템 ID
@@ -289,19 +294,19 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
         </section>
       )}
 
-      <div className="rounded-xl border border-[#2d3440] bg-[#141920] px-4 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#707b8b]">조건 설명</div>
-        <div className="mt-1.5 text-sm text-[#c4cad3]">{conditionSummary(value)}</div>
+      <div className="rounded-xl border border-[#2d4c54] bg-[#0e1a20] px-4 py-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#67b9b7]">조건 설명</div>
+        <div className="mt-1.5 text-sm text-[#d2e7e7]">{conditionSummary(value)}</div>
       </div>
 
       {showReplacement && (
-        <section className="rounded-xl bg-[#171b21] p-4">
-          <div className="text-sm font-semibold">조건을 만족하지 않을 때 대체 대사</div>
-          <div className="mt-1 text-xs text-[#77818f]">필요한 경우 원래 대사 대신 최대 4줄을 표시합니다.</div>
+        <section className="rounded-xl border border-[#4b3a55] bg-[#1d1623] p-4">
+          <div className="text-sm font-semibold text-[#dcc9f5]">조건을 만족하지 않을 때 대체 대사</div>
+          <div className="mt-1 text-xs text-[#9385a2]">필요한 경우 원래 대사 대신 최대 4줄을 표시합니다.</div>
           <div className="mt-3 space-y-2">
             {value.replacementLines.map((line, index) => (
               <div key={index} className="grid grid-cols-[24px_1fr_54px] items-center gap-2">
-                <span className="text-xs text-[#66707e]">{index + 1}</span>
+                <span className="text-xs text-[#7d6f89]">{index + 1}</span>
                 <input
                   className={input}
                   value={line}
@@ -311,7 +316,7 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
                     })
                   }
                 />
-                <span className={`text-right text-[10px] ${line.length > 30 ? 'text-red-400' : 'text-[#66707e]'}`}>
+                <span className={`text-right text-[10px] ${line.length > 30 ? 'text-red-400' : 'text-[#7d6f89]'}`}>
                   {line.length}/30
                 </span>
               </div>
