@@ -1,4 +1,3 @@
-import { useRef, useState } from 'react';
 import type { DialoguePage } from '../../domain/project';
 import {
   availableExpressions,
@@ -46,27 +45,7 @@ export function ScriptWorkspace({
     ? (page.appearance.expression as ManifestExpression)
     : expressions[0];
   const sprite = character && expression ? portraitSprite(manifest, character, gender, expression) : undefined;
-  const [activeLineIndex, setActiveLineIndex] = useState(0);
-  const [variableToInsert, setVariableToInsert] = useState(variableNames[0] ?? '');
-  const lineRefs = useRef<Array<HTMLInputElement | null>>([]);
-
-  const insertVariable = () => {
-    const name = variableToInsert.trim();
-    if (!name) return;
-    const inputElement = lineRefs.current[activeLineIndex];
-    const currentLine = page.lines[activeLineIndex] ?? '';
-    const start = inputElement?.selectionStart ?? currentLine.length;
-    const end = inputElement?.selectionEnd ?? start;
-    const placeholder = `{{${name}}}`;
-    onChange((draft) => {
-      draft.lines[activeLineIndex] = `${currentLine.slice(0, start)}${placeholder}${currentLine.slice(end)}`;
-    });
-    requestAnimationFrame(() => {
-      const next = start + placeholder.length;
-      lineRefs.current[activeLineIndex]?.focus();
-      lineRefs.current[activeLineIndex]?.setSelectionRange(next, next);
-    });
-  };
+  const variableExamples = variableNames.slice(0, 8);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#0f1216]">
@@ -139,35 +118,27 @@ export function ScriptWorkspace({
                 <span className="text-xs text-[#626c79]">최대 4줄 · 줄당 표시 문자 30자</span>
               </div>
 
-              <div className="mt-3 rounded-xl border border-[#283243] bg-[#141a22] p-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    list="dialogue-variable-names"
-                    value={variableToInsert}
-                    onChange={(event) => setVariableToInsert(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        insertVariable();
-                      }
-                    }}
-                    placeholder="출력할 변수 이름"
-                    className="min-w-0 flex-1 rounded-lg border border-[#303948] bg-[#101419] px-3 py-2 text-sm outline-none focus:border-[#7c8cff]"
-                  />
-                  <datalist id="dialogue-variable-names">
-                    {variableNames.map((name) => <option key={name} value={name} />)}
-                  </datalist>
-                  <button
-                    type="button"
-                    onClick={insertVariable}
-                    className="rounded-lg bg-[#2b3454] px-3 py-2 text-xs font-semibold text-[#c4cbff] hover:bg-[#35416b]"
-                  >
-                    변수 삽입
-                  </button>
+              <div className="mt-3 rounded-xl border border-[#2b4151] bg-[#111a22] p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#72d8d2]">
+                  <span className="rounded-md bg-[#183036] px-2 py-1">변수 출력 방법</span>
+                  <span className="text-[#81909d]">삽입 창 없이 대사에 직접 작성합니다.</span>
                 </div>
-                <div className="mt-2 text-[11px] text-[#6f7b8b]">
-                  선택한 대사 줄의 커서 위치에 <code className="text-[#9ca8ff]">{'{{변수명}}'}</code> 형식으로 삽입합니다.
+                <div className="mt-3 text-sm text-[#c9d3dc]">
+                  대사 안에 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">{'{{변수명}}'}</code>을 입력하면
+                  플레이 시 해당 변수 값으로 바뀝니다.
                 </div>
+                <div className="mt-2 text-xs leading-5 text-[#7f8c99]">
+                  예: <code className="text-[#d8c28a]">안녕하세요, {'{{player_name}}'}님.</code> · 직접 만든 변수는 효과 → 변수에서 값을 저장한 뒤 같은 이름으로 사용하세요.
+                </div>
+                {variableExamples.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {variableExamples.map((name) => (
+                      <code key={name} className="rounded-md border border-[#304252] bg-[#0d151c] px-2 py-1 text-[11px] text-[#91a8ba]">
+                        {`{{${name}}}`}
+                      </code>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="mt-3 space-y-3">
@@ -185,11 +156,7 @@ export function ScriptWorkspace({
                     >
                       <span className="text-center text-xs font-semibold text-[#5f6978]">{index + 1}</span>
                       <input
-                        ref={(element) => {
-                          lineRefs.current[index] = element;
-                        }}
                         value={line}
-                        onFocus={() => setActiveLineIndex(index)}
                         onChange={(event) =>
                           onChange((draft) => {
                             draft.lines[index] = event.target.value;
