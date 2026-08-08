@@ -4,11 +4,78 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pluginDir = Join-Path $root "dialogue-display-plugin"
 $serverPlugin = Join-Path $root "minecraft-server-1.21.8\plugins\RPGMaker.jar"
 $expectedVersion = "1.1.1"
+$gradleVersion = "9.1.0"
+$toolsDir = Join-Path $root ".tools"
+$gradleHome = Join-Path $toolsDir "gradle-$gradleVersion"
+$gradleBat = Join-Path $gradleHome "bin\gradle.bat"
+$gradleZip = Join-Path $toolsDir "gradle-$gradleVersion-bin.zip"
+$gradleUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-bin.zip"
 
 function Assert-LastExitCode([string]$Message) {
     if ($LASTEXITCODE -ne 0) {
         throw $Message
     }
+}
+
+function Ensure-Gradle {
+    $wrapper = Join-Path $pluginDir "gradlew.bat"
+    if (Test-Path $wrapper) {
+        Write-Host "Using Gradle wrapper."
+        return $wrapper
+    }
+
+    $installed = Get-Command gradle -ErrorAction SilentlyContinue
+    if ($installed) {
+        Write-Host "Using Gradle from PATH: $($installed.Source)"
+        return $installed.Source
+    }
+
+    if (Test-Path $gradleBat) {
+        Write-Host "Using cached Gradle $gradleVersion."
+        return $gradleBat
+    }
+
+    Write-Host "Gradle was not found. Bootstrapping Gradle $gradleVersion..."
+    New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
+
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    }
+    catch {
+        # PowerShell 7+ does not need this fallback.
+    }
+
+    if (-not (Test-Path $gradleZip)) {
+        Write-Host "Downloading Gradle from services.gradle.org..."
+        Invoke-WebRequest -Uri $gradleUrl -OutFile $gradleZip -UseBasicParsing
+    }
+
+    $extractRoot = Join-Path $toolsDir "gradle-extract-$gradleVersion"
+    if (Test-Path $extractRoot) {
+        Remove-Item $extractRoot -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
+    Write-Host "Extracting Gradle..."
+    Expand-Archive -Path $gradleZip -DestinationPath $extractRoot -Force
+
+    $extractedHome = Join-Path $extractRoot "gradle-$gradleVersion"
+    if (-not (Test-Path (Join-Path $extractedHome "bin\gradle.bat"))) {
+        throw "Gradle archive was downloaded but the expected executable was not found."
+    }
+
+    if (Test-Path $gradleHome) {
+        Remove-Item $gradleHome -Recurse -Force
+    }
+    Move-Item $extractedHome $gradleHome
+    Remove-Item $extractRoot -Recurse -Force
+
+    if (-not (Test-Path $gradleBat)) {
+        throw "Gradle bootstrap failed."
+    }
+
+    Write-Host "Gradle $gradleVersion is ready."
+    return $gradleBat
 }
 
 Write-Host ""
@@ -17,24 +84,15 @@ Write-Host " RPGMaker Build + Deploy"
 Write-Host "========================================"
 Write-Host ""
 
-$gradleCommand = $null
-$wrapper = Join-Path $pluginDir "gradlew.bat"
-if (Test-Path $wrapper) {
-    $gradleCommand = $wrapper
-}
-else {
-    $gradle = Get-Command gradle -ErrorAction SilentlyContinue
-    if ($gradle) {
-        $gradleCommand = $gradle.Source
-    }
-}
-
-if (-not $gradleCommand) {
-    Write-Host "ERROR: Gradle을 찾을 수 없습니다."
-    Write-Host "Gradle 8.x를 설치해 PATH에 추가한 뒤 다시 실행하세요."
-    Write-Host "현재 프로젝트에는 Gradle wrapper가 포함되어 있지 않습니다."
+$java = Get-Command java -ErrorAction SilentlyContinue
+if (-not $java) {
+    Write-Host "ERROR: Java was not found in PATH."
+    Write-Host "Install a JDK or add Java to PATH, then run this script again."
     exit 1
 }
+
+Write-Host "Java: $(& $java.Source -version 2>&1 | Select-Object -First 1)"
+$gradleCommand = Ensure-Gradle
 
 Write-Host "Building RPGMaker v$expectedVersion..."
 Push-Location $pluginDir
@@ -47,16 +105,16 @@ finally {
 }
 
 if (-not (Test-Path $serverPlugin)) {
-    throw "배포 후 RPGMaker.jar을 찾지 못했습니다: $serverPlugin"
+    throw "RPGMaker.jar was not found after deployment: $serverPlugin"
 }
 
 $jarTool = Get-Command jar -ErrorAction SilentlyContinue
 if (-not $jarTool) {
-    Write-Host "WARNING: JDK jar 명령을 찾지 못해 클래스 검증을 건너뜁니다."
+    Write-Host "WARNING: JDK jar command was not found. JAR content verification is skipped."
 }
 else {
     $entries = & $jarTool.Source tf $serverPlugin
-    Assert-LastExitCode "RPGMaker.jar 내용을 읽지 못했습니다."
+    Assert-LastExitCode "Unable to read RPGMaker.jar contents."
 
     $requiredEntries = @(
         "kr/hyuni/dialogue/DialogueDisplayPlugin.class",
@@ -69,7 +127,7 @@ else {
 
     $missing = @($requiredEntries | Where-Object { $_ -notin $entries })
     if ($missing.Count -gt 0) {
-        Write-Host "ERROR: 새 JAR에 필수 파일이 없습니다:"
+        Write-Host "ERROR: Required entries are missing from the new JAR:"
         $missing | ForEach-Object { Write-Host "  - $_" }
         exit 1
     }
@@ -85,10 +143,10 @@ Write-Host "  Expected plugin version: $expectedVersion"
 Write-Host "  Size: $size bytes"
 Write-Host "  SHA256: $hash"
 Write-Host ""
-Write-Host "서버를 완전히 재시작한 뒤 아래 항목을 확인하세요."
-Write-Host "  1. 시작 로그: RPGMaker v$expectedVersion"
-Write-Host "  2. /rpgmaker web 명령이 웹 에디터 링크를 생성"
-Write-Host "  3. 대화 최대 페이지: 30"
-Write-Host "  4. 변수 난수: damage_roll=random(5..20)"
+Write-Host "Fully stop and restart the Minecraft server, then verify:"
+Write-Host "  1. Startup log shows RPGMaker v$expectedVersion"
+Write-Host "  2. /rpgmaker web creates the web-editor link"
+Write-Host "  3. Dialogue page limit is 30"
+Write-Host "  4. Random variable effect works: damage_roll=random(5..20)"
 Write-Host ""
-Write-Host "주의: /reload로는 기존 JAR 클래스가 완전히 교체되지 않을 수 있으므로 서버 재시작을 권장합니다."
+Write-Host "Do not rely on /reload for this update; restart the server process."
