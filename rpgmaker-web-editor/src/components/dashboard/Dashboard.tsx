@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { createDialogue } from '../../services/projectFactory';
+import { useEditorStore } from '../../store/editorStore';
 import { useProjectStore } from '../../store/projectStore';
 
 function formatRelative(iso: string) {
@@ -15,10 +16,16 @@ export function Dashboard() {
   const navigate = useNavigate();
   const projects = useProjectStore((state) => state.projects);
   const mutateProject = useProjectStore((state) => state.mutateProject);
+  const selectDialogue = useEditorStore((state) => state.selectDialogue);
   const workspace = projects[0];
   const dialogues = projects.flatMap((project) =>
     project.dialogues.map((dialogue) => ({ project, dialogue })),
   );
+
+  const openDialogue = (projectId: string, dialogueId: string, firstPageId?: string) => {
+    selectDialogue(dialogueId, firstPageId);
+    navigate(`/project/${projectId}`);
+  };
 
   const handleCreate = () => {
     if (!workspace) return;
@@ -39,7 +46,7 @@ export function Dashboard() {
 
     const next = createDialogue(name);
     mutateProject(workspace.id, (draft) => void draft.dialogues.push(next));
-    navigate(`/project/${workspace.id}`);
+    openDialogue(workspace.id, next.id, next.pages[0]?.id);
   };
 
   const handleDelete = (projectId: string, dialogueId: string) => {
@@ -105,7 +112,10 @@ export function Dashboard() {
                 className="group relative overflow-hidden rounded-2xl border border-[#26394a] bg-[#101923]/92 p-5 shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:border-[#4c6277] hover:bg-[#172331]"
               >
                 <div className="absolute inset-x-0 top-0 h-1 opacity-80" style={{ background: accent }} />
-                <button className="w-full text-left" onClick={() => navigate(`/project/${project.id}`)}>
+                <button
+                  className="w-full text-left"
+                  onClick={() => openDialogue(project.id, dialogue.id, dialogue.pages[0]?.id)}
+                >
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: accent }} />
                     <h3 className="truncate text-lg font-semibold">{dialogue.name}</h3>
