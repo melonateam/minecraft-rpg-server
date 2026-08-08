@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Dashboard } from '../components/dashboard/Dashboard';
 import { DialogueStudioV2 } from '../components/editor/DialogueStudioV2';
+import { capturePlayerSession } from '../services/playerSessionApi';
 import { useProjectStore } from '../store/projectStore';
 
 export function App() {
@@ -9,6 +10,10 @@ export function App() {
   const hydrate = useProjectStore((state) => state.hydrate);
 
   useEffect(() => {
+    // /rpgmaker web opens the editor root with ?session=... . Capture it before
+    // the user navigates from the dashboard into a project so both import and
+    // apply-to-server flows can authenticate with the same player session.
+    capturePlayerSession();
     void hydrate();
   }, [hydrate]);
 

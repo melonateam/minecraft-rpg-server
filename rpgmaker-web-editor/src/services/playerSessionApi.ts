@@ -29,8 +29,12 @@ const SESSION_KEY = 'rpgmaker.player-session.v1';
 function apiRoot() {
   const configured = import.meta.env.VITE_RPGMAKER_API_URL as string | undefined;
   if (configured?.trim()) return configured.replace(/\/$/, '');
-  if (window.location.hostname === 'localhost' && window.location.port === '5173')
-    return 'http://127.0.0.1:25567/api/v1';
+
+  // Local Vite development must always talk to the Paper Web API, not to Vite's
+  // own origin. This also survives Vite moving from 5173 to another dev port.
+  const localHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+  if (localHost) return 'http://127.0.0.1:25567/api/v1';
+
   return `${window.location.origin}/api/v1`;
 }
 
@@ -54,19 +58,32 @@ export class PlayerSessionApiClient {
   constructor(private readonly sessionId: string) {}
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${apiRoot()}${path}`, {
-      ...init,
-      headers: {
-        'X-RPGMaker-Session': this.sessionId,
-        'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${apiRoot()}${path}`, {
+        ...init,
+        headers: {
+          'X-RPGMaker-Session': this.sessionId,
+          'Content-Type': 'application/json',
+          ...(init?.headers ?? {}),
+        },
+      });
+    } catch (error) {
+      throw new Error(
+        `Minecraft 서버 Web API에 연결할 수 없습니다 (${apiRoot()}). 서버가 실행 중이고 web-api가 활성화되어 있는지 확인하세요.`,
+        { cause: error },
+      );
+    }
+
     const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     if (response.status === 409) throw new RevisionConflictError(String(body.serverRevision ?? ''));
     if (!response.ok) {
       const issues = Array.isArray(body.issues) ? ` ${body.issues.join(' / ')}` : '';
-      throw new Error(`${String(body.error ?? `HTTP ${response.status}`)}${issues}`);
+      const errorCode = String(body.error ?? `HTTP ${response.status}`);
+      if (response.status === 401) throw new Error('웹 연결 세션이 만료되었거나 유효하지 않습니다. 게임에서 /rpgmaker web을 다시 실행하세요.');
+      if (response.status === 403 && errorCode === 'origin_not_allowed')
+        throw new Error('현재 웹 주소가 서버 web-api.allowed-origins에 허용되어 있지 않습니다.');
+      throw new Error(`${errorCode}${issues}`);
     }
     return body as T;
   }
