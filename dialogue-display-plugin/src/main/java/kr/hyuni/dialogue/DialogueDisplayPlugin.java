@@ -3148,8 +3148,9 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private void updatePortrait(Dialogue dialogue) {
-        if (!dialogue.showPortrait) return;
         boolean visible = portraitVisible(dialogue);
+        dialogue.choiceFrame.text(visible ? dialogueFrame() : Component.empty());
+        if (!dialogue.showPortrait) return;
         dialogue.speakerDisplay.text(visible
                 ? Component.text(fixedSpeakerText(speakerForPage(dialogue)), NamedTextColor.GOLD) : Component.empty());
         if (!visible) {
@@ -3286,7 +3287,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         }
         lines = lines.append(Component.newline()).append(fixedChoiceLine(
                 "숫자키 1~" + Math.min(8, dialogue.choices.size()) + "로 선택"));
-        dialogue.choiceFrame.text(portraitVisible(dialogue) ? dialogueFrame() : Component.empty());
         dialogue.choiceDisplay.text(lines);
         dialogue.waitingForChoice = true;
         dialogue.expiresAt = Integer.MAX_VALUE;
