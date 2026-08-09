@@ -6,3 +6,7 @@ if errorlevel 1 (
   exit /b 1
 )
 "%~dp0runtime\jdk-25.0.4+7-jre\bin\java.exe" -Xms2G -Xmx6G -Dfile.encoding=UTF-8 -jar paper.jar --nogui
+set "SERVER_EXIT_CODE=%ERRORLEVEL%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-resource-pack-tunnel.ps1" -Stop
+if errorlevel 1 exit /b 1
+exit /b %SERVER_EXIT_CODE%
