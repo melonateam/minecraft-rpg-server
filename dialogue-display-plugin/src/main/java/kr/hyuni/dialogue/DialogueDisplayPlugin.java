@@ -3067,7 +3067,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             Component hiddenPadding = Component.text(TextWidthRules.hiddenPadding(source)).font(Key.key("dialog", "spacing"));
             Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
                     .font(Key.key("dialog", "spacing"));
-            dialogue.bodyLines[row].text(hiddenPadding.append(coloredLine(line)).append(padding));
+            dialogue.bodyLines[row].text(Component.empty().append(hiddenPadding).append(coloredLine(line)).append(padding));
         }
     }
 
