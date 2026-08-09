@@ -74,6 +74,10 @@ function describeOperator(operator: VariableAssignment['operator']) {
   return '지정한 최소~최대 범위에서 정수 난수를 생성해 설정';
 }
 
+function appendItem(value: string, reference: string) {
+  return [...value.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean), `${reference}:1`].join(', ');
+}
+
 function pageLabel(dialogue: Dialogue, pageIndex: number) {
   const page = dialogue.pages[pageIndex];
   return page ? `페이지 ${pageIndex + 1} · ${page.editorLabel || page.lines.find(Boolean) || '빈 페이지'}` : `페이지 ${pageIndex + 1}`;
@@ -193,6 +197,7 @@ function EffectGroup({
 
 export function EffectsInspector({ page, dialogue, project, onClose, onChange }: Props) {
   const server = page.server ?? emptyServerPage();
+  const [selectedItem, setSelectedItem] = useState('');
   const variableRows = parseAssignments(server.effects.variablesSet);
   const edit = (mutator: (settings: ServerPageSettings) => void) =>
     onChange((draft) => {
@@ -231,6 +236,21 @@ export function EffectsInspector({ page, dialogue, project, onClose, onChange }:
         </div>
 
         <EffectGroup title="🎒 아이템" description="지급/회수 수량은 서버에서 항목당 최대 100개로 제한됩니다." accent="gold">
+          {project.items.length > 0 ? (
+            <div className="rounded-xl border border-[#55472b] bg-[#1b170f] p-3">
+              <div className="text-xs font-semibold text-[#ead397]">서버 저장 아이템 불러오기</div>
+              <select className={`${input} mt-2`} value={selectedItem} onChange={(event) => setSelectedItem(event.target.value)}>
+                <option value="">아이템 선택</option>
+                {project.items.map((item) => <option key={item.id} value={item.minecraftId}>{item.displayName}</option>)}
+              </select>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button type="button" disabled={!selectedItem} onClick={() => edit((settings) => void (settings.effects.giveItems = appendItem(settings.effects.giveItems, selectedItem)))} className="rounded-lg bg-[#3b321d] px-3 py-2 text-xs text-[#f0d89a] disabled:opacity-30">지급에 추가</button>
+                <button type="button" disabled={!selectedItem} onClick={() => edit((settings) => void (settings.effects.takeItems = appendItem(settings.effects.takeItems, selectedItem)))} className="rounded-lg bg-[#3b321d] px-3 py-2 text-xs text-[#f0d89a] disabled:opacity-30">회수에 추가</button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg bg-[#1b170f] px-3 py-2 text-[11px] text-[#a99568]">상단의 서버에서 불러오기를 누르면 게임에서 저장한 아이템이 표시됩니다.</div>
+          )}
           <label className={label}>
             지급
             <textarea
@@ -380,9 +400,9 @@ export function EffectsInspector({ page, dialogue, project, onClose, onChange }:
           />
         </EffectGroup>
 
-        <EffectGroup title="💬 메시지" description="{{variable}} placeholder와 HEX 색상을 사용할 수 있습니다." accent="green">
+        <EffectGroup title="💬 플레이어에게 메시지 보내기" description="{{variable}} placeholder와 HEX 색상을 사용할 수 있습니다." accent="green">
           <label className={label}>
-            메시지
+            플레이어에게 보낼 메시지
             <input
               className={`${input} mt-1.5`}
               value={server.effects.message}

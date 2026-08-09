@@ -628,7 +628,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             getConfig().set(path + ".end-" + index, "END".equals(response.getText("choice_flow")));
             getConfig().set(path + ".target-page-" + index,
                     safePageNumber(response.getText("choice_target_page"), editorMessages(player).size()));
-            getConfig().set(path + ".speaker-" + index, limitText(response.getText("choice_speaker"), 10));
+            getConfig().set(path + ".speaker-" + index, TextWidthRules.limitVisible(response.getText("choice_speaker"), 10));
             getConfig().set(path + ".choice-count", Math.max(index, getConfig().getInt(path + ".choice-count", 0)));
             saveConfig();
             Bukkit.getScheduler().runTask(this, () -> {
@@ -679,7 +679,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         String path = editorPath(player);
         getConfig().set(path + ".title", title == null || title.isBlank() ? name : title.strip());
         getConfig().set(path + ".page-speakers." + editorPage.getOrDefault(player.getUniqueId(), 0),
-                limitText(response.getText("speaker"), 10));
+                TextWidthRules.limitVisible(response.getText("speaker"), 10));
         if (action.equals("dialoguedisplay:toggle_portrait"))
             getConfig().set(path + ".page-show-portraits." + editorPage.getOrDefault(player.getUniqueId(), 0),
                     !getConfig().getBoolean(path + ".page-show-portraits." + editorPage.getOrDefault(player.getUniqueId(), 0),
@@ -1310,9 +1310,9 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         java.util.ArrayList<DialogInput> inputs = new java.util.ArrayList<>();
         inputs.add(DialogInput.text("dialogue_name", Component.text("대화문 제목 (띄어쓰기 가능)")).width(400)
                 .initial(getConfig().getString(path + ".title", editorName.getOrDefault(player.getUniqueId(), "default"))).maxLength(60).build());
-        inputs.add(DialogInput.text("speaker", Component.text("화자 이름 (최대 10자)")).width(400)
-                .initial(limitText(getConfig().getString(path + ".page-speakers." + index,
-                        getConfig().getString(path + ".speaker", "수호자")), 10)).maxLength(10).build());
+        inputs.add(DialogInput.text("speaker", Component.text("화자 이름 (표시 최대 10자 · 서식 코드 제외)")).width(400)
+                .initial(TextWidthRules.limitVisible(getConfig().getString(path + ".page-speakers." + index,
+                        getConfig().getString(path + ".speaker", "수호자")), 10)).maxLength(128).build());
         String portrait = effectivePageAppearance(path, index, true);
         String character = characterFromPortrait(portrait);
         String gender = genderFromPortrait(portrait);
@@ -1429,7 +1429,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         sender.sendMessage(Component.text("RPGMaker 에디터 도움말", NamedTextColor.GOLD));
         sender.sendMessage(Component.text("제목은 공백 포함 60자, 화자 이름은 10자까지 입력합니다.", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("대사 1~4줄은 줄마다 공백 포함 30자까지 입력합니다.", NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("단어 색상: #FF0000:단어  |  변수 출력: {{변수이름}}", NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("색상·서식: #FF0000:bold,italic,strikethrough:단어  |  변수 출력: {{변수이름}}", NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("대사와 화자 이름 모두 색상·굵기·기울임·취소선을 지원합니다.", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("채팅 입력 저장에는 변수 이름만 입력합니다. 예: nickname", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("해당 대사를 넘긴 뒤 플레이어의 다음 채팅 1회가 저장되며, 채팅에는 표시되지 않습니다. 이후 {{nickname}}으로 출력합니다.", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("변수는 문자열·true/false를 저장하며 +=, -=, *=, /= 및 random(최소..최대) 난수를 지원합니다.", NamedTextColor.AQUA));
@@ -1473,8 +1474,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         inputs.add(DialogInput.singleOption("choice_target_page", Component.text("선택 시 이동할 대사 번호"),
                 pageNumberOptions(player, getConfig().getInt(path + ".target-page-" + index, 0),
                         "0 · 레거시 후속 대사 사용")).width(500).build());
-        inputs.add(DialogInput.text("choice_speaker", Component.text("이 선택지 이후 화자 이름 · 비우면 대상 대사의 화자")).width(500)
-                .initial(limitText(getConfig().getString(path + ".speaker-" + index, ""), 10)).maxLength(10).build());
+        inputs.add(DialogInput.text("choice_speaker", Component.text("이 선택지 이후 화자 이름 · 표시 10자 · 서식 코드 제외")).width(500)
+                .initial(TextWidthRules.limitVisible(getConfig().getString(path + ".speaker-" + index, ""), 10)).maxLength(128).build());
         String responsePortrait = getConfig().getString(path + ".response-portrait-" + index + "." + page, "SENTINEL");
         String responseExpression = getConfig().getString(path + ".response-expression-" + index + "." + page, "HAPPY");
         for (int i = 1; i <= maximumLines; i++) {
@@ -2688,7 +2689,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (showPortrait) {
             portrait = spawn(player, origin, Component.text("\uE001").font(Key.key("dialog", "portrait")));
             portrait.setTextOpacity((byte) 249);
-            speakerDisplay = spawn(player, origin, Component.text(fixedSpeakerText(resolvedSpeaker), NamedTextColor.GOLD));
+            speakerDisplay = spawn(player, origin, formattedText(fixedSpeakerText(resolvedSpeaker), NamedTextColor.GOLD));
             speakerDisplay.setTextOpacity((byte) 248);
             speakerDisplay.setAlignment(TextDisplay.TextAlignment.CENTER);
             speakerDisplay.setLineWidth(1024);
@@ -2942,18 +2943,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private int skipWordColorMarker(String text, int offset) {
-        if (isInlineColorMarker(text, offset)) return offset + 9;
-        if (offset + 8 > text.length() || text.charAt(offset) != '#'
-                || offset > 0 && !Character.isWhitespace(text.codePointBefore(offset))
-                || text.charAt(offset + 7) != ':') return offset;
-        for (int index = offset + 1; index < offset + 7; index++)
-            if (Character.digit(text.charAt(index), 16) < 0) return offset;
-        return offset + 8;
-    }
-
-    private boolean isInlineColorMarker(String text, int offset) {
-        return offset + 9 <= text.length() && text.charAt(offset) == '{' && text.charAt(offset + 1) == '#'
-                && text.charAt(offset + 8) == '}' && text.substring(offset + 2, offset + 8).matches("[0-9A-Fa-f]{6}");
+        TextWidthRules.FormatToken inline = TextWidthRules.inlineFormat(text, offset);
+        if (inline != null) return inline.end();
+        if (offset > 0 && !Character.isWhitespace(text.codePointBefore(offset))) return offset;
+        TextWidthRules.FormatToken word = TextWidthRules.wordFormat(text, offset);
+        return word == null ? offset : word.end();
     }
 
     private void finishPage(Dialogue dialogue) {
@@ -3033,29 +3027,32 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private Component coloredLine(String line) {
+        return formattedText(line, NamedTextColor.WHITE);
+    }
+
+    private Component formattedText(String line, TextColor defaultColor) {
         Component result = Component.empty();
         StringBuilder plain = new StringBuilder();
-        TextColor activeColor = NamedTextColor.WHITE;
+        TextWidthRules.TextFormat activeFormat = null;
         int offset = 0;
         boolean wordStart = true;
         while (offset < line.length()) {
-            if (isInlineColorMarker(line, offset)) {
-                if (!plain.isEmpty()) result = result.append(Component.text(plain.toString(), activeColor));
+            TextWidthRules.FormatToken inline = TextWidthRules.inlineFormat(line, offset);
+            if (inline != null) {
+                if (!plain.isEmpty()) result = result.append(formattedSegment(plain.toString(), activeFormat, defaultColor));
                 plain.setLength(0);
-                TextColor color = TextColor.fromHexString(line.substring(offset + 1, offset + 8));
-                activeColor = color == null ? NamedTextColor.WHITE : color;
-                offset += 9;
+                activeFormat = inline.format();
+                offset = inline.end();
                 continue;
             }
-            if (wordStart && offset + 8 <= line.length() && line.charAt(offset) == '#'
-                    && line.substring(offset + 1, offset + 7).matches("[0-9A-Fa-f]{6}") && line.charAt(offset + 7) == ':') {
-                if (!plain.isEmpty()) result = result.append(Component.text(plain.toString(), activeColor));
+            TextWidthRules.FormatToken word = wordStart ? TextWidthRules.wordFormat(line, offset) : null;
+            if (word != null) {
+                if (!plain.isEmpty()) result = result.append(formattedSegment(plain.toString(), activeFormat, defaultColor));
                 plain.setLength(0);
-                int end = offset + 8;
+                int end = word.end();
                 while (end < line.length() && !Character.isWhitespace(line.codePointAt(end)))
                     end += Character.charCount(line.codePointAt(end));
-                TextColor color = TextColor.fromHexString(line.substring(offset, offset + 7));
-                result = result.append(Component.text(line.substring(offset + 8, end), color == null ? NamedTextColor.WHITE : color));
+                result = result.append(formattedSegment(line.substring(word.end(), end), word.format(), defaultColor));
                 offset = end;
                 wordStart = false;
                 continue;
@@ -3065,7 +3062,17 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             wordStart = Character.isWhitespace(codePoint);
             offset += Character.charCount(codePoint);
         }
-        return plain.isEmpty() ? result : result.append(Component.text(plain.toString(), activeColor));
+        return plain.isEmpty() ? result : result.append(formattedSegment(plain.toString(), activeFormat, defaultColor));
+    }
+
+    private Component formattedSegment(String text, TextWidthRules.TextFormat format, TextColor defaultColor) {
+        TextColor color = format == null ? defaultColor : TextColor.fromHexString(format.color());
+        Component result = Component.text(text, color == null ? defaultColor : color);
+        if (format == null) return result;
+        if (format.bold()) result = result.decorate(TextDecoration.BOLD);
+        if (format.italic()) result = result.decorate(TextDecoration.ITALIC);
+        if (format.strikethrough()) result = result.decorate(TextDecoration.STRIKETHROUGH);
+        return result;
     }
 
     private List<SingleOptionDialogInput.OptionEntry> characterOptions(String selected) {
@@ -3152,7 +3159,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         dialogue.choiceFrame.text(visible ? smallDialogueFrame() : Component.empty());
         if (!dialogue.showPortrait) return;
         dialogue.speakerDisplay.text(visible
-                ? Component.text(fixedSpeakerText(speakerForPage(dialogue)), NamedTextColor.GOLD) : Component.empty());
+                ? formattedText(fixedSpeakerText(speakerForPage(dialogue)), NamedTextColor.GOLD) : Component.empty());
         if (!visible) {
             dialogue.portrait.text(Component.empty());
             return;
@@ -3237,7 +3244,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private String fixedSpeakerText(String speaker) {
-        return limitText(speaker, 10);
+        return TextWidthRules.limitVisible(speaker, 10);
     }
 
     private Component dialogueFrame() {
@@ -3342,7 +3349,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         }
         if (!effect.message.isBlank()) {
             TextColor messageColor = TextColor.fromHexString(effect.messageColor);
-            player.sendMessage(Component.text(expandVariables(player, effect.message), messageColor == null ? NamedTextColor.WHITE : messageColor));
+            player.sendMessage(formattedText(expandVariables(player, effect.message),
+                    messageColor == null ? NamedTextColor.WHITE : messageColor));
         }
         String command = effect.command == null ? "" : effect.command.strip();
         if (command.startsWith("/")) command = command.substring(1);

@@ -10,6 +10,7 @@
     "pretypecheck": "npm run sync:assets",
     "typecheck": "tsc -b",
     "check:migration": "node scripts/check-migrate-project.mjs",
+    "check:preview": "node --experimental-strip-types scripts/check-preview-engine.mjs",
     "prebuild": "npm run sync:assets",
     "build": "tsc -b && vite build",
     "preview": "vite preview"

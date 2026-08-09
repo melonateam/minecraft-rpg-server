@@ -325,6 +325,7 @@ function ChoicesPanel({
                   <div className="mb-2 text-xs font-semibold text-[#aeb5c0]">선택지 표시 조건</div>
                   <ConditionBuilder
                     variables={project.variables}
+                    items={project.items}
                     value={choice.server?.condition ?? emptyChoiceSettings().condition}
                     onChange={(mutator) =>
                       onChange((draft) => {
@@ -446,9 +447,9 @@ function EffectsPanel({ page, onChange }: { page: DialoguePage; onChange: Props[
         />
       </EffectGroup>
 
-      <EffectGroup title="💬 메시지" description="{{variable}} placeholder와 HEX 색상을 사용할 수 있습니다.">
+      <EffectGroup title="💬 플레이어에게 메시지 보내기" description="{{variable}} placeholder와 HEX 색상을 사용할 수 있습니다.">
         <label className={label}>
-          메시지
+          플레이어에게 보낼 메시지
           <input
             className={`${input} mt-1.5`}
             value={server.effects.message}
@@ -651,6 +652,7 @@ function FlowPanel({
           <ConditionBuilder
             value={server.flow.condition}
             variables={project.variables}
+            items={project.items}
             onChange={(mutator) => edit((settings) => mutator(settings.flow.condition))}
           />
         )}
@@ -673,6 +675,7 @@ export function EditorInspector({ section, page, dialogue, project, manifest, on
             <ConditionBuilder
               showReplacement
               variables={project.variables}
+              items={project.items}
               value={serverOf(page).displayCondition}
               onChange={(mutator) =>
                 onChange((draft) => {

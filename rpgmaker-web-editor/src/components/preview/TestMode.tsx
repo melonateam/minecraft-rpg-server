@@ -12,9 +12,11 @@ import {
   choosePreview,
   createPreviewState,
   evaluateCondition,
+  findPreviewPage,
   visibleChoices,
   type PreviewState,
 } from '../../services/previewEngine';
+import { parseDialogueText } from '../../services/dialogueText';
 import { PortraitSprite } from '../characters/PortraitSprite';
 
 interface Props {
@@ -28,6 +30,22 @@ function parseValue(value: string): string | number | boolean {
   if (value === 'false') return false;
   const numeric = Number(value);
   return value.trim() !== '' && Number.isFinite(numeric) ? numeric : value;
+}
+
+function FormattedText({ value, variables }: { value: string; variables: PreviewState['variables'] }) {
+  return parseDialogueText(value, variables).map((segment, index) => (
+    <span
+      key={index}
+      style={{
+        color: segment.color,
+        fontWeight: segment.bold ? 700 : undefined,
+        fontStyle: segment.italic ? 'italic' : undefined,
+        textDecoration: segment.strikethrough ? 'line-through' : undefined,
+      }}
+    >
+      {segment.text}
+    </span>
+  ));
 }
 
 export function TestMode({ dialogue, manifest, onExit }: Props) {
@@ -47,8 +65,8 @@ export function TestMode({ dialogue, manifest, onExit }: Props) {
   }, [dialogue.id]);
 
   const page = useMemo(
-    () => dialogue.pages.find((candidate) => candidate.id === state.currentPageId),
-    [dialogue.pages, state.currentPageId],
+    () => findPreviewPage(dialogue, state.currentPageId),
+    [dialogue, state.currentPageId],
   );
   const character = page ? getCharacter(manifest, page.appearance.characterId) : undefined;
   const gender = character ? normalizedGender(character, page?.appearance.gender) : 'NONE';
@@ -136,14 +154,20 @@ export function TestMode({ dialogue, manifest, onExit }: Props) {
                         <PortraitSprite sprite={sprite} size={104} className="border border-white/10 shadow-xl" />
                       </div>
                     )}
-                    {page.appearance.visible && page.speaker && (
-                      <div className="mb-3 text-sm font-bold text-[#f0d566]">{page.speaker}</div>
+                    {page.appearance.visible && state.speaker && (
+                      <div className="mb-3 text-sm font-bold text-[#f0d566]">
+                        <FormattedText value={state.speaker} variables={{ player_name: 'Player', ...state.variables }} />
+                      </div>
                     )}
                     <div className="min-h-28 space-y-1.5 font-mono text-[16px] leading-7 text-white">
                       {page.server?.operationOnly ? (
                         <div className="text-[#8b94a0]">연산 전용 페이지를 자동으로 처리했습니다.</div>
                       ) : visibleLines.length ? (
-                        visibleLines.map((line, index) => <div key={index}>{line}</div>)
+                        visibleLines.map((line, index) => (
+                          <div key={index}>
+                            <FormattedText value={line} variables={{ player_name: 'Player', ...state.variables }} />
+                          </div>
+                        ))
                       ) : (
                         <div className="text-white/30">표시할 대사가 없습니다.</div>
                       )}
@@ -159,7 +183,10 @@ export function TestMode({ dialogue, manifest, onExit }: Props) {
                             className="rounded-md px-2 py-1.5 text-left font-mono text-sm text-[#d9dde5] hover:bg-white/5"
                           >
                             <span className="mr-2 text-[#91a0ff]">[{index + 1}]</span>
-                            {choice.label || '이름 없는 선택지'}
+                            <FormattedText
+                              value={choice.label || '이름 없는 선택지'}
+                              variables={{ player_name: 'Player', ...state.variables }}
+                            />
                             <span className="ml-2 text-[10px] text-[#6f7785]">
                               {choice.endAfterTarget ? 'END' : 'CONTINUE'}
                             </span>

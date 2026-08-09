@@ -18,6 +18,14 @@ export interface ServerDialogueDocument {
   dialogue: Record<string, unknown>;
 }
 
+export interface ServerItemSummary {
+  name: string;
+  reference: string;
+  title: string;
+  material: string;
+  captured: boolean;
+}
+
 export class RevisionConflictError extends Error {
   constructor(readonly serverRevision: string) {
     super('서버 데이터가 웹에서 불러온 버전보다 최신입니다.');
@@ -108,6 +116,13 @@ export class PlayerSessionApiClient {
       `/dialogues/${encodeURIComponent(ownerUuid)}`,
     );
     return result.dialogues;
+  }
+
+  async listItems(ownerUuid: string) {
+    const result = await this.request<{ items: ServerItemSummary[] }>(
+      `/items/${encodeURIComponent(ownerUuid)}`,
+    );
+    return result.items;
   }
 
   getDialogue(ownerUuid: string, name: string) {

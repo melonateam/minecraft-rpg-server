@@ -124,7 +124,7 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
           <input className={`${input} mt-1.5`} value={choice.label} maxLength={10} onChange={(event) => mutateChoice((draft) => void (draft.label = event.target.value))} />
         </label>
         <label className="block text-xs text-[#9990a1]">후속 대사 화자
-          <input className={`${input} mt-1.5`} value={choice.speakerOverride ?? ''} maxLength={10} placeholder="비워두면 원래 페이지 화자를 사용" onChange={(event) => mutateChoice((draft) => void (draft.speakerOverride = event.target.value || undefined))} />
+          <input className={`${input} mt-1.5`} value={choice.speakerOverride ?? ''} placeholder="비워두면 원래 페이지 화자를 사용" onChange={(event) => mutateChoice((draft) => void (draft.speakerOverride = event.target.value || undefined))} />
         </label>
 
         <label className="block text-xs text-[#c0aaff]">

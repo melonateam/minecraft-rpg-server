@@ -119,10 +119,11 @@ export function ScriptWorkspace({
                   placeholder="화자 이름"
                   className="min-w-0 flex-1 bg-transparent py-3 text-lg font-semibold outline-none placeholder:text-[#4f5865]"
                 />
-                <span className={`text-xs ${page.speaker.length > 10 ? 'text-red-400' : 'text-[#626c79]'}`}>
-                  {page.speaker.length}/10
+                <span className={`text-xs ${visibleLength(page.speaker) > 10 ? 'text-red-400' : 'text-[#626c79]'}`}>
+                  {visibleLength(page.speaker)}/10
                 </span>
               </div>
+              <div className="mt-2 text-[11px] text-[#737e8c]">화자 이름에도 대사와 같은 색상·굵게·기울임·취소선 코드를 사용할 수 있습니다.</div>
 
               {!page.appearance.visible && (
                 <div className="mt-2 text-xs text-[#737e8c]">
@@ -136,7 +137,9 @@ export function ScriptWorkspace({
               </div>
 
               <div className="mt-3 rounded-xl border border-[#2b4151] bg-[#111a22] px-4 py-3 text-sm text-[#c9d3dc]">
-                <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">{'{{변수}}'}</code>으로 대화문에 변수값을 출력할 수 있습니다.
+                <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">{'{{변수}}'}</code>으로 대화문에 변수값을 출력할 수 있습니다.{' '}
+                <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">#색코드:단어</code>로 색을 입힐 수 있습니다. 굵게·기울임·취소선은{' '}
+                <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">#FF0000:bold,italic,strikethrough:단어</code> 형식입니다.
               </div>
 
               <div className="mt-3 space-y-3">

@@ -51,7 +51,7 @@ web-api:
     - http://localhost:5173
     - http://127.0.0.1:5173
   max-request-bytes: 1048576
-examples-version: 3
+examples-version: 4
 example-item-templates:
   moon_letter:
     example-version: 3
@@ -557,17 +557,17 @@ example-templates:
         end-3: true
     built-in-example: true
   romance-final:
-    example-version: 3
+    example-version: 4
     built-in-example: true
     title: 달빛 아래 피어난 약속 · 최종판
-    speaker: 세레나
+    speaker: '#FF77CC:bold,italic:세레나'
     portrait: FEMALE_NOBLE
     expression: NEUTRAL
     camera-direction: NORTH
     message-pages:
     - |-
       #FFD966:달빛이 정원을 비추고 있어요.
-      오래 기다렸죠, 용사님.
+      {{player_name}}님, 오래 기다렸죠.
       오늘은 제 진심을 전할게요.
     - |-
       이 #FF77CC:편지에는 제 마음과
@@ -763,10 +763,10 @@ example-templates:
             return-target: CHOICE:p2#c0
         end-3: false
   shop-final:
-    example-version: 3
+    example-version: 4
     built-in-example: true
     title: 왕도 잡화점 · 최종판
-    speaker: 잡화점 주인
+    speaker: '#FFAA00:bold:잡화점 주인'
     portrait: MALE_INNKEEPER
     expression: HAPPY
     camera-direction: NORTH
@@ -777,8 +777,8 @@ example-templates:
       상품을 살 수 있습니다.
     - |-
       #FFAA00:오늘의 상품을 골라 보세요.
+      오늘의 행운은 {{shop_fortune}}점입니다.
       단골권과 에메랄드를 확인한 뒤
-      물건을 안전하게 교환합니다.
     - |-
       구매가 끝났습니다.
       더 둘러보시겠습니까?
@@ -793,6 +793,7 @@ example-templates:
     page-effects:
       '0':
         sounds: minecraft:entity.villager.yes:1.0:0.7:1
+        variables-set: shop_fortune=random(1..100)
         message: 왕도 잡화점 예제가 시작되었습니다.
         message-color: '#55FF55'
       '2':
