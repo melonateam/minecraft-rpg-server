@@ -1,11 +1,31 @@
+param([switch]$Stop)
+
 $ErrorActionPreference = 'Stop'
 $serverRoot = $PSScriptRoot
 $cloudflared = Join-Path $serverRoot 'cloudflared.exe'
 $log = Join-Path $serverRoot 'logs\resource-pack-tunnel.log'
 
-Get-CimInstance Win32_Process | Where-Object {
+$tunnels = Get-CimInstance Win32_Process | Where-Object {
     $_.Name -eq 'cloudflared.exe' -and $_.ExecutablePath -eq $cloudflared
-} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+}
+
+if ($Stop) {
+    $tunnels | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+    return
+}
+
+$worldLock = Join-Path $serverRoot 'world\session.lock'
+if (Test-Path -LiteralPath $worldLock) {
+    try {
+        $stream = [IO.File]::Open($worldLock, 'Open', 'ReadWrite', 'None')
+        $stream.Dispose()
+    }
+    catch {
+        throw 'Minecraft server is already running; refusing to replace its resource-pack tunnel.'
+    }
+}
+
+$tunnels | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 
 New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null
 Set-Content -LiteralPath $log -Value '' -Encoding UTF8
