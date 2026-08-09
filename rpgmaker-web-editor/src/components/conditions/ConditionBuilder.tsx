@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BUILT_IN_VARIABLES } from '../../domain/builtInVariables';
 import type { ItemDefinition, VariableDefinition } from '../../domain/project';
 import type { ServerCondition } from '../../domain/serverSettings';
 import { conditionSummary } from '../../services/previewEngine';
@@ -63,16 +64,27 @@ function serializeExtra(rows: ExtraRow[]) {
 
 function parseItem(value: string) {
   const match = value.trim().match(/^(.+?)(?::(\d+))?$/);
-  if (!match) return { id: '', amount: 1 };
+  if (!match) return { id: '', amount: 1, name: '', color: '#FFFFFF' };
   if (match[1].startsWith('@')) {
     const custom = value.trim().match(/^(@[^:]+)(?::(\d+))?$/);
-    return { id: custom?.[1] ?? value.trim(), amount: Number(custom?.[2] ?? 1) };
+    return { id: custom?.[1] ?? value.trim(), amount: Number(custom?.[2] ?? 1), name: '', color: '#FFFFFF' };
   }
   const parts = value.trim().split(':');
   if (parts.length >= 3 && /^\d+$/.test(parts[2])) {
-    return { id: `${parts[0]}:${parts[1]}`, amount: Number(parts[2]) };
+    return {
+      id: `${parts[0]}:${parts[1]}`,
+      amount: Number(parts[2]),
+      name: parts[3] ?? '',
+      color: parts[4] || '#FFFFFF',
+    };
   }
-  return { id: value.trim(), amount: 1 };
+  return { id: match[1], amount: Number(match[2] ?? 1), name: '', color: '#FFFFFF' };
+}
+
+function serializeItem(item: ReturnType<typeof parseItem>) {
+  if (!item.id) return '';
+  const base = `${item.id}:${Math.min(100, Math.max(1, item.amount || 1))}`;
+  return item.name && !item.id.startsWith('@') ? `${base}:${item.name}:${item.color || '#FFFFFF'}` : base;
 }
 
 export function ConditionBuilder({ value, variables, items, showReplacement = false, onChange }: Props) {
@@ -167,6 +179,9 @@ export function ConditionBuilder({ value, variables, items, showReplacement = fa
           </div>
 
           <datalist id="rpgmaker-variable-list">
+            {BUILT_IN_VARIABLES.map((name) => (
+              <option key={`builtin-${name}`} value={name} />
+            ))}
             {variables.map((variable) => (
               <option key={variable.id} value={variable.name} />
             ))}
@@ -262,7 +277,11 @@ export function ConditionBuilder({ value, variables, items, showReplacement = fa
             <select
               className={`${input} mt-3`}
               value={items.some((candidate) => candidate.minecraftId === item.id) ? item.id : ''}
-              onChange={(event) => onChange((condition) => void (condition.itemSpec = event.target.value ? `${event.target.value}:${Math.max(1, item.amount)}` : ''))}
+              onChange={(event) =>
+                onChange((condition) =>
+                  void (condition.itemSpec = serializeItem({ ...item, id: event.target.value }))
+                )
+              }
             >
               <option value="">직접 입력 또는 서버 저장 아이템 선택</option>
               {items.map((candidate) => <option key={candidate.id} value={candidate.minecraftId}>{candidate.displayName}</option>)}
@@ -277,9 +296,7 @@ export function ConditionBuilder({ value, variables, items, showReplacement = fa
                 placeholder="minecraft:emerald"
                 onChange={(event) =>
                   onChange((condition) => {
-                    condition.itemSpec = event.target.value
-                      ? `${event.target.value}:${Math.max(1, item.amount)}`
-                      : '';
+                    condition.itemSpec = serializeItem({ ...item, id: event.target.value });
                   })
                 }
               />
@@ -294,14 +311,42 @@ export function ConditionBuilder({ value, variables, items, showReplacement = fa
                 value={item.amount}
                 onChange={(event) =>
                   onChange((condition) => {
-                    condition.itemSpec = item.id
-                      ? `${item.id}:${Math.min(100, Math.max(1, Number(event.target.value) || 1))}`
-                      : '';
+                    condition.itemSpec = serializeItem({ ...item, amount: Number(event.target.value) || 1 });
                   })
                 }
               />
             </label>
           </div>
+          {!item.id.startsWith('@') && (
+            <div className="mt-3 grid grid-cols-[1fr_120px] gap-2">
+              <label className={label}>
+                표시 이름 (선택)
+                <input
+                  className={`${input} mt-1.5`}
+                  value={item.name}
+                  placeholder="이 이름까지 일치할 때"
+                  onChange={(event) =>
+                    onChange((condition) =>
+                      void (condition.itemSpec = serializeItem({ ...item, name: event.target.value }))
+                    )
+                  }
+                />
+              </label>
+              <label className={label}>
+                이름 색상
+                <input
+                  className={`${input} mt-1.5`}
+                  value={item.color}
+                  placeholder="#FFFFFF"
+                  onChange={(event) =>
+                    onChange((condition) =>
+                      void (condition.itemSpec = serializeItem({ ...item, color: event.target.value }))
+                    )
+                  }
+                />
+              </label>
+            </div>
+          )}
         </section>
       )}
 

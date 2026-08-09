@@ -11,6 +11,7 @@
     "typecheck": "tsc -b",
     "check:migration": "node scripts/check-migrate-project.mjs",
     "check:preview": "node --experimental-strip-types scripts/check-preview-engine.mjs",
+    "check:return-targets": "node --experimental-strip-types scripts/check-return-targets.mjs",
     "prebuild": "npm run sync:assets",
     "build": "tsc -b && vite build",
     "preview": "vite preview"

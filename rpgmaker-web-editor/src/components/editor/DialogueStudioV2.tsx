@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { BUILT_IN_VARIABLES } from '../../domain/builtInVariables';
 import type { Dialogue, DialogueChoice, DialoguePage } from '../../domain/project';
 import { emptyServerPage } from '../../domain/serverSettings';
 import {
@@ -44,18 +45,6 @@ type RightPanel =
   | { kind: 'validation' }
   | undefined;
 
-const BUILTIN_VARIABLES = [
-  'player_name',
-  'player_world',
-  'player_x',
-  'player_y',
-  'player_z',
-  'player_health',
-  'held_item_name',
-  'held_item_type',
-  'held_item_amount',
-];
-
 const normalizedName = (value: string) => value.trim().toLocaleLowerCase();
 const serverNameKey = (value: string) => {
   const trimmed = value.trim();
@@ -86,7 +75,7 @@ function sectionForIssue(section: ValidationIssue['section']): InspectorSection 
 }
 
 function collectVariableNames(dialogue: Dialogue, projectVariables: string[]) {
-  const names = new Set([...BUILTIN_VARIABLES, ...projectVariables]);
+  const names = new Set([...BUILT_IN_VARIABLES, ...projectVariables]);
   const placeholder = /\{\{([\p{L}\p{N}._-]+)\}\}/gu;
   for (const page of dialogue.pages) {
     for (const line of page.lines) {
@@ -191,7 +180,7 @@ export function DialogueStudioV2() {
     () =>
       dialogue && project
         ? collectVariableNames(dialogue, project.variables.map((variable) => variable.name))
-        : BUILTIN_VARIABLES,
+        : [...BUILT_IN_VARIABLES],
     [dialogue, project],
   );
 

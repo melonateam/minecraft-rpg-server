@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react';
+import { BUILT_IN_VARIABLES } from '../../domain/builtInVariables';
 import type { Dialogue, DialoguePage, RPGProject } from '../../domain/project';
 import { emptyServerPage } from '../../domain/serverSettings';
 import type { ServerPageSettings } from '../../domain/serverSettings';
+import { dialogueReturnOptions } from '../../services/returnTargets';
 
 interface Props {
   page: DialoguePage;
@@ -16,18 +18,6 @@ type VariableAssignment = {
   operator: '=' | '+=' | '-=' | '*=' | '/=' | 'random';
   value: string;
 };
-
-const builtInVariables = [
-  'player_name',
-  'player_world',
-  'player_x',
-  'player_y',
-  'player_z',
-  'player_health',
-  'held_item_name',
-  'held_item_type',
-  'held_item_amount',
-];
 
 const input =
   'w-full rounded-lg border border-[#3a3147] bg-[#181420] px-3 py-2 text-sm text-[#f4eef8] outline-none transition focus:border-[#9d8cff]';
@@ -78,28 +68,12 @@ function appendItem(value: string, reference: string) {
   return [...value.split(/[,\n]/).map((entry) => entry.trim()).filter(Boolean), `${reference}:1`].join(', ');
 }
 
-function pageLabel(dialogue: Dialogue, pageIndex: number) {
-  const page = dialogue.pages[pageIndex];
-  return page ? `페이지 ${pageIndex + 1} · ${page.editorLabel || page.lines.find(Boolean) || '빈 페이지'}` : `페이지 ${pageIndex + 1}`;
-}
-
 function selectedReturnLabel(dialogue: Dialogue, target: string) {
-  const pageMatch = target.match(/^PAGE:p(\d+)$/i);
-  if (pageMatch) return pageLabel(dialogue, Number(pageMatch[1]));
-
-  const choiceMatch = target.match(/^CHOICE:p(\d+)#c(\d+)$/i);
-  if (choiceMatch) {
-    const pageIndex = Number(choiceMatch[1]);
-    const choiceIndex = Number(choiceMatch[2]);
-    const choice = dialogue.pages[pageIndex]?.choices[choiceIndex];
-    return choice
-      ? `${pageLabel(dialogue, pageIndex)} / 선택지 ${choiceIndex + 1} · ${choice.label || '이름 없음'}`
-      : target;
-  }
-  return 'Return 사용 안 함';
+  return dialogueReturnOptions(dialogue).find((option) => option.value === target)?.label
+    ?? (target || 'Return 사용 안 함');
 }
 
-function ReturnPicker({
+export function ReturnPicker({
   dialogue,
   value,
   onChange,
@@ -109,6 +83,7 @@ function ReturnPicker({
   onChange: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const options = dialogueReturnOptions(dialogue);
 
   return (
     <div className="relative">
@@ -134,32 +109,19 @@ function ReturnPicker({
             Return 사용 안 함
           </button>
 
-          {dialogue.pages.map((targetPage, pageIndex) => (
-            <div key={targetPage.id} className="mt-1 border-t border-[#33293d] pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(`PAGE:p${pageIndex}`);
-                  setOpen(false);
-                }}
-                className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-[#251e2d]"
-              >
-                ↩ {pageLabel(dialogue, pageIndex)}
-              </button>
-              {targetPage.choices.map((choice, choiceIndex) => (
-                <button
-                  key={choice.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(`CHOICE:p${pageIndex}#c${choiceIndex}`);
-                    setOpen(false);
-                  }}
-                  className="w-full rounded-lg py-2 pl-7 pr-3 text-left text-xs text-[#c8bdce] hover:bg-[#251e2d]"
-                >
-                  └ 선택지 {choiceIndex + 1} · {choice.label || '이름 없음'}
-                </button>
-              ))}
-            </div>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+              className={`mt-1 w-full rounded-lg py-2 pr-3 text-left text-xs hover:bg-[#251e2d] ${option.kind === 'page' ? 'font-semibold' : 'text-[#c8bdce]'}`}
+              style={{ paddingLeft: `${12 + Math.min(option.depth, 16) * 12}px` }}
+            >
+              {option.kind === 'page' ? '↩' : '└'} {option.label}
+            </button>
           ))}
         </div>
       )}
@@ -337,7 +299,7 @@ export function EffectsInspector({ page, dialogue, project, onClose, onChange }:
           </div>
 
           <datalist id="rpgmaker-effect-variable-names">
-            {builtInVariables.map((name) => (
+            {BUILT_IN_VARIABLES.map((name) => (
               <option key={`builtin-${name}`} value={name} />
             ))}
             {project.variables.map((variable) => (
