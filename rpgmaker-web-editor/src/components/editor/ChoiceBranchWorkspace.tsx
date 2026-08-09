@@ -9,6 +9,7 @@ import {
 } from '../../services/characterRegistry';
 import { visibleLength } from '../../services/projectValidator';
 import { useProjectStore } from '../../store/projectStore';
+import { ConditionBuilder } from '../conditions/ConditionBuilder';
 
 interface Props {
   page: DialoguePage;
@@ -141,6 +142,23 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
           </select>
           <span className="mt-1.5 block text-[10px] leading-4 text-[#766b7e]">후속 대사와 중첩 선택지가 모두 끝난 다음 지정한 대화를 시작합니다.</span>
         </label>
+
+        <details className="rounded-xl border border-[#30283a] bg-[#120f16] p-3">
+          <summary className="cursor-pointer text-xs font-semibold text-[#d4c8dc]">선택지 표시 조건</summary>
+          <div className="mt-3">
+            <ConditionBuilder
+              variables={project?.variables ?? []}
+              items={project?.items ?? []}
+              value={choice.server?.condition ?? emptyChoiceSettings().condition}
+              onChange={(mutator) =>
+                mutateChoice((draft) => {
+                  draft.server ??= emptyChoiceSettings();
+                  mutator(draft.server.condition);
+                })
+              }
+            />
+          </div>
+        </details>
 
         <div className="rounded-xl border border-[#30283a] bg-[#120f16] p-3">
           <div className="flex items-center justify-between">
