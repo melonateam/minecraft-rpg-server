@@ -14,6 +14,21 @@ function Invoke-Git {
     }
 }
 
+function Remove-StaleGitIndexLock {
+    param([string]$LockPath = (Join-Path $RepoPath '.git\index.lock'))
+
+    if (-not (Test-Path -LiteralPath $LockPath)) { return }
+    $deadline = (Get-Date).AddSeconds(5)
+    while (Get-Process -Name git -ErrorAction SilentlyContinue) {
+        if ((Get-Date) -ge $deadline) {
+            throw "Git is still running; index lock was preserved: $LockPath"
+        }
+        Start-Sleep -Milliseconds 200
+    }
+    Remove-Item -LiteralPath $LockPath -Force
+    Write-Host "Removed stale Git index lock: $LockPath"
+}
+
 function Test-CodeSyncPath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -60,6 +75,16 @@ function Assert-CodeSyncRules {
             throw "Code sync rule failed for $($entry.Key)"
         }
     }
+
+    $testLock = Join-Path ([System.IO.Path]::GetTempPath()) "rpgmaker-sync-$PID-index.lock"
+    try {
+        [System.IO.File]::WriteAllText($testLock, '')
+        Remove-StaleGitIndexLock $testLock
+        if (Test-Path -LiteralPath $testLock) { throw 'Stale Git index lock was not removed.' }
+    }
+    finally {
+        Remove-Item -LiteralPath $testLock -Force -ErrorAction SilentlyContinue
+    }
     Write-Host 'Code sync path rules passed.'
 }
 
@@ -67,6 +92,8 @@ if ($SelfTest) {
     Assert-CodeSyncRules
     exit 0
 }
+
+Remove-StaleGitIndexLock
 
 Push-Location $RepoPath
 try {

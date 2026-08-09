@@ -32,7 +32,16 @@ class DialogueDisplayPluginTest {
         assertEquals(2, TextWidthRules.visibleCharacters("#FF0000:bold,italic,strikethrough:화자"));
         assertEquals("#FF0000:bold:화자", TextWidthRules.limitVisible("#FF0000:bold:화자이름", 2));
         assertEquals(6, TextWidthRules.visibleCharacters("123{{한글_변수}}456"));
-        assertTrue(TextWidthRules.paddingWidth(TextWidthRules.hiddenPadding("#FF0000:bold:말 {{한글_변수}}")) > 0);
+    }
+
+    @Test
+    void displayConditionUsesOriginalWhenMatchedAndReplacementWhenNotMatched() {
+        assertTrue(ExpressionRules.compare("10", "GTE", "10"));
+        assertFalse(ExpressionRules.compare("10", "LT", "10"));
+        assertTrue(ExpressionRules.compare(null, "IS_UNSET", ""));
+        assertEquals("원래 대사", ExpressionRules.conditionalText(true, "원래 대사", "대체 대사"));
+        assertEquals("대체 대사", ExpressionRules.conditionalText(false, "원래 대사", "대체 대사"));
+        assertEquals("원래 대사", ExpressionRules.conditionalText(false, "원래 대사", ""));
     }
 
     @Test

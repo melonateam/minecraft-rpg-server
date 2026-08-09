@@ -11,30 +11,6 @@ final class TextWidthRules {
         return spacing(Math.max(0, targetWidth - visibleWidth(text)));
     }
 
-    static String hiddenPadding(String text) {
-        int width = 0;
-        boolean wordStart = true;
-        for (int offset = 0; offset < text.length();) {
-            FormatToken token = inlineFormat(text, offset);
-            if (token == null && wordStart) token = wordFormat(text, offset);
-            int end = token == null ? variableEnd(text, offset) : token.end();
-            if (end > offset) {
-                for (int raw = offset; raw < end;) {
-                    int codePoint = text.codePointAt(raw);
-                    width += glyphWidth(codePoint);
-                    raw += Character.charCount(codePoint);
-                }
-                offset = end;
-                wordStart = false;
-                continue;
-            }
-            int codePoint = text.codePointAt(offset);
-            wordStart = Character.isWhitespace(codePoint);
-            offset += Character.charCount(codePoint);
-        }
-        return spacing(width);
-    }
-
     private static String spacing(int width) {
         StringBuilder result = new StringBuilder();
         while (width > 0) {
@@ -214,7 +190,6 @@ final class TextWidthRules {
         assert visibleWidth("#FF0000:bold,italic,strikethrough:가") == visibleWidth("가");
         assert visibleCharacters("123{{long_variable}}{#00FF00}456") == 6;
         assert visibleCharacters("123{{한글_변수}}456") == 6;
-        assert paddingWidth(hiddenPadding("#FF0000:bold:말 {{한글_변수}}")) > 0;
         assert visibleCharacters("#FF0000:bold:화자") == 2;
         assert limitVisible("123{{name}}4567", 6).equals("123{{name}}456");
         assert limitVisible("#FF0000:bold:화자이름", 2).equals("#FF0000:bold:화자");
