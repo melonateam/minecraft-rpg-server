@@ -2709,7 +2709,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 resolvedSpeaker, message, choices, lockedYaw, lockedPitch, dialogueDistance,
                 originalHeldSlot, originalNinthItem, originalMainHandItem);
         dialogue.pages = splitPages(message);
-        dialogue.message = expandVariables(player, dialogue.pages.get(0));
+        dialogue.message = expandDialogueText(player, dialogue.pages.get(0));
         dialogue.pageChoices = new java.util.ArrayList<>();
         for (int i = 0; i < dialogue.pages.size(); i++) dialogue.pageChoices.add(List.of());
         dialogue.pageEffects = new java.util.ArrayList<>();
@@ -3021,7 +3021,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
         String[] visibleLines = visible.split("\\n", -1);
         for (int row = 0; row < dialogue.bodyLines.length; row++) {
-            String line = limitLine(row < visibleLines.length ? visibleLines[row] : "");
+            String line = row < visibleLines.length ? visibleLines[row] : "";
             Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
                     .font(Key.key("dialog", "spacing"));
             dialogue.bodyLines[row].text(coloredLine(line).append(padding));
@@ -3149,7 +3149,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void updatePortrait(Dialogue dialogue) {
         boolean visible = portraitVisible(dialogue);
-        dialogue.choiceFrame.text(visible ? dialogueFrame() : Component.empty());
+        dialogue.choiceFrame.text(visible ? smallDialogueFrame() : Component.empty());
         if (!dialogue.showPortrait) return;
         dialogue.speakerDisplay.text(visible
                 ? Component.text(fixedSpeakerText(speakerForPage(dialogue)), NamedTextColor.GOLD) : Component.empty());
@@ -3227,30 +3227,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private String limitLine(String text) {
-        if (text == null) return "";
-        StringBuilder result = new StringBuilder();
-        int visible = 0;
-        boolean wordStart = true;
-        for (int offset = 0; offset < text.length() && visible < MAXIMUM_CHARACTERS_PER_LINE;) {
-            if (isInlineColorMarker(text, offset)) {
-                result.append(text, offset, offset + 9);
-                offset += 9;
-                continue;
-            }
-            if (wordStart && offset + 8 <= text.length() && text.charAt(offset) == '#'
-                    && text.substring(offset + 1, offset + 7).matches("[0-9A-Fa-f]{6}") && text.charAt(offset + 7) == ':') {
-                result.append(text, offset, offset + 8);
-                offset += 8;
-                wordStart = false;
-                continue;
-            }
-            int codePoint = text.codePointAt(offset);
-            result.appendCodePoint(codePoint);
-            visible++;
-            wordStart = Character.isWhitespace(codePoint);
-            offset += Character.charCount(codePoint);
-        }
-        return result.toString();
+        return TextWidthRules.limitVisible(text, MAXIMUM_CHARACTERS_PER_LINE);
     }
 
     private String limitText(String text, int maximum) {
@@ -3265,6 +3242,10 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private Component dialogueFrame() {
         return Component.text("\uE000").font(Key.key("dialog", "frame"));
+    }
+
+    private Component smallDialogueFrame() {
+        return Component.text("\uE000").font(Key.key("dialog", "choice_frame"));
     }
 
     private Component fixedChoiceLine(String text) {
@@ -3652,6 +3633,12 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         return result.toString();
     }
 
+    private String expandDialogueText(Player player, String text) {
+        if (text == null) return "";
+        return String.join("\n", java.util.Arrays.stream(text.split("\\n", -1))
+                .map(this::limitLine).map(line -> expandVariables(player, line)).toList());
+    }
+
     private String builtInVariable(Player player, String variable) {
         Dialogue dialogue = active.get(player.getUniqueId());
         ItemStack item = dialogue == null ? player.getInventory().getItemInMainHand() : dialogue.originalMainHandItem;
@@ -3864,7 +3851,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             }
             Condition condition = dialogue.pageIndex < dialogue.pageConditions.size()
                     ? dialogue.pageConditions.get(dialogue.pageIndex) : Condition.NONE;
-            dialogue.message = expandVariables(dialogue.player, matchesCondition(dialogue.player, condition) && !condition.replacement.isBlank()
+            dialogue.message = expandDialogueText(dialogue.player, matchesCondition(dialogue.player, condition) && !condition.replacement.isBlank()
                     ? condition.replacement : dialogue.pages.get(dialogue.pageIndex));
             return true;
         }

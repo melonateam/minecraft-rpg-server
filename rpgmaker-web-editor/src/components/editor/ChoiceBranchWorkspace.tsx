@@ -97,7 +97,12 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
   onDelete: () => void;
 }) {
   const projects = useProjectStore((state) => state.projects);
-  const dialogues = projects.flatMap((project) => project.dialogues);
+  const project = projects.find((candidate) =>
+    candidate.dialogues.some((dialogue) =>
+      dialogue.pages.some((page) => visitChoice(page.choices, choice.id)),
+    ),
+  );
+  const dialogues = project?.dialogues ?? [];
   const mutateChoice = (mutator: (draft: DialogueChoice) => void) =>
     onChange((draftPage) => {
       const target = visitChoice(draftPage.choices, choice.id);
