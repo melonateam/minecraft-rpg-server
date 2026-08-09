@@ -32,7 +32,7 @@ function newChoice(label = ''): DialogueChoice {
   return { id: crypto.randomUUID(), label, responsePages: [], server: emptyChoiceSettings() };
 }
 
-function visitChoice(choices: DialogueChoice[], id: string): DialogueChoice | undefined {
+export function visitChoice(choices: DialogueChoice[], id: string): DialogueChoice | undefined {
   for (const choice of choices) {
     if (choice.id === id) return choice;
     for (const response of choice.responsePages ?? []) {

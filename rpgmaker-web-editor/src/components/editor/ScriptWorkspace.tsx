@@ -11,7 +11,7 @@ import {
 import { visibleLength } from '../../services/projectValidator';
 import { useEditorStore } from '../../store/editorStore';
 import { PortraitSprite } from '../characters/PortraitSprite';
-import { ChoiceBranchWorkspace } from './ChoiceBranchWorkspace';
+import { ChoiceBranchWorkspace, visitChoice } from './ChoiceBranchWorkspace';
 import { DialogueMovementWorkspace } from './DialogueMovementWorkspace';
 import type { InspectorSection } from './EditorInspector';
 
@@ -49,7 +49,7 @@ export function ScriptWorkspace({
   const sprite = character && expression ? portraitSprite(manifest, character, gender, expression) : undefined;
   const activeChoiceId = useEditorStore((state) => state.activeChoiceId);
   const selectChoice = useEditorStore((state) => state.selectChoice);
-  const selectedChoice = activeChoiceId ? page.choices.find((choice) => choice.id === activeChoiceId) : undefined;
+  const selectedChoice = activeChoiceId ? visitChoice(page.choices, activeChoiceId) : undefined;
 
   useEffect(() => {
     if (!activeChoiceId) return;

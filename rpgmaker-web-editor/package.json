@@ -9,6 +9,7 @@
     "dev": "vite",
     "pretypecheck": "npm run sync:assets",
     "typecheck": "tsc -b",
+    "check:migration": "node scripts/check-migrate-project.mjs",
     "prebuild": "npm run sync:assets",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
