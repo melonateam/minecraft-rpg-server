@@ -2682,6 +2682,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 Component.text("\uE000").font(Key.key("dialog", "frame")));
         frame.setTransformation(scale((float) getConfig().getDouble("frame-scale", 0.16)));
         TextDisplay choiceFrame = spawn(player, origin, Component.empty());
+        choiceFrame.setTextOpacity((byte) 247);
         TextDisplay portrait = null;
         TextDisplay speakerDisplay = null;
         if (showPortrait) {
