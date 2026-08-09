@@ -125,9 +125,9 @@ export function ScriptWorkspace({
               </div>
               <div className="mt-2 text-[11px] text-[#737e8c]">화자 이름에도 대사와 같은 색상·굵게·기울임·취소선 코드를 사용할 수 있습니다.</div>
 
-              {!page.appearance.visible && (
+              {!page.appearance.speakerVisible && (
                 <div className="mt-2 text-xs text-[#737e8c]">
-                  캐릭터 표시가 꺼져 있어 게임에서는 화자도 숨겨집니다.
+                  화자 이름 표시가 꺼져 있어 게임에서는 이름과 작은 박스가 숨겨집니다.
                 </div>
               )}
 

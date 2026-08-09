@@ -44,7 +44,8 @@ function serverPage(value?: Partial<ServerPageSettings>): ServerPageSettings {
 }
 
 function appearance(value?: Partial<PageAppearance>): PageAppearance {
-  const next = { visible: true, inheritPrevious: false, ...value };
+  const visible = value?.visible ?? true;
+  const next = { visible, inheritPrevious: false, ...value, speakerVisible: value?.speakerVisible ?? visible };
   next.characterId = characterIds[next.characterId ?? ''] ?? next.characterId?.toUpperCase();
   next.expression = expressions[next.expression ?? ''] ?? next.expression?.toUpperCase() ?? 'NEUTRAL';
   return next;

@@ -22,7 +22,7 @@ function newResponsePage(): DialogueChoiceResponsePage {
   return {
     id: crypto.randomUUID(),
     lines: ['', '', '', ''],
-    appearance: { visible: true, inheritPrevious: false, expression: 'NEUTRAL' },
+    appearance: { visible: true, speakerVisible: true, inheritPrevious: false, expression: 'NEUTRAL' },
     choices: [],
     server: emptyServerPage(),
   };
@@ -208,6 +208,9 @@ function ResponsePageEditor({ response, index, depth, manifest, onChange, onDele
         </div>
         <label className="flex items-center justify-between rounded-lg bg-[#121015] px-3 py-2 text-xs text-[#948b9b]">캐릭터 표시
           <input type="checkbox" checked={response.appearance.visible} onChange={(event) => mutate((draft) => void (draft.appearance.visible = event.target.checked))} />
+        </label>
+        <label className="flex items-center justify-between rounded-lg bg-[#121015] px-3 py-2 text-xs text-[#948b9b]">화자 이름 표시
+          <input type="checkbox" checked={response.appearance.speakerVisible} onChange={(event) => mutate((draft) => void (draft.appearance.speakerVisible = event.target.checked))} />
         </label>
 
         <div>

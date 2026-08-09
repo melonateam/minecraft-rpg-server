@@ -87,7 +87,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private static final int DEFAULT_TEXT_SIZE = 62;
     private static final double MINIMUM_UI_SCALE = 0.6;
     private static final double MAXIMUM_UI_SCALE = 1.4;
-    private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{([a-zA-Z0-9._-]+)}}");
+    private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{([\\p{L}\\p{N}._-]+)}}");
     private static final java.util.regex.Pattern VARIABLE_ASSIGNMENT = java.util.regex.Pattern.compile("^([^=+*/-]+?)\\s*([+*/-]?=)\\s*(.*)$");
     private static final java.util.regex.Pattern VARIABLE_CHECK = java.util.regex.Pattern.compile("^([^!<>=]+?)\\s*(==|=|!=|>=|<=|>|<)\\s*(.*)$");
     private final Map<UUID, Dialogue> active = new HashMap<>();
@@ -616,6 +616,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (List.of("dialoguedisplay:save_choice", "dialoguedisplay:add_next_choice",
                 "dialoguedisplay:choice_page_previous", "dialoguedisplay:choice_page_next",
                 "dialoguedisplay:choice_page_add", "dialoguedisplay:choice_settings",
+                "dialoguedisplay:choice_toggle_portrait", "dialoguedisplay:choice_toggle_speaker",
                 "dialoguedisplay:choice_nested_choices",
                 "dialoguedisplay:choice_appearance_character", "dialoguedisplay:choice_appearance_gender",
                 "dialoguedisplay:choice_appearance_expression",
@@ -629,6 +630,16 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             getConfig().set(path + ".target-page-" + index,
                     safePageNumber(response.getText("choice_target_page"), editorMessages(player).size()));
             getConfig().set(path + ".speaker-" + index, TextWidthRules.limitVisible(response.getText("choice_speaker"), 10));
+            int responsePage = editorChoicePage.getOrDefault(player.getUniqueId(), 0);
+            if (action.equals("dialoguedisplay:choice_toggle_portrait")) {
+                String visiblePath = path + ".response-show-portraits-" + index + "." + responsePage;
+                getConfig().set(visiblePath, !getConfig().getBoolean(visiblePath, true));
+            }
+            if (action.equals("dialoguedisplay:choice_toggle_speaker")) {
+                String visiblePath = path + ".response-show-speakers-" + index + "." + responsePage;
+                boolean fallback = getConfig().getBoolean(path + ".response-show-portraits-" + index + "." + responsePage, true);
+                getConfig().set(visiblePath, !getConfig().getBoolean(visiblePath, fallback));
+            }
             getConfig().set(path + ".choice-count", Math.max(index, getConfig().getInt(path + ".choice-count", 0)));
             saveConfig();
             Bukkit.getScheduler().runTask(this, () -> {
@@ -652,6 +663,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                     editorChoicePage.put(player.getUniqueId(), pages.size() - 1);
                     openChoiceEditor(player);
                 } else if (action.equals("dialoguedisplay:choice_settings")) openSettingsHub(player, true);
+                else if (action.equals("dialoguedisplay:choice_toggle_portrait") || action.equals("dialoguedisplay:choice_toggle_speaker"))
+                    openChoiceEditor(player);
                 else if (action.startsWith("dialoguedisplay:choice_appearance_"))
                     openAppearancePicker(player, true, action.substring("dialoguedisplay:choice_appearance_".length()));
                 else if (action.equals("dialoguedisplay:choice_nested_choices")) {
@@ -669,7 +682,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (!List.of("dialoguedisplay:save_editor", "dialoguedisplay:preview_editor", "dialoguedisplay:previous_dialogue",
                  "dialoguedisplay:next_dialogue", "dialoguedisplay:add_choice",
                  "dialoguedisplay:view_choices", "dialoguedisplay:page_settings",
-                 "dialoguedisplay:toggle_portrait",
+                 "dialoguedisplay:toggle_portrait", "dialoguedisplay:toggle_speaker",
                  "dialoguedisplay:page_appearance_character", "dialoguedisplay:page_appearance_gender",
                  "dialoguedisplay:page_appearance_expression").contains(action)) return;
         String title = response.getText("dialogue_name");
@@ -685,6 +698,13 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                     !getConfig().getBoolean(path + ".page-show-portraits." + editorPage.getOrDefault(player.getUniqueId(), 0),
                             getConfig().getBoolean(path + ".show-portrait", true)));
         if (action.equals("dialoguedisplay:toggle_portrait")) getConfig().set(path + ".show-portrait", true);
+        if (action.equals("dialoguedisplay:toggle_speaker")) {
+            int page = editorPage.getOrDefault(player.getUniqueId(), 0);
+            boolean fallback = getConfig().getBoolean(path + ".page-show-portraits." + page,
+                    getConfig().getBoolean(path + ".show-portrait", true));
+            getConfig().set(path + ".page-show-speakers." + page,
+                    !getConfig().getBoolean(path + ".page-show-speakers." + page, fallback));
+        }
         saveEditorMessage(player, readLines(response), action.equals("dialoguedisplay:next_dialogue"));
         String selectedCharacter = response.getText("character");
         if (selectedCharacter != null) {
@@ -703,7 +723,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 choiceParent.remove(player.getUniqueId());
                 openChoiceList(player);
             }
-            else if (action.equals("dialoguedisplay:toggle_portrait")) openContentEditor(player);
+            else if (action.equals("dialoguedisplay:toggle_portrait") || action.equals("dialoguedisplay:toggle_speaker")) openContentEditor(player);
             else if (action.equals("dialoguedisplay:previous_dialogue")) {
                 editorPage.compute(player.getUniqueId(), (id, page) -> Math.max(0, (page == null ? 0 : page) - 1));
                 openContentEditor(player);
@@ -763,7 +783,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             player.sendMessage(Component.text(player.getName() + " 계정으로 자동 연결됩니다. 이 링크는 다른 사람과 공유하지 마세요.", NamedTextColor.GRAY));
             return true;
         }
-        if (List.of("edit", "edit2", "adjust", "save", "show").contains(sub)
+        if (List.of("edit", "edit2", "edit3", "edit4", "adjust", "save", "show").contains(sub)
                 || (sub.equals("close") && args.length > 1)) {
             if (!player.hasPermission("rpgmaker.admin")) {
                 player.sendMessage(Component.text("이 기능은 OP만 사용할 수 있습니다.", NamedTextColor.RED));
@@ -802,28 +822,19 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             openContentEditor(player);
             return true;
         }
-        if (args.length == 1 && args[0].equalsIgnoreCase("edit")) {
-            show(player, "화자 이름 예시", "첫 번째 줄 예시\n두 번째 줄 예시\n세 번째 줄 예시\n네 번째 줄 예시", List.of());
+        if (args.length == 1 && List.of("edit", "edit2", "edit3", "edit4").contains(args[0].toLowerCase(java.util.Locale.ROOT))) {
+            String mode = args[0].toLowerCase(java.util.Locale.ROOT);
+            boolean showPortrait = mode.equals("edit") || mode.equals("edit4");
+            boolean showSpeaker = mode.equals("edit") || mode.equals("edit3");
+            show(player, "화자 이름 예시", "첫 번째 줄 예시\n두 번째 줄 예시\n세 번째 줄 예시\n네 번째 줄 예시", List.of(), "NORTH",
+                    getConfig().getDouble("distance", 1.8), showPortrait, showSpeaker);
             Dialogue dialogue = active.get(player.getUniqueId());
             dialogue.editing = true;
             dialogue.typed = dialogue.message.length();
             dialogue.expiresAt = Integer.MAX_VALUE;
             render(dialogue);
             dialogue.choiceDisplay.text(editorChoicePreview());
-            dialogue.choiceFrame.text(dialogueFrame());
-            applyScales(dialogue);
-            editorControls(player);
-            return true;
-        }
-        if (args.length == 1 && args[0].equalsIgnoreCase("edit2")) {
-            show(player, "", "첫 번째 줄 예시\n두 번째 줄 예시\n세 번째 줄 예시\n네 번째 줄 예시", List.of(), "NORTH",
-                    getConfig().getDouble("distance", 1.8), false);
-            Dialogue dialogue = active.get(player.getUniqueId());
-            dialogue.editing = true;
-            dialogue.typed = dialogue.message.length();
-            dialogue.expiresAt = Integer.MAX_VALUE;
-            render(dialogue);
-            dialogue.choiceDisplay.text(editorChoicePreview());
+            updatePortrait(dialogue);
             applyScales(dialogue);
             editorControls(player);
             return true;
@@ -839,7 +850,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                     "choice-frame-vertical-offset", "choice-frame-scale", "choice-frame-scale-x", "choice-frame-scale-y").contains(key)) return true;
             try {
                 Dialogue edited = active.get(player.getUniqueId());
-                String prefix = edited.showPortrait ? "" : "plain-";
+                String prefix = layoutPrefix(edited.showPortrait, edited.showSpeaker);
                 double delta = Double.parseDouble(args[2]);
                 if (key.equals("choice-frame-scale")) {
                     for (String axis : List.of("x", "y")) {
@@ -1083,7 +1094,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                                                 @NotNull String alias, @NotNull String[] args) {
         boolean admin = sender.hasPermission("rpgmaker.admin");
         List<String> commands = admin
-                ? List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "list", "edit", "edit2", "save", "show", "close", "admin")
+                ? List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "list", "edit", "edit2", "edit3", "edit4", "save", "show", "close", "admin")
                 : List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "list", "close");
         if (args.length == 1) return complete(args[0], commands);
         if (args.length == 2 && args[0].equalsIgnoreCase("editor")) return complete(args[1], List.of("help", "list", "variables"));
@@ -1155,6 +1166,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             sender.sendMessage(Component.text("OP 전용 명령어", NamedTextColor.RED));
             sender.sendMessage(Component.text("/rpgmaker edit", NamedTextColor.YELLOW).append(Component.text(" - 화면 배치 편집", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/rpgmaker edit2", NamedTextColor.YELLOW).append(Component.text(" - 인물 없는 대화창 배치 편집", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/rpgmaker edit3", NamedTextColor.YELLOW).append(Component.text(" - 화자 이름만 있는 배치 편집", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/rpgmaker edit4", NamedTextColor.YELLOW).append(Component.text(" - 캐릭터만 있는 배치 편집", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/rpgmaker save", NamedTextColor.YELLOW).append(Component.text(" - 화면 배치 저장", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/rpgmaker show <보여줄 플레이어> <저장 주인> <대화명>", NamedTextColor.YELLOW).append(Component.text(" - 다른 유저 저장본을 지정 대상에게 표시", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/rpgmaker close [플레이어]", NamedTextColor.YELLOW).append(Component.text(" - 진행 중인 대화 닫기", NamedTextColor.GRAY)));
@@ -1199,6 +1212,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         dialogue.pagePortraits = new java.util.ArrayList<>();
         dialogue.pageExpressions = new java.util.ArrayList<>();
         dialogue.pagePortraitVisible = new java.util.ArrayList<>();
+        dialogue.pageSpeakerVisible = new java.util.ArrayList<>();
         String portrait = defaultPortrait;
         String expression = defaultExpression;
         for (int page = 0; page < pageCount; page++) {
@@ -1206,7 +1220,9 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             expression = getConfig().getString(path + ".page-expressions." + page, expression);
             dialogue.pagePortraits.add(portrait);
             dialogue.pageExpressions.add(expression);
-            dialogue.pagePortraitVisible.add(getConfig().getBoolean(path + ".page-show-portraits." + page, legacyPortrait));
+            boolean portraitVisible = getConfig().getBoolean(path + ".page-show-portraits." + page, legacyPortrait);
+            dialogue.pagePortraitVisible.add(portraitVisible);
+            dialogue.pageSpeakerVisible.add(getConfig().getBoolean(path + ".page-show-speakers." + page, portraitVisible));
         }
         dialogue.pageEffects = new java.util.ArrayList<>();
         for (int page = 0; page < pageCount; page++)
@@ -1229,6 +1245,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             java.util.ArrayList<Effect> responseEffects = new java.util.ArrayList<>();
             java.util.ArrayList<String> responsePortraits = new java.util.ArrayList<>();
             java.util.ArrayList<String> responseExpressions = new java.util.ArrayList<>();
+            java.util.ArrayList<Boolean> responsePortraitVisible = new java.util.ArrayList<>();
+            java.util.ArrayList<Boolean> responseSpeakerVisible = new java.util.ArrayList<>();
             java.util.ArrayList<List<Choice>> responseChoices = new java.util.ArrayList<>();
             for (int page = 0; page < responsePageCount; page++) {
                 String effectPath = path + ".response-effects-" + i + "." + page;
@@ -1236,11 +1254,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 responseEffects.add(loadEffect(effectPath));
                 responsePortraits.add(getConfig().getString(path + ".response-portrait-" + i + "." + page, ""));
                 responseExpressions.add(getConfig().getString(path + ".response-expression-" + i + "." + page, ""));
+                boolean portraitVisible = getConfig().getBoolean(path + ".response-show-portraits-" + i + "." + page, true);
+                responsePortraitVisible.add(portraitVisible);
+                responseSpeakerVisible.add(getConfig().getBoolean(path + ".response-show-speakers-" + i + "." + page, portraitVisible));
                 responseChoices.add(loadChoices(path + ".response-page-choices-" + i + "." + page, player));
             }
             Condition condition = loadCondition(path + ".condition-" + i);
             if (!label.isBlank()) choices.add(new Choice(label, response, responseEffects, responsePortraits,
-                    responseExpressions, responseChoices,
+                    responseExpressions, responsePortraitVisible, responseSpeakerVisible, responseChoices,
                     getConfig().getBoolean(path + ".end-" + i, false), condition,
                     getConfig().getInt(path + ".target-page-" + i, 0),
                     getConfig().getString(path + ".speaker-" + i, "")));
@@ -1307,6 +1328,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         int index = Math.min(editorPage.getOrDefault(player.getUniqueId(), 0), messages.size() - 1);
         boolean showPortrait = getConfig().getBoolean(path + ".page-show-portraits." + index,
                 getConfig().getBoolean(path + ".show-portrait", true));
+        boolean showSpeaker = getConfig().getBoolean(path + ".page-show-speakers." + index, showPortrait);
         java.util.ArrayList<DialogInput> inputs = new java.util.ArrayList<>();
         inputs.add(DialogInput.text("dialogue_name", Component.text("대화문 제목 (띄어쓰기 가능)")).width(400)
                 .initial(getConfig().getString(path + ".title", editorName.getOrDefault(player.getUniqueId(), "default"))).maxLength(60).build());
@@ -1351,9 +1373,12 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         ActionButton portraitToggle = ActionButton.builder(Component.text("캐릭터: " + (showPortrait ? "표시" : "숨김"),
                         showPortrait ? NamedTextColor.GREEN : NamedTextColor.GRAY)).width(200)
                 .action(DialogAction.customClick(Key.key("dialoguedisplay", "toggle_portrait"), BinaryTagHolder.binaryTagHolder("{}"))).build();
+        ActionButton speakerToggle = ActionButton.builder(Component.text("화자 이름: " + (showSpeaker ? "표시" : "숨김"),
+                        showSpeaker ? NamedTextColor.GREEN : NamedTextColor.GRAY)).width(200)
+                .action(DialogAction.customClick(Key.key("dialoguedisplay", "toggle_speaker"), BinaryTagHolder.binaryTagHolder("{}"))).build();
         java.util.ArrayList<ActionButton> buttons = new java.util.ArrayList<>();
         if (showPortrait) buttons.addAll(List.of(characterButton, genderButton, expressionButton));
-        buttons.addAll(List.of(portraitToggle, previous, next, deletePage, addChoice, viewChoices,
+        buttons.addAll(List.of(portraitToggle, speakerToggle, previous, next, deletePage, addChoice, viewChoices,
                 discard, save, settings, preview, delete, back));
         Dialog dialog = Dialog.create(factory -> factory.empty().base(DialogBase.builder(Component.text((index + 1) + " / " + messages.size() + " 페이지 (최대 30)", NamedTextColor.GOLD))
                 .pause(false).canCloseWithEscape(true).inputs(inputs).build()).type(DialogType.multiAction(buttons).columns(3).build()));
@@ -1478,6 +1503,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 .initial(TextWidthRules.limitVisible(getConfig().getString(path + ".speaker-" + index, ""), 10)).maxLength(128).build());
         String responsePortrait = getConfig().getString(path + ".response-portrait-" + index + "." + page, "SENTINEL");
         String responseExpression = getConfig().getString(path + ".response-expression-" + index + "." + page, "HAPPY");
+        boolean responsePortraitVisible = getConfig().getBoolean(path + ".response-show-portraits-" + index + "." + page, true);
+        boolean responseSpeakerVisible = getConfig().getBoolean(path + ".response-show-speakers-" + index + "." + page, responsePortraitVisible);
         for (int i = 1; i <= maximumLines; i++) {
             inputs.add(DialogInput.text("line_" + i, Component.text("레거시 후속 대사 " + index + "-" + (page + 1) + " · " + i + "줄 (목표 0일 때만)")).width(500)
                     .initial(limitLine(i <= savedLines.length ? savedLines[i - 1] : "")).maxLength(MAXIMUM_CHARACTERS_PER_LINE * 4).build());
@@ -1512,8 +1539,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         ActionButton characterButton = appearanceButton("이미지: " + characterLabel(responseCharacter), "choice_appearance_character", NamedTextColor.AQUA);
         ActionButton genderButton = appearanceButton("성별: " + genderLabel(responseCharacter, genderFromPortrait(responsePortrait)), "choice_appearance_gender", NamedTextColor.LIGHT_PURPLE);
         ActionButton expressionButton = appearanceButton("표정: " + expressionLabel(responseExpression), "choice_appearance_expression", NamedTextColor.GOLD);
+        ActionButton portraitToggle = ActionButton.builder(Component.text("캐릭터: " + (responsePortraitVisible ? "표시" : "숨김"),
+                        responsePortraitVisible ? NamedTextColor.GREEN : NamedTextColor.GRAY)).width(200)
+                .action(DialogAction.customClick(Key.key("dialoguedisplay", "choice_toggle_portrait"), BinaryTagHolder.binaryTagHolder("{}"))).build();
+        ActionButton speakerToggle = ActionButton.builder(Component.text("화자 이름: " + (responseSpeakerVisible ? "표시" : "숨김"),
+                        responseSpeakerVisible ? NamedTextColor.GREEN : NamedTextColor.GRAY)).width(200)
+                .action(DialogAction.customClick(Key.key("dialoguedisplay", "choice_toggle_speaker"), BinaryTagHolder.binaryTagHolder("{}"))).build();
         java.util.ArrayList<ActionButton> buttons = new java.util.ArrayList<>(List.of(
-                characterButton, genderButton, expressionButton,
+                characterButton, genderButton, expressionButton, portraitToggle, speakerToggle,
                 previous, next, deletePage, addPage, save, add, delete, settings, back));
         if (!choiceRootOverride.containsKey(player.getUniqueId())) buttons.add(nested);
         buttons.add(discard);
@@ -2337,11 +2370,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void shiftPageMetadata(String root, int removed, int newSize) {
         for (String section : List.of("page-choices", "page-effects", "page-conditions", "page-portraits", "page-expressions",
-                "page-show-portraits", "page-speakers", "page-flow")) {
+                "page-show-portraits", "page-show-speakers", "page-speakers", "page-flow")) {
             for (int page = removed; page < newSize; page++) {
                 String source = root + "." + section + "." + (page + 1);
                 String destination = root + "." + section + "." + page;
-                if (section.equals("page-show-portraits") || section.equals("page-speakers"))
+                if (section.equals("page-show-portraits") || section.equals("page-show-speakers") || section.equals("page-speakers"))
                     getConfig().set(destination, getConfig().get(source));
                 else copySection(source, destination);
             }
@@ -2356,7 +2389,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (pages.size() == 1) {
             pages.set(0, "");
             for (String section : List.of("page-choices", "page-effects", "page-conditions", "page-portraits", "page-expressions",
-                    "page-show-portraits", "page-speakers", "page-flow"))
+                    "page-show-portraits", "page-show-speakers", "page-speakers", "page-flow"))
                 getConfig().set(path + "." + section + ".0", null);
         } else {
             pages.remove(page);
@@ -2401,7 +2434,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         List<String> pages = choiceResponsePages(player, choice);
         int page = Math.min(editorChoicePage.getOrDefault(player.getUniqueId(), 0), pages.size() - 1);
         String path = choicePath(player);
-        List<String> sections = List.of("response-effects-", "response-portrait-", "response-expression-", "response-page-choices-");
+        List<String> sections = List.of("response-effects-", "response-portrait-", "response-expression-",
+                "response-show-portraits-", "response-show-speakers-", "response-page-choices-");
         if (pages.size() == 1) {
             pages.set(0, "");
             for (String section : sections) getConfig().set(path + "." + section + choice + ".0", null);
@@ -2438,6 +2472,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             getConfig().set(path + ".response-" + i, null);
             copySection(path + ".response-portrait-" + (i + 1), path + ".response-portrait-" + i);
             copySection(path + ".response-expression-" + (i + 1), path + ".response-expression-" + i);
+            copySection(path + ".response-show-portraits-" + (i + 1), path + ".response-show-portraits-" + i);
+            copySection(path + ".response-show-speakers-" + (i + 1), path + ".response-show-speakers-" + i);
             copySection(path + ".response-page-choices-" + (i + 1), path + ".response-page-choices-" + i);
             getConfig().set(path + ".response-effects-" + i, null);
             int responsePages = choiceResponsePages(player, i + 1).size();
@@ -2462,6 +2498,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         getConfig().set(path + ".response-pages-" + count, null);
         getConfig().set(path + ".response-portrait-" + count, null);
         getConfig().set(path + ".response-expression-" + count, null);
+        getConfig().set(path + ".response-show-portraits-" + count, null);
+        getConfig().set(path + ".response-show-speakers-" + count, null);
         getConfig().set(path + ".response-page-choices-" + count, null);
         getConfig().set(path + ".effect-" + count, null);
         getConfig().set(path + ".response-effects-" + count, null);
@@ -2660,11 +2698,16 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void show(Player player, String speaker, String message, List<Choice> choices,
                       String cameraDirection, double dialogueDistance) {
-        show(player, speaker, message, choices, cameraDirection, dialogueDistance, true);
+        show(player, speaker, message, choices, cameraDirection, dialogueDistance, true, true);
     }
 
     private void show(Player player, String speaker, String message, List<Choice> choices,
                       String cameraDirection, double dialogueDistance, boolean showPortrait) {
+        show(player, speaker, message, choices, cameraDirection, dialogueDistance, showPortrait, showPortrait);
+    }
+
+    private void show(Player player, String speaker, String message, List<Choice> choices,
+                      String cameraDirection, double dialogueDistance, boolean showPortrait, boolean showSpeaker) {
         close(player);
         String resolvedSpeaker = expandVariables(player, speaker);
         int originalHeldSlot = player.getInventory().getHeldItemSlot();
@@ -2684,16 +2727,12 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         frame.setTransformation(scale((float) getConfig().getDouble("frame-scale", 0.16)));
         TextDisplay choiceFrame = spawn(player, origin, Component.empty());
         choiceFrame.setTextOpacity((byte) 247);
-        TextDisplay portrait = null;
-        TextDisplay speakerDisplay = null;
-        if (showPortrait) {
-            portrait = spawn(player, origin, Component.text("\uE001").font(Key.key("dialog", "portrait")));
-            portrait.setTextOpacity((byte) 249);
-            speakerDisplay = spawn(player, origin, formattedText(fixedSpeakerText(resolvedSpeaker), NamedTextColor.GOLD));
-            speakerDisplay.setTextOpacity((byte) 248);
-            speakerDisplay.setAlignment(TextDisplay.TextAlignment.CENTER);
-            speakerDisplay.setLineWidth(1024);
-        }
+        TextDisplay portrait = spawn(player, origin, Component.text("\uE001").font(Key.key("dialog", "portrait")));
+        portrait.setTextOpacity((byte) 249);
+        TextDisplay speakerDisplay = spawn(player, origin, formattedText(fixedSpeakerText(resolvedSpeaker), NamedTextColor.GOLD));
+        speakerDisplay.setTextOpacity((byte) 248);
+        speakerDisplay.setAlignment(TextDisplay.TextAlignment.CENTER);
+        speakerDisplay.setLineWidth(1024);
         TextDisplay[] bodyLines = new TextDisplay[MAXIMUM_LINES];
         for (int line = 0; line < bodyLines.length; line++) {
             bodyLines[line] = spawn(player, origin, Component.empty());
@@ -2706,10 +2745,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         choiceDisplay.setAlignment(TextDisplay.TextAlignment.LEFT);
         choiceDisplay.setLineWidth(1024);
         choiceDisplay.setTransformation(scale((float) getConfig().getDouble("choice-scale", 0.58)));
-        Dialogue dialogue = new Dialogue(player, frame, choiceFrame, portrait, speakerDisplay, bodyLines, choiceDisplay, showPortrait,
+        Dialogue dialogue = new Dialogue(player, frame, choiceFrame, portrait, speakerDisplay, bodyLines, choiceDisplay, showPortrait, showSpeaker,
                 resolvedSpeaker, message, choices, lockedYaw, lockedPitch, dialogueDistance,
                 originalHeldSlot, originalNinthItem, originalMainHandItem);
         dialogue.pages = splitPages(message);
+        dialogue.sourceMessage = dialogue.pages.get(0);
         dialogue.message = expandDialogueText(player, dialogue.pages.get(0));
         dialogue.pageChoices = new java.util.ArrayList<>();
         for (int i = 0; i < dialogue.pages.size(); i++) dialogue.pageChoices.add(List.of());
@@ -2722,16 +2762,19 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         dialogue.pagePortraits = new java.util.ArrayList<>();
         dialogue.pageExpressions = new java.util.ArrayList<>();
         dialogue.pagePortraitVisible = new java.util.ArrayList<>();
+        dialogue.pageSpeakerVisible = new java.util.ArrayList<>();
         for (int i = 0; i < dialogue.pages.size(); i++) {
             dialogue.pagePortraits.add("SENTINEL");
             dialogue.pageExpressions.add("HAPPY");
             dialogue.pagePortraitVisible.add(true);
+            dialogue.pageSpeakerVisible.add(true);
         }
         if (!choices.isEmpty()) dialogue.pageChoices.set(dialogue.pages.size() - 1, choices);
         backupDialogueHotbar(player, originalHeldSlot, originalNinthItem);
         player.getInventory().setItem(8, transparentHandItem());
         player.getInventory().setHeldItemSlot(8);
         active.put(player.getUniqueId(), dialogue);
+        updatePortrait(dialogue);
         applyScales(dialogue);
         position(dialogue);
     }
@@ -2812,10 +2855,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         d.choiceFrame.setTransformation(scale(
                 (float) layout(d, "choice-frame-scale-x", choiceFrameScaleDefault(d, "x")) * uiScale,
                 (float) layout(d, "choice-frame-scale-y", choiceFrameScaleDefault(d, "y")) * uiScale));
-        if (d.showPortrait) {
-            d.portrait.setTransformation(scale((float) getConfig().getDouble("portrait-scale", 0.24) * uiScale));
-            d.speakerDisplay.setTransformation(scale((float) getConfig().getDouble("speaker-scale", 0.68) * uiScale));
-        }
+        if (d.showPortrait) d.portrait.setTransformation(scale((float) layout(d, "portrait-scale", 0.24) * uiScale));
+        if (d.showSpeaker) d.speakerDisplay.setTransformation(scale((float) layout(d, "speaker-scale", 0.68) * uiScale));
         float textScale = (float) layout(d, "text-scale", DEFAULT_TEXT_SIZE / 100.0);
         for (int line = 0; line < d.bodyLines.length; line++)
             d.bodyLines[line].setTransformation(scale((float) layout(d, "text-line-" + (line + 1) + "-scale", textScale) * uiScale));
@@ -2823,7 +2864,13 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private double layout(Dialogue dialogue, String key, double fallback) {
-        return getConfig().getDouble((portraitVisible(dialogue) ? "" : "plain-") + key, fallback);
+        return getConfig().getDouble(layoutPrefix(portraitVisible(dialogue), speakerVisible(dialogue)) + key, fallback);
+    }
+
+    static String layoutPrefix(boolean showPortrait, boolean showSpeaker) {
+        if (showPortrait && showSpeaker) return "";
+        if (!showPortrait && !showSpeaker) return "plain-";
+        return showSpeaker ? "speaker-only-" : "portrait-only-";
     }
 
     private double choiceFrameScaleDefault(Dialogue dialogue, String axis) {
@@ -2843,12 +2890,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private void editorControls(Player player) {
         Dialogue dialogue = active.get(player.getUniqueId());
         boolean showPortrait = dialogue == null || dialogue.showPortrait;
+        boolean showSpeaker = dialogue == null || dialogue.showSpeaker;
         player.sendMessage(Component.text("[다이얼로그 배치 편집]", NamedTextColor.GOLD));
         editorFrameRow(player);
-        if (showPortrait) {
-            editorRow(player, "캐릭터", "portrait-x-offset", "portrait-vertical-offset", "portrait-scale");
-            editorRow(player, "화자 이름", "speaker-x-offset", "speaker-vertical-offset", "speaker-scale");
-        }
+        if (showPortrait) editorRow(player, "캐릭터", "portrait-x-offset", "portrait-vertical-offset", "portrait-scale");
+        if (showSpeaker) editorRow(player, "화자 이름", "speaker-x-offset", "speaker-vertical-offset", "speaker-scale");
         for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow(player, "본문 " + line + "줄",
                 "text-line-" + line + "-x-offset", "text-line-" + line + "-vertical-offset", "text-line-" + line + "-scale");
         player.sendMessage(Component.text("본문 최대 4줄 · 줄당 공백 포함 30자", NamedTextColor.YELLOW));
@@ -3014,11 +3060,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private void render(Dialogue dialogue) {
         String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
         String[] visibleLines = visible.split("\\n", -1);
+        String[] sourceLines = dialogue.sourceMessage.split("\\n", -1);
         for (int row = 0; row < dialogue.bodyLines.length; row++) {
             String line = row < visibleLines.length ? visibleLines[row] : "";
+            String source = row < sourceLines.length ? sourceLines[row] : "";
+            Component hiddenPadding = Component.text(TextWidthRules.hiddenPadding(source)).font(Key.key("dialog", "spacing"));
             Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
                     .font(Key.key("dialog", "spacing"));
-            dialogue.bodyLines[row].text(coloredLine(line).append(padding));
+            dialogue.bodyLines[row].text(hiddenPadding.append(coloredLine(line)).append(padding));
         }
     }
 
@@ -3155,12 +3204,12 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private void updatePortrait(Dialogue dialogue) {
-        boolean visible = portraitVisible(dialogue);
-        dialogue.choiceFrame.text(visible ? smallDialogueFrame() : Component.empty());
-        if (!dialogue.showPortrait) return;
-        dialogue.speakerDisplay.text(visible
+        boolean portraitVisible = portraitVisible(dialogue);
+        boolean speakerVisible = speakerVisible(dialogue);
+        dialogue.choiceFrame.text(speakerVisible ? smallDialogueFrame() : Component.empty());
+        dialogue.speakerDisplay.text(speakerVisible
                 ? formattedText(fixedSpeakerText(speakerForPage(dialogue)), NamedTextColor.GOLD) : Component.empty());
-        if (!visible) {
+        if (!portraitVisible) {
             dialogue.portrait.text(Component.empty());
             return;
         }
@@ -3175,6 +3224,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     static boolean portraitVisible(boolean showPortrait, List<Boolean> pagePortraitVisible, int pageIndex) {
         return showPortrait && (pageIndex >= pagePortraitVisible.size() || pagePortraitVisible.get(pageIndex));
+    }
+
+    private boolean speakerVisible(Dialogue dialogue) {
+        return speakerVisible(dialogue.showSpeaker, dialogue.pageSpeakerVisible, dialogue.pageIndex);
+    }
+
+    static boolean speakerVisible(boolean showSpeaker, List<Boolean> pageSpeakerVisible, int pageIndex) {
+        return showSpeaker && (pageIndex >= pageSpeakerVisible.size() || pageSpeakerVisible.get(pageIndex));
     }
 
     private String speakerForPage(Dialogue dialogue) {
@@ -3566,14 +3623,29 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         } catch (NumberFormatException ignored) { return null; }
     }
 
-    private String variableName(String value) {
-        return value.strip().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9._-]", "_");
+    static String variableName(String value) {
+        if (value == null) return "";
+        return java.text.Normalizer.normalize(value.strip().toLowerCase(java.util.Locale.ROOT), java.text.Normalizer.Form.NFC)
+                .replaceAll("[^\\p{L}\\p{N}._-]", "_");
+    }
+
+    static String variableStoragePath(String variable) {
+        if (variable.matches("[a-z0-9._-]+")) return "variable_" + variable;
+        return "variable/u/" + java.util.HexFormat.of().formatHex(variable.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    static String variableFromStoragePath(String path) {
+        if (path.startsWith("variable_")) return path.substring("variable_".length());
+        if (!path.startsWith("variable/u/")) return "";
+        try {
+            return new String(java.util.HexFormat.of().parseHex(path.substring("variable/u/".length())), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ignored) { return ""; }
     }
 
     private String variableValue(Player player, String rawVariable) {
         String variable = variableName(rawVariable);
         if (variable.startsWith("skript.")) return skriptValue(player, variable.substring("skript.".length()));
-        return player.getPersistentDataContainer().get(new NamespacedKey(this, "variable_" + variable), PersistentDataType.STRING);
+        return player.getPersistentDataContainer().get(new NamespacedKey(this, variableStoragePath(variable)), PersistentDataType.STRING);
     }
 
     private void setVariableValue(Player player, String rawVariable, String value) {
@@ -3582,7 +3654,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             setSkriptValue(player, variable.substring("skript.".length()), value);
             return;
         }
-        player.getPersistentDataContainer().set(new NamespacedKey(this, "variable_" + variable), PersistentDataType.STRING, value);
+        player.getPersistentDataContainer().set(new NamespacedKey(this, variableStoragePath(variable)), PersistentDataType.STRING, value);
         setSkriptValue(player, variable, value);
     }
 
@@ -3592,7 +3664,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             deleteSkriptValue(player, variable.substring("skript.".length()));
             return;
         }
-        player.getPersistentDataContainer().remove(new NamespacedKey(this, "variable_" + variable));
+        player.getPersistentDataContainer().remove(new NamespacedKey(this, variableStoragePath(variable)));
         deleteSkriptValue(player, variable);
     }
 
@@ -3608,7 +3680,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void setSkriptValue(Player player, String rawName, String value) {
         if (skriptBridgeReady && !rawName.isBlank())
-            Variables.setVariable(skriptKey(player, rawName), value, null, false);
+            Variables.setVariable(skriptKey(player, rawName), ExpressionRules.typedValue(value), null, false);
     }
 
     private void deleteSkriptValue(Player player, String rawName) {
@@ -3620,10 +3692,10 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (!skriptBridgeReady) return;
         String namespace = getName().toLowerCase(java.util.Locale.ROOT);
         player.getPersistentDataContainer().getKeys().stream()
-                .filter(key -> key.getNamespace().equals(namespace) && key.getKey().startsWith("variable_"))
+                .filter(key -> key.getNamespace().equals(namespace) && !variableFromStoragePath(key.getKey()).isBlank())
                 .forEach(key -> {
                     String value = player.getPersistentDataContainer().get(key, PersistentDataType.STRING);
-                    if (value != null) setSkriptValue(player, key.getKey().substring("variable_".length()), value);
+                    if (value != null) setSkriptValue(player, variableFromStoragePath(key.getKey()), value);
                 });
     }
 
@@ -3712,6 +3784,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             dialogue.pagePortraits = state.pagePortraits;
             dialogue.pageExpressions = state.pageExpressions;
             dialogue.pagePortraitVisible = state.pagePortraitVisible;
+            dialogue.pageSpeakerVisible = state.pageSpeakerVisible;
             dialogue.pageRoutes = state.pageRoutes;
             dialogue.pageIndex = state.pageIndex;
             dialogue.closeAfterPages = state.closeAfterPages;
@@ -3726,7 +3799,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private FlowState flowState(Dialogue dialogue) {
         return new FlowState(dialogue.pages, dialogue.pageChoices, dialogue.pageEffects, dialogue.pageConditions,
                 dialogue.pagePortraits, dialogue.pageExpressions, dialogue.pagePortraitVisible,
-                dialogue.pageRoutes, dialogue.closeAfterPages);
+                dialogue.pageSpeakerVisible, dialogue.pageRoutes, dialogue.closeAfterPages);
     }
 
     private FlowState continueFlow(FlowState state, int pageIndex, Choice selected) {
@@ -3738,6 +3811,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         java.util.ArrayList<String> portraits = new java.util.ArrayList<>();
         java.util.ArrayList<String> expressions = new java.util.ArrayList<>();
         java.util.ArrayList<Boolean> portraitVisible = new java.util.ArrayList<>();
+        java.util.ArrayList<Boolean> speakerVisible = new java.util.ArrayList<>();
         java.util.ArrayList<PageRoute> routes = new java.util.ArrayList<>();
         String inheritedPortrait = pageIndex < state.pagePortraits.size() ? state.pagePortraits.get(pageIndex) : "SENTINEL";
         String inheritedExpression = pageIndex < state.pageExpressions.size() ? state.pageExpressions.get(pageIndex) : "HAPPY";
@@ -3753,7 +3827,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             if (!expression.isBlank()) inheritedExpression = expression;
             portraits.add(inheritedPortrait);
             expressions.add(inheritedExpression);
-            portraitVisible.add(true);
+            portraitVisible.add(page < selected.responsePortraitVisible.size() && selected.responsePortraitVisible.get(page));
+            speakerVisible.add(page < selected.responseSpeakerVisible.size() && selected.responseSpeakerVisible.get(page));
             routes.add(new PageRoute(inheritedSpeaker, 0, false, 0, "AFTER", Condition.NONE));
         }
         boolean shouldEnd = state.closeAfterPages || selected.endDialogue;
@@ -3766,10 +3841,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 portraits.add(page < state.pagePortraits.size() ? state.pagePortraits.get(page) : "SENTINEL");
                 expressions.add(page < state.pageExpressions.size() ? state.pageExpressions.get(page) : "HAPPY");
                 portraitVisible.add(page < state.pagePortraitVisible.size() && state.pagePortraitVisible.get(page));
+                speakerVisible.add(page < state.pageSpeakerVisible.size() && state.pageSpeakerVisible.get(page));
                 routes.add(page < state.pageRoutes.size() ? state.pageRoutes.get(page) : PageRoute.DEFAULT);
             }
         }
-        return new FlowState(pages, choices, effects, conditions, portraits, expressions, portraitVisible, routes, shouldEnd);
+        return new FlowState(pages, choices, effects, conditions, portraits, expressions, portraitVisible, speakerVisible, routes, shouldEnd);
     }
 
     private void applyFlow(Dialogue dialogue, FlowState state, int pageIndex, boolean completed) {
@@ -3780,6 +3856,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         dialogue.pagePortraits = state.pagePortraits;
         dialogue.pageExpressions = state.pageExpressions;
         dialogue.pagePortraitVisible = state.pagePortraitVisible;
+        dialogue.pageSpeakerVisible = state.pageSpeakerVisible;
         dialogue.pageRoutes = state.pageRoutes;
         dialogue.closeAfterPages = state.closeAfterPages;
         dialogue.pageIndex = pageIndex;
@@ -3819,7 +3896,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private DialogueSnapshot snapshot(Dialogue dialogue) {
         return new DialogueSnapshot(dialogue.pages, dialogue.pageChoices, dialogue.pageEffects, dialogue.pageConditions,
-                dialogue.pagePortraits, dialogue.pageExpressions, dialogue.pagePortraitVisible, dialogue.pageRoutes,
+                dialogue.pagePortraits, dialogue.pageExpressions, dialogue.pagePortraitVisible, dialogue.pageSpeakerVisible, dialogue.pageRoutes,
                 new HashSet<>(dialogue.appliedPages),
                 dialogue.pageIndex, dialogue.closeAfterPages);
     }
@@ -3859,8 +3936,9 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             }
             Condition condition = dialogue.pageIndex < dialogue.pageConditions.size()
                     ? dialogue.pageConditions.get(dialogue.pageIndex) : Condition.NONE;
-            dialogue.message = expandDialogueText(dialogue.player, matchesCondition(dialogue.player, condition) && !condition.replacement.isBlank()
-                    ? condition.replacement : dialogue.pages.get(dialogue.pageIndex));
+            dialogue.sourceMessage = matchesCondition(dialogue.player, condition) && !condition.replacement.isBlank()
+                    ? condition.replacement : dialogue.pages.get(dialogue.pageIndex);
+            dialogue.message = expandDialogueText(dialogue.player, dialogue.sourceMessage);
             return true;
         }
         Bukkit.getScheduler().runTask(this, () -> close(dialogue.player));
@@ -3869,7 +3947,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private boolean matchesCondition(Player player, Condition condition) {
         if (condition == null || condition.type.equals("NONE")) return true;
-        String variable = condition.variable.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9._-]", "_");
+        String variable = variableName(condition.variable);
         String storedValue = variable.isBlank() ? null : variableValue(player, variable);
         boolean variableMatch = !variable.isBlank() && ExpressionRules.compare(storedValue, condition.operator, condition.value);
         java.util.ArrayList<Boolean> variableMatches = new java.util.ArrayList<>();
@@ -3877,7 +3955,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         for (String entry : condition.extraVariables.split(",")) {
             java.util.regex.Matcher check = VARIABLE_CHECK.matcher(entry.strip());
             if (!check.matches()) continue;
-            String extra = check.group(1).toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9._-]", "_");
+            String extra = variableName(check.group(1));
             String actual = extra.isBlank() ? null : variableValue(player, extra);
             String operator = switch (check.group(2)) {
                 case "!=" -> "NE"; case ">" -> "GT"; case ">=" -> "GTE";
@@ -3938,12 +4016,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 .add(0, layout(d, "vertical-offset", -0.92), 0);
         face(base, forward); d.frame.teleport(base);
         if (d.showPortrait) {
-            Location portraitAt = base.clone().add(right.clone().multiply(getConfig().getDouble("portrait-x-offset", -0.82) * uiScale))
-                    .add(0, getConfig().getDouble("portrait-vertical-offset", 0.01) * uiScale, 0)
+            Location portraitAt = base.clone().add(right.clone().multiply(layout(d, "portrait-x-offset", -0.82) * uiScale))
+                    .add(0, layout(d, "portrait-vertical-offset", 0.01) * uiScale, 0)
                     .subtract(forward.clone().multiply(0.080));
             face(portraitAt, forward); d.portrait.teleport(portraitAt);
-            Location speakerAt = base.clone().add(right.clone().multiply(getConfig().getDouble("speaker-x-offset", -1.10) * uiScale))
-                    .add(0, getConfig().getDouble("speaker-vertical-offset", 0.42) * uiScale, 0)
+        }
+        if (d.showSpeaker) {
+            Location speakerAt = base.clone().add(right.clone().multiply(layout(d, "speaker-x-offset", -1.10) * uiScale))
+                    .add(0, layout(d, "speaker-vertical-offset", 0.42) * uiScale, 0)
                     .subtract(forward.clone().multiply(0.100));
             face(speakerAt, forward); d.speakerDisplay.teleport(speakerAt);
         }
@@ -4037,6 +4117,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private record Choice(String label, String response, List<Effect> responseEffects,
                           List<String> responsePortraits, List<String> responseExpressions,
+                          List<Boolean> responsePortraitVisible, List<Boolean> responseSpeakerVisible,
                           List<List<Choice>> responseChoices, boolean endDialogue, Condition condition,
                           int targetPage, String speaker) {}
 
@@ -4051,14 +4132,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private record FlowState(List<String> pages, List<List<Choice>> pageChoices, List<Effect> pageEffects,
                              List<Condition> pageConditions, List<String> pagePortraits,
-                             List<String> pageExpressions, List<Boolean> pagePortraitVisible,
+                             List<String> pageExpressions, List<Boolean> pagePortraitVisible, List<Boolean> pageSpeakerVisible,
                              List<PageRoute> pageRoutes, boolean closeAfterPages) {}
 
     private record ReturnTarget(FlowState state, int pageIndex, boolean completed) {}
 
     private record DialogueSnapshot(List<String> pages, List<List<Choice>> pageChoices, List<Effect> pageEffects,
                                     List<Condition> pageConditions, List<String> pagePortraits,
-                                    List<String> pageExpressions, List<Boolean> pagePortraitVisible,
+                                    List<String> pageExpressions, List<Boolean> pagePortraitVisible, List<Boolean> pageSpeakerVisible,
                                     List<PageRoute> pageRoutes, Set<Integer> appliedPages,
                                     int pageIndex, boolean closeAfterPages) {}
 
@@ -4066,7 +4147,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         final Player player;
         final TextDisplay frame, choiceFrame, portrait, speakerDisplay, choiceDisplay;
         final TextDisplay[] bodyLines;
-        final boolean showPortrait;
+        final boolean showPortrait, showSpeaker;
         final String speaker;
         final int originalHeldSlot;
         final ItemStack originalNinthItem;
@@ -4074,6 +4155,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         final float lockedYaw, lockedPitch;
         final double dialogueDistance;
         String message;
+        String sourceMessage;
         String speakerOverride = "";
         List<String> pages;
         List<List<Choice>> pageChoices = List.of();
@@ -4082,6 +4164,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         List<String> pagePortraits = List.of();
         List<String> pageExpressions = List.of();
         List<Boolean> pagePortraitVisible = List.of();
+        List<Boolean> pageSpeakerVisible = List.of();
         List<PageRoute> pageRoutes = List.of();
         final Set<Integer> appliedPages = new HashSet<>();
         final Deque<DialogueSnapshot> history = new ArrayDeque<>();
@@ -4103,13 +4186,13 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         boolean editing;
 
         Dialogue(Player player, TextDisplay frame, TextDisplay choiceFrame, TextDisplay portrait, TextDisplay speakerDisplay, TextDisplay[] bodyLines,
-                 TextDisplay choiceDisplay, boolean showPortrait,
+                 TextDisplay choiceDisplay, boolean showPortrait, boolean showSpeaker,
                  String speaker, String message, List<Choice> choices,
                  float lockedYaw, float lockedPitch, double dialogueDistance,
                  int originalHeldSlot, ItemStack originalNinthItem, ItemStack originalMainHandItem) {
             this.player = player; this.frame = frame; this.choiceFrame = choiceFrame; this.portrait = portrait;
             this.speakerDisplay = speakerDisplay; this.bodyLines = bodyLines; this.choiceDisplay = choiceDisplay;
-            this.showPortrait = showPortrait;
+            this.showPortrait = showPortrait; this.showSpeaker = showSpeaker;
             this.speaker = speaker; this.message = message; this.choices = choices;
             this.lockedYaw = lockedYaw; this.lockedPitch = lockedPitch; this.dialogueDistance = dialogueDistance;
             this.pages = List.of(message);

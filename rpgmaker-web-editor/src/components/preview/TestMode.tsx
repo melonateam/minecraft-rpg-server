@@ -154,7 +154,7 @@ export function TestMode({ dialogue, manifest, onExit }: Props) {
                         <PortraitSprite sprite={sprite} size={104} className="border border-white/10 shadow-xl" />
                       </div>
                     )}
-                    {page.appearance.visible && state.speaker && (
+                    {page.appearance.speakerVisible && state.speaker && (
                       <div className="mb-3 text-sm font-bold text-[#f0d566]">
                         <FormattedText value={state.speaker} variables={{ player_name: 'Player', ...state.variables }} />
                       </div>

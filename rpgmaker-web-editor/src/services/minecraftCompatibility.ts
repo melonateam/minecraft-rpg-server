@@ -160,6 +160,8 @@ function responsePageFromServer(
   message: string,
   portrait: string,
   expression: string,
+  portraitVisible: boolean,
+  speakerVisible: boolean,
   rawEffects: unknown,
   rawChoices: unknown,
   pageIds: string[],
@@ -173,7 +175,8 @@ function responsePageFromServer(
     id: crypto.randomUUID(),
     lines: [split[0] ?? '', split[1] ?? '', split[2] ?? '', split[3] ?? ''],
     appearance: {
-      visible: Boolean(found),
+      visible: portraitVisible,
+      speakerVisible,
       inheritPrevious: false,
       characterId: found?.character.id,
       gender: found?.gender === 'FEMALE' ? 'female' : found?.gender === 'MALE' ? 'male' : undefined,
@@ -206,10 +209,14 @@ function choicesToServer(
 
     const portraits: JsonMap = {};
     const expressions: JsonMap = {};
+    const portraitVisibility: JsonMap = {};
+    const speakerVisibility: JsonMap = {};
     const effects: JsonMap = {};
     const nestedChoices: JsonMap = {};
     responsePages.forEach((response, responseIndex) => {
       const appearance = appearanceToServer(response.appearance, manifest);
+      portraitVisibility[responseIndex] = response.appearance.visible;
+      speakerVisibility[responseIndex] = response.appearance.speakerVisible;
       if (appearance.portrait) portraits[responseIndex] = appearance.portrait;
       if (appearance.expression) expressions[responseIndex] = appearance.expression;
       const responseEffects = effectsToServer((response.server ?? emptyServerPage()).effects);
@@ -219,6 +226,8 @@ function choicesToServer(
     });
     if (Object.keys(portraits).length) output[`response-portrait-${slot}`] = portraits;
     if (Object.keys(expressions).length) output[`response-expression-${slot}`] = expressions;
+    output[`response-show-portraits-${slot}`] = portraitVisibility;
+    output[`response-show-speakers-${slot}`] = speakerVisibility;
     if (Object.keys(effects).length) output[`response-effects-${slot}`] = effects;
     if (Object.keys(nestedChoices).length) output[`response-page-choices-${slot}`] = nestedChoices;
   });
@@ -236,6 +245,8 @@ function choicesFromServer(raw: unknown, pageIds: string[], manifest: CharacterM
       responseMessages.push(text(data[`response-${slot}`]));
     const portraits = map(data[`response-portrait-${slot}`]);
     const expressions = map(data[`response-expression-${slot}`]);
+    const portraitVisibility = map(data[`response-show-portraits-${slot}`]);
+    const speakerVisibility = map(data[`response-show-speakers-${slot}`]);
     const effects = map(data[`response-effects-${slot}`]);
     const nested = map(data[`response-page-choices-${slot}`]);
     const responsePages = responseMessages.map((message, responseIndex) =>
@@ -243,6 +254,8 @@ function choicesFromServer(raw: unknown, pageIds: string[], manifest: CharacterM
         message,
         text(portraits[responseIndex]),
         text(expressions[responseIndex], 'NEUTRAL'),
+        bool(portraitVisibility[responseIndex], true),
+        bool(speakerVisibility[responseIndex], bool(portraitVisibility[responseIndex], true)),
         effects[responseIndex] ?? (responseIndex === 0 ? data[`effect-${slot}`] : undefined),
         nested[responseIndex],
         pageIds,
@@ -275,6 +288,7 @@ export function exportMinecraftDialogue(dialogue: Dialogue, manifest: CharacterM
   const portraits: JsonMap = {};
   const expressions: JsonMap = {};
   const visible: JsonMap = {};
+  const speakersVisible: JsonMap = {};
   const choices: JsonMap = {};
   const conditions: JsonMap = {};
   const effects: JsonMap = {};
@@ -285,6 +299,7 @@ export function exportMinecraftDialogue(dialogue: Dialogue, manifest: CharacterM
     const server = page.server ?? emptyServerPage();
     speakers[index] = page.speaker;
     visible[index] = page.appearance.visible;
+    speakersVisible[index] = page.appearance.speakerVisible;
 
     const appearance = appearanceToServer(page.appearance, manifest);
     if (appearance.portrait) portraits[index] = appearance.portrait;
@@ -313,6 +328,7 @@ export function exportMinecraftDialogue(dialogue: Dialogue, manifest: CharacterM
   output['page-portraits'] = portraits;
   output['page-expressions'] = expressions;
   output['page-show-portraits'] = visible;
+  output['page-show-speakers'] = speakersVisible;
   output['page-choices'] = choices;
   output['page-conditions'] = conditions;
   output['page-effects'] = effects;
@@ -335,6 +351,7 @@ export function importMinecraftDialogue(
   const portraitMap = map(raw['page-portraits']);
   const expressionMap = map(raw['page-expressions']);
   const visibleMap = map(raw['page-show-portraits']);
+  const speakerVisibleMap = map(raw['page-show-speakers']);
   const choiceMap = map(raw['page-choices']);
   const conditionMap = map(raw['page-conditions']);
   const effectMap = map(raw['page-effects']);
@@ -367,6 +384,7 @@ export function importMinecraftDialogue(
       lines: [split[0] ?? '', split[1] ?? '', split[2] ?? '', split[3] ?? ''],
       appearance: {
         visible: bool(visibleMap[index], true),
+        speakerVisible: bool(speakerVisibleMap[index], bool(visibleMap[index], true)),
         inheritPrevious: portraitMap[index] == null && index > 0,
         characterId: found?.character.id,
         gender: found?.gender === 'FEMALE' ? 'female' : found?.gender === 'MALE' ? 'male' : undefined,

@@ -14,7 +14,7 @@ interface Props {
 const input =
   'w-full rounded-lg border border-[#2a3039] bg-[#171b21] px-3 py-2 text-sm text-[#eef1f5] outline-none transition focus:border-[#42d4d0]';
 const label = 'text-xs font-medium text-[#919aa8]';
-const variableNamePattern = /^[A-Za-z0-9_.-]+$/;
+const variableNamePattern = /^[\p{L}\p{N}_.-]+$/u;
 
 const operators: Array<[ServerCondition['operator'], string]> = [
   ['eq', '같음'],
@@ -47,7 +47,7 @@ function parseExtra(value: string): ExtraRow[] {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const match = entry.match(/^([A-Za-z0-9_.-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/);
+      const match = entry.match(/^([\p{L}\p{N}_.-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
       return match
         ? { name: match[1], operator: match[2], value: match[3] }
         : { name: entry, operator: '=', value: '' };

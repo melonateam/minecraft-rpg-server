@@ -85,6 +85,15 @@ final class ExpressionRules {
         }
     }
 
+    static Object typedValue(String value) {
+        String text = value == null ? "" : value.strip();
+        try {
+            if (text.matches("[+-]?\\d+")) return Long.parseLong(text);
+            if (text.matches("[+-]?(?:\\d+\\.\\d*|\\d*\\.\\d+)")) return Double.parseDouble(text);
+        } catch (NumberFormatException ignored) { }
+        return value == null ? "" : value;
+    }
+
     private static long nextLongInclusive(long minimum, long maximum) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         if (minimum == Long.MIN_VALUE && maximum == Long.MAX_VALUE) return random.nextLong();
@@ -114,6 +123,9 @@ final class ExpressionRules {
         assert isRandomRange("random(3..7)");
         assert isRandomRange("RANDOM(-7..-3)");
         assert resolveOperand("random(4..4)").equals("4");
+        assert typedValue("123") instanceof Long;
+        assert typedValue("12.5") instanceof Double;
+        assert typedValue("한글").equals("한글");
         for (int index = 0; index < 100; index++) {
             long random = Long.parseLong(resolveOperand("random(7..3)"));
             assert random >= 3 && random <= 7;
