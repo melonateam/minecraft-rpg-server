@@ -96,7 +96,8 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
   onChange: Props['onChange'];
   onDelete: () => void;
 }) {
-  const dialogues = useProjectStore((state) => state.projects.flatMap((project) => project.dialogues));
+  const projects = useProjectStore((state) => state.projects);
+  const dialogues = projects.flatMap((project) => project.dialogues);
   const mutateChoice = (mutator: (draft: DialogueChoice) => void) =>
     onChange((draftPage) => {
       const target = visitChoice(draftPage.choices, choice.id);
