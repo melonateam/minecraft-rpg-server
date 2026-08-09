@@ -19,6 +19,10 @@ choice-scale: 0.6
 choice-x-offset: -0.06
 text-vertical-offset: 0.05
 choice-vertical-offset: -0.2
+choice-frame-x-offset: -0.06
+choice-frame-vertical-offset: -0.2
+choice-frame-scale-x: 0.12
+choice-frame-scale-y: 0.12
 plain-vertical-offset: -0.92
 plain-frame-x-offset: 0.0
 plain-frame-scale: 0.24
@@ -30,6 +34,10 @@ plain-text-vertical-offset: 0.05
 plain-choice-scale: 0.6
 plain-choice-x-offset: -0.06
 plain-choice-vertical-offset: -0.2
+plain-choice-frame-x-offset: -0.06
+plain-choice-frame-vertical-offset: -0.2
+plain-choice-frame-scale-x: 0.12
+plain-choice-frame-scale-y: 0.12
 pack-server-port: 25566
 pack-file: RPGMaker-Pack.zip
 web-api:

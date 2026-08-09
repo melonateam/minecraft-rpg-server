@@ -8,7 +8,7 @@ final class TextWidthRules {
     static String padding(String text, int targetWidth) {
         int remaining = Math.max(0, targetWidth - visibleWidth(text));
         StringBuilder result = new StringBuilder();
-        for (int bit = 7; bit >= 0; bit--)
+        for (int bit = 8; bit >= 0; bit--)
             if ((remaining & (1 << bit)) != 0) result.appendCodePoint(FIRST_SPACE_GLYPH + bit);
         return result.toString();
     }
@@ -68,5 +68,8 @@ final class TextWidthRules {
         assert visibleWidth("{#00FF00}A") == visibleWidth("A");
         String padding = padding("한글 English !", 270);
         assert visibleWidth("한글 English !") + paddingWidth(padding) == 270;
+        assert paddingWidth(padding("", 270)) == 270;
+        assert visibleWidth("aa") + paddingWidth(padding("aa", 270)) == 270;
+        assert visibleWidth("[1] 선택") + paddingWidth(padding("[1] 선택", 190)) == 190;
     }
 }
