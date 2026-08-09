@@ -26,8 +26,8 @@ type PageWithServer = DialoguePage & { server?: ServerPageSettings };
 
 const itemId = /^(minecraft:)?[a-z0-9_.-]+:[a-z0-9_./-]+(?::\d+)?(?:[:].*)?$/i;
 const customItem = /^@(?:OWNER|[0-9a-f-]{36})\/[^:,]+(?::\d+)?$/i;
-const variableOperation = /^[\p{L}\p{N}_.-]+\s*(=|\+=|-=|\*=|\/=)\s*.+$/u;
-const extraCondition = /^[\p{L}\p{N}_.-]+\s*(==|=|!=|>=|<=|>|<)\s*.+$/u;
+const variableOperation = /^.+?\s*(=|\+=|-=|\*=|\/=)\s*.+$/u;
+const extraCondition = /^.+?\s*(==|=|!=|>=|<=|>|<)\s*.+$/u;
 
 function entries(value: string) {
   return value

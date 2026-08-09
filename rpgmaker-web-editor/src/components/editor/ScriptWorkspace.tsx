@@ -140,6 +140,7 @@ export function ScriptWorkspace({
                 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">{'{{변수}}'}</code>으로 대화문에 변수값을 출력할 수 있습니다.{' '}
                 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">#색코드:단어</code>로 색을 입힐 수 있습니다. 굵게·기울임·취소선은{' '}
                 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">#FF0000:bold,italic,strikethrough:단어</code> 형식입니다.
+                {' '}Skript 표현식 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">%player%</code>와 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9ca8ff]">{'%{변수::%uuid of player%}%'}</code>도 서버에서 해석됩니다.
               </div>
 
               <div className="mt-3 space-y-3">

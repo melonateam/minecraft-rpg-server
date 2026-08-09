@@ -76,7 +76,7 @@ function sectionForIssue(section: ValidationIssue['section']): InspectorSection 
 
 function collectVariableNames(dialogue: Dialogue, projectVariables: string[]) {
   const names = new Set([...BUILT_IN_VARIABLES, ...projectVariables]);
-  const placeholder = /\{\{([\p{L}\p{N}._-]+)\}\}/gu;
+  const placeholder = /\{\{(.+?)\}\}/gu;
   for (const page of dialogue.pages) {
     for (const line of page.lines) {
       for (const match of line.matchAll(placeholder)) names.add(match[1]);
@@ -87,7 +87,7 @@ function collectVariableNames(dialogue: Dialogue, projectVariables: string[]) {
     if (settings.flow.condition.variable) names.add(settings.flow.condition.variable);
     if (settings.effects.chatInputVariable) names.add(settings.effects.chatInputVariable);
     for (const assignment of settings.effects.variablesSet.split(',')) {
-      const match = assignment.trim().match(/^([\p{L}\p{N}._-]+)\s*(?:\+=|-=|\*=|\/=|=)/u);
+      const match = assignment.trim().match(/^(.+?)\s*(?:\+=|-=|\*=|\/=|=)/u);
       if (match) names.add(match[1]);
     }
   }

@@ -29,11 +29,11 @@ function parseAssignments(value: string): VariableAssignment[] {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const random = entry.match(/^([\p{L}\p{N}_.-]+)\s*=\s*random\(\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\)$/iu);
+      const random = entry.match(/^(.+?)\s*=\s*random\(\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\)$/iu);
       if (random) {
         return { name: random[1], operator: 'random', value: `${random[2]}..${random[3]}` };
       }
-      const match = entry.match(/^([\p{L}\p{N}_.-]+)\s*(\+=|-=|\*=|\/=|=)\s*(.*)$/u);
+      const match = entry.match(/^(.+?)\s*(\+=|-=|\*=|\/=|=)\s*(.*)$/u);
       return match
         ? {
             name: match[1],
@@ -323,7 +323,7 @@ export function EffectsInspector({ page, dialogue, project, onClose, onChange }:
           </button>
 
           <div className="rounded-xl border border-[#54482e] bg-[#201b12] p-3 text-[11px] leading-5 text-[#d8c795]">
-            난수 예시: <code>damage_roll=random(5..20)</code> · 최소/최대가 반대로 입력되어도 자동으로 정렬합니다.
+            난수 예시: <code>damage_roll=random(5..20)</code> · Skript 예시: <code>skript:quest::%uuid of player%=진행중</code> · 전용 미러는 <code>skript.quest</code>입니다.
           </div>
 
           <div className="grid gap-3 pt-1">

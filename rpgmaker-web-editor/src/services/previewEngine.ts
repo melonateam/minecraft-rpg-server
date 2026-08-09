@@ -61,7 +61,7 @@ function compare(actual: unknown, operator: ServerCondition['operator'], expecte
 }
 
 function extraVariableResult(expression: string, variables: PreviewState['variables']) {
-  const match = expression.match(/^([\p{L}\p{N}_.-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
+  const match = expression.match(/^(.+?)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
   if (!match) return false;
   const [, name, operator, value] = match;
   const mapped: ServerCondition['operator'] =
@@ -125,7 +125,7 @@ export function conditionSummary(condition: ServerCondition) {
 }
 
 function updateVariable(state: PreviewState, operation: string) {
-  const random = operation.match(/^([\p{L}\p{N}_.-]+)\s*=\s*random\(\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\)$/u);
+  const random = operation.match(/^(.+?)\s*=\s*random\(\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\)$/u);
   if (random) {
     const minimum = Math.min(Number(random[2]), Number(random[3]));
     const maximum = Math.max(Number(random[2]), Number(random[3]));
@@ -133,7 +133,7 @@ function updateVariable(state: PreviewState, operation: string) {
     state.effects.push(`난수 변수: ${operation}`);
     return;
   }
-  const match = operation.match(/^([\p{L}\p{N}_.-]+)\s*(=|\+=|-=|\*=|\/=)\s*(.*)$/u);
+  const match = operation.match(/^(.+?)\s*(=|\+=|-=|\*=|\/=)\s*(.*)$/u);
   if (!match) return;
   const [, name, operator, raw] = match;
   const numeric = asNumber(raw);

@@ -39,6 +39,7 @@ assert.equal(state.speaker, '#FF0000:bold:후속');
 state = advancePreview(dialogue, state);
 assert.equal(state.currentPageId, 'p1');
 assert.equal(visibleLength('{{player_name}} #FF0000:bold:완료'), 3);
+assert.equal(visibleLength('{{skript:quest::%uuid of player%}}완료'), 2);
 assert.deepEqual(parseDialogueText('#FF0000:bold,italic:완료')[0], {
   text: '완료', color: '#FF0000', bold: true, italic: true, strikethrough: false,
 });
