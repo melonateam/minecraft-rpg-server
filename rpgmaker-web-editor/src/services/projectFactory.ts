@@ -43,7 +43,7 @@ export function createProject(name: string): RPGProject {
     items: [],
     createdAt: now,
     updatedAt: now,
-    schemaVersion: 2,
+    schemaVersion: 3,
   };
 }
 

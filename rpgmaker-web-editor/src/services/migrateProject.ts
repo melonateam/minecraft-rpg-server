@@ -1,5 +1,6 @@
-import type { DialogueChoice, DialoguePage, RPGProject } from '../domain/project';
-import { emptyChoiceSettings, emptyServerPage } from '../domain/serverSettings';
+import type { DialogueChoice, DialoguePage, PageAppearance, RPGProject } from '../domain/project';
+import { emptyCondition, emptyServerPage } from '../domain/serverSettings';
+import type { ServerCondition, ServerPageSettings } from '../domain/serverSettings';
 
 const characterIds: Record<string, string> = {
   merchant: 'INNKEEPER',
@@ -22,29 +23,62 @@ const expressions: Record<string, string> = {
 };
 
 type ExtendedPage = DialoguePage & { server?: ReturnType<typeof emptyServerPage> };
-type ExtendedChoice = DialogueChoice & { server?: ReturnType<typeof emptyChoiceSettings> };
+
+function lines(value?: readonly string[]): [string, string, string, string] {
+  return [value?.[0] ?? '', value?.[1] ?? '', value?.[2] ?? '', value?.[3] ?? ''];
+}
+
+function condition(value?: Partial<ServerCondition>): ServerCondition {
+  return { ...emptyCondition(), ...value, replacementLines: lines(value?.replacementLines) };
+}
+
+function serverPage(value?: Partial<ServerPageSettings>): ServerPageSettings {
+  const fallback = emptyServerPage();
+  return {
+    ...fallback,
+    ...value,
+    displayCondition: condition(value?.displayCondition),
+    flow: { ...fallback.flow, ...value?.flow, condition: condition(value?.flow?.condition) },
+    effects: { ...fallback.effects, ...value?.effects },
+  };
+}
+
+function appearance(value?: Partial<PageAppearance>): PageAppearance {
+  const next = { visible: true, inheritPrevious: false, ...value };
+  next.characterId = characterIds[next.characterId ?? ''] ?? next.characterId?.toUpperCase();
+  next.expression = expressions[next.expression ?? ''] ?? next.expression?.toUpperCase() ?? 'NEUTRAL';
+  return next;
+}
+
+function migrateChoice(rawChoice: DialogueChoice) {
+  const choice = rawChoice;
+  choice.server = { condition: condition(choice.server?.condition) };
+  choice.responsePages ??= [];
+  for (const response of choice.responsePages) {
+    response.lines = lines(response.lines);
+    response.appearance = appearance(response.appearance);
+    response.choices ??= [];
+    response.server = serverPage(response.server);
+    response.choices.forEach(migrateChoice);
+  }
+}
 
 export function migrateProject(project: RPGProject): RPGProject {
   const next = structuredClone(project);
   for (const dialogue of next.dialogues) {
     for (const rawPage of dialogue.pages) {
       const page = rawPage as ExtendedPage;
-      page.lines = [page.lines?.[0] ?? '', page.lines?.[1] ?? '', page.lines?.[2] ?? '', page.lines?.[3] ?? ''];
-      page.appearance.characterId =
-        characterIds[page.appearance.characterId ?? ''] ?? page.appearance.characterId?.toUpperCase();
-      page.appearance.expression =
-        expressions[page.appearance.expression ?? ''] ?? page.appearance.expression?.toUpperCase() ?? 'NEUTRAL';
-      page.server ??= emptyServerPage();
+      page.lines = lines(page.lines);
+      page.appearance = appearance(page.appearance);
+      page.server = serverPage(page.server);
       if (page.operationOnly) page.server.operationOnly = true;
       if (page.flow?.ending) page.server.flow.ending = true;
-      for (const rawChoice of page.choices) {
-        const choice = rawChoice as ExtendedChoice;
-        choice.server ??= emptyChoiceSettings();
-      }
+      page.choices ??= [];
+      page.choices.forEach(migrateChoice);
     }
   }
   next.pendingServerDeletes ??= [];
-  next.schemaVersion = 2;
+  next.schemaVersion = 3;
   next.characters = [];
   return next;
 }
