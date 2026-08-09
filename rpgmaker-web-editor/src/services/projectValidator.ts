@@ -7,6 +7,9 @@ import {
   normalizedGender,
   type CharacterManifest,
 } from './characterRegistry';
+import { visibleLength } from './dialogueText';
+
+export { visibleLength } from './dialogueText';
 
 export type ValidationSection = 'script' | 'character' | 'choices' | 'condition' | 'effects' | 'flow' | 'other';
 
@@ -25,15 +28,6 @@ const itemId = /^(minecraft:)?[a-z0-9_.-]+:[a-z0-9_./-]+(?::\d+)?(?:[:].*)?$/i;
 const customItem = /^@(?:OWNER|[0-9a-f-]{36})\/[^:,]+(?::\d+)?$/i;
 const variableOperation = /^[\p{L}\p{N}_-]+\s*(=|\+=|-=|\*=|\/=)\s*.+$/u;
 const extraCondition = /^[\p{L}\p{N}_-]+\s*(==|=|!=|>=|<=|>|<)\s*.+$/u;
-
-export function visibleLength(value: string) {
-  return Array.from(
-    value
-      .replace(/\{\{[A-Za-z0-9._-]+}}/g, '')
-      .replace(/\{#[0-9a-fA-F]{6}\}/g, '')
-      .replace(/(^|\s)#[0-9a-fA-F]{6}:/g, '$1'),
-  ).length;
-}
 
 function entries(value: string) {
   return value
@@ -203,7 +197,7 @@ export function validateProject(project: RPGProject, manifest: CharacterManifest
       const page = rawPage as PageWithServer;
       const server = page.server ?? emptyServerPage();
       const prefix = `Page ${pageIndex + 1}`;
-      if (page.speaker.length > 10) {
+      if (visibleLength(page.speaker) > 10) {
         issues.push({
           id: `speaker-${page.id}`,
           severity: 'error',
@@ -281,7 +275,7 @@ export function validateProject(project: RPGProject, manifest: CharacterManifest
               message: `${choiceLocation}: 이름은 최대 10자입니다.`,
             });
           }
-          if ((rawChoice.speakerOverride?.length ?? 0) > 10) {
+          if (visibleLength(rawChoice.speakerOverride ?? '') > 10) {
             issues.push({
               id: `choice-speaker-${rawChoice.id}`,
               severity: 'error',

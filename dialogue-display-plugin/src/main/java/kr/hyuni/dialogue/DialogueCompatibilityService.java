@@ -44,6 +44,22 @@ final class DialogueCompatibilityService {
         }).toList();
     }
 
+    List<Map<String, Object>> listItems(UUID owner) {
+        String root = "custom-items." + owner;
+        ConfigurationSection section = plugin.getConfig().getConfigurationSection(root);
+        if (section == null) return List.of();
+        return section.getKeys(false).stream().sorted(String.CASE_INSENSITIVE_ORDER).map(name -> {
+            String path = root + "." + name;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("name", name);
+            item.put("reference", "@" + owner + "/" + name);
+            item.put("title", plugin.getConfig().getString(path + ".title", name));
+            item.put("material", plugin.getConfig().getString(path + ".material", ""));
+            item.put("captured", plugin.getConfig().contains(path + ".item-bytes"));
+            return item;
+        }).toList();
+    }
+
     DialogueDocument get(UUID owner, String rawName) {
         String name = sanitize(rawName);
         String path = ownerRoot(owner) + "." + name;
@@ -68,11 +84,18 @@ final class DialogueCompatibilityService {
     }
 
     DeleteResult delete(UUID owner, String rawName, String expectedRevision) {
-        String path = ownerRoot(owner) + "." + sanitize(rawName);
+        String name = sanitize(rawName);
+        String path = ownerRoot(owner) + "." + name;
         if (!plugin.getConfig().contains(path)) return new DeleteResult(false, false, null);
         String current = revision(path);
         if (expectedRevision != null && !expectedRevision.isBlank() && !expectedRevision.equals(current))
             return new DeleteResult(false, true, current);
+        if (plugin.getConfig().getBoolean(path + ".built-in-example", false)) {
+            String dismissedPath = "dismissed-examples." + owner;
+            ArrayList<String> dismissed = new ArrayList<>(plugin.getConfig().getStringList(dismissedPath));
+            if (!dismissed.contains(name)) dismissed.add(name);
+            plugin.getConfig().set(dismissedPath, dismissed);
+        }
         plugin.getConfig().set(path, null);
         plugin.saveConfig();
         return new DeleteResult(true, false, null);
@@ -82,7 +105,8 @@ final class DialogueCompatibilityService {
         ArrayList<String> issues = new ArrayList<>();
         if (codePointLength(data.get("title")) > MAXIMUM_TITLE_CHARACTERS)
             issues.add("대화 제목은 최대 60자까지 사용할 수 있습니다.");
-        if (codePointLength(data.get("speaker")) > MAXIMUM_SPEAKER_CHARACTERS)
+        Object defaultSpeaker = data.get("speaker");
+        if (visibleLength(defaultSpeaker == null ? "" : String.valueOf(defaultSpeaker)) > MAXIMUM_SPEAKER_CHARACTERS)
             issues.add("기본 화자 이름은 최대 10자까지 사용할 수 있습니다.");
 
         Object pagesValue = data.get("message-pages");
@@ -92,7 +116,7 @@ final class DialogueCompatibilityService {
 
         Object speakersValue = data.get("page-speakers");
         if (speakersValue instanceof Map<?, ?> speakers) speakers.forEach((page, speaker) -> {
-            if (codePointLength(speaker) > MAXIMUM_SPEAKER_CHARACTERS)
+            if (visibleLength(String.valueOf(speaker == null ? "" : speaker)) > MAXIMUM_SPEAKER_CHARACTERS)
                 issues.add("Page " + (integer(page) + 1) + ": 화자 이름은 최대 10자까지 사용할 수 있습니다.");
         });
 
@@ -130,7 +154,8 @@ final class DialogueCompatibilityService {
             if (label.isBlank()) issues.add(choiceLocation + ": 선택지 이름이 비어 있습니다.");
             else if (visibleLength(label) > MAXIMUM_CHOICE_CHARACTERS)
                 issues.add(choiceLocation + ": 선택지 이름은 최대 10자까지 사용할 수 있습니다.");
-            if (codePointLength(choices.get("speaker-" + choice)) > MAXIMUM_SPEAKER_CHARACTERS)
+            Object speakerValue = choices.get("speaker-" + choice);
+            if (visibleLength(speakerValue == null ? "" : String.valueOf(speakerValue)) > MAXIMUM_SPEAKER_CHARACTERS)
                 issues.add(choiceLocation + ": 화자 이름은 최대 10자까지 사용할 수 있습니다.");
 
             int target = integer(choices.get("target-page-" + choice));

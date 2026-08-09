@@ -19,12 +19,14 @@ final class TextWidthRules {
         int width = 0;
         boolean wordStart = true;
         for (int offset = 0; offset < text.length();) {
-            if (inlineColor(text, offset)) {
-                offset += 9;
+            FormatToken inline = inlineFormat(text, offset);
+            if (inline != null) {
+                offset = inline.end();
                 continue;
             }
-            if (wordStart && wordColor(text, offset)) {
-                offset += 8;
+            FormatToken word = wordStart ? wordFormat(text, offset) : null;
+            if (word != null) {
+                offset = word.end();
                 wordStart = false;
                 continue;
             }
@@ -46,12 +48,14 @@ final class TextWidthRules {
         int visible = 0;
         boolean wordStart = true;
         for (int offset = 0; offset < text.length();) {
-            if (inlineColor(text, offset)) {
-                offset += 9;
+            FormatToken inline = inlineFormat(text, offset);
+            if (inline != null) {
+                offset = inline.end();
                 continue;
             }
-            if (wordStart && wordColor(text, offset)) {
-                offset += 8;
+            FormatToken word = wordStart ? wordFormat(text, offset) : null;
+            if (word != null) {
+                offset = word.end();
                 wordStart = false;
                 continue;
             }
@@ -74,14 +78,16 @@ final class TextWidthRules {
         int visible = 0;
         boolean wordStart = true;
         for (int offset = 0; offset < text.length();) {
-            if (inlineColor(text, offset)) {
-                result.append(text, offset, offset + 9);
-                offset += 9;
+            FormatToken inline = inlineFormat(text, offset);
+            if (inline != null) {
+                result.append(text, offset, inline.end());
+                offset = inline.end();
                 continue;
             }
-            if (wordStart && wordColor(text, offset)) {
-                result.append(text, offset, offset + 8);
-                offset += 8;
+            FormatToken word = wordStart ? wordFormat(text, offset) : null;
+            if (word != null) {
+                result.append(text, offset, word.end());
+                offset = word.end();
                 wordStart = false;
                 continue;
             }
@@ -115,14 +121,50 @@ final class TextWidthRules {
         return 6;
     }
 
-    private static boolean inlineColor(String text, int offset) {
-        return offset + 9 <= text.length() && text.charAt(offset) == '{' && text.charAt(offset + 1) == '#'
-                && text.substring(offset + 2, offset + 8).matches("[0-9A-Fa-f]{6}") && text.charAt(offset + 8) == '}';
+    static FormatToken inlineFormat(String text, int offset) {
+        if (offset + 9 > text.length() || text.charAt(offset) != '{' || text.charAt(offset + 1) != '#'
+                || !hex(text, offset + 2)) return null;
+        String color = text.substring(offset + 1, offset + 8);
+        if (text.charAt(offset + 8) == '}') return new FormatToken(offset + 9, new TextFormat(color, false, false, false));
+        if (text.charAt(offset + 8) != ':') return null;
+        int close = text.indexOf('}', offset + 9);
+        TextFormat format = close < 0 ? null : format(color, text.substring(offset + 9, close));
+        return format == null ? null : new FormatToken(close + 1, format);
     }
 
-    private static boolean wordColor(String text, int offset) {
-        return offset + 8 <= text.length() && text.charAt(offset) == '#'
-                && text.substring(offset + 1, offset + 7).matches("[0-9A-Fa-f]{6}") && text.charAt(offset + 7) == ':';
+    static FormatToken wordFormat(String text, int offset) {
+        if (offset + 8 > text.length() || text.charAt(offset) != '#' || !hex(text, offset + 1)
+                || text.charAt(offset + 7) != ':') return null;
+        String color = text.substring(offset, offset + 7);
+        int nextColon = text.indexOf(':', offset + 8);
+        if (nextColon > offset + 8) {
+            TextFormat styled = format(color, text.substring(offset + 8, nextColon));
+            if (styled != null) return new FormatToken(nextColon + 1, styled);
+        }
+        return new FormatToken(offset + 8, new TextFormat(color, false, false, false));
+    }
+
+    private static boolean hex(String text, int offset) {
+        if (offset + 6 > text.length()) return false;
+        for (int index = offset; index < offset + 6; index++)
+            if (Character.digit(text.charAt(index), 16) < 0) return false;
+        return true;
+    }
+
+    private static TextFormat format(String color, String flags) {
+        if (flags.isBlank()) return null;
+        boolean bold = false;
+        boolean italic = false;
+        boolean strikethrough = false;
+        for (String flag : flags.split(",")) {
+            switch (flag.strip().toLowerCase(java.util.Locale.ROOT)) {
+                case "bold" -> bold = true;
+                case "italic" -> italic = true;
+                case "strikethrough" -> strikethrough = true;
+                default -> { return null; }
+            }
+        }
+        return new TextFormat(color, bold, italic, strikethrough);
     }
 
     private static int variableEnd(String text, int offset) {
@@ -138,8 +180,11 @@ final class TextWidthRules {
         assert visibleWidth("가") > visibleWidth("A");
         assert visibleWidth("#FF0000:가") == visibleWidth("가");
         assert visibleWidth("{#00FF00}A") == visibleWidth("A");
+        assert visibleWidth("#FF0000:bold,italic,strikethrough:가") == visibleWidth("가");
         assert visibleCharacters("123{{long_variable}}{#00FF00}456") == 6;
+        assert visibleCharacters("#FF0000:bold:화자") == 2;
         assert limitVisible("123{{name}}4567", 6).equals("123{{name}}456");
+        assert limitVisible("#FF0000:bold:화자이름", 2).equals("#FF0000:bold:화자");
         assert limitVisible("123{{name}}", 3).equals("123{{name}}");
         String padding = padding("한글 English !", 270);
         assert visibleWidth("한글 English !") + paddingWidth(padding) == 270;
@@ -147,4 +192,7 @@ final class TextWidthRules {
         assert visibleWidth("aa") + paddingWidth(padding("aa", 270)) == 270;
         assert visibleWidth("[1] 선택") + paddingWidth(padding("[1] 선택", 190)) == 190;
     }
+
+    record TextFormat(String color, boolean bold, boolean italic, boolean strikethrough) {}
+    record FormatToken(int end, TextFormat format) {}
 }

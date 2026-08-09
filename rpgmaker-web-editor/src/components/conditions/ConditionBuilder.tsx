@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { VariableDefinition } from '../../domain/project';
+import type { ItemDefinition, VariableDefinition } from '../../domain/project';
 import type { ServerCondition } from '../../domain/serverSettings';
 import { conditionSummary } from '../../services/previewEngine';
 
 interface Props {
   value: ServerCondition;
   variables: VariableDefinition[];
+  items: ItemDefinition[];
   showReplacement?: boolean;
   onChange: (mutator: (condition: ServerCondition) => void) => void;
 }
@@ -74,7 +75,7 @@ function parseItem(value: string) {
   return { id: value.trim(), amount: 1 };
 }
 
-export function ConditionBuilder({ value, variables, showReplacement = false, onChange }: Props) {
+export function ConditionBuilder({ value, variables, items, showReplacement = false, onChange }: Props) {
   const [extraRows, setExtraRows] = useState<ExtraRow[]>(() => parseExtra(value.extraVariables));
   const item = parseItem(value.itemSpec);
   const needsVariable = ['variable', 'both', 'any'].includes(value.mode);
@@ -257,6 +258,16 @@ export function ConditionBuilder({ value, variables, showReplacement = false, on
       {needsItem && (
         <section className="rounded-xl border border-[#4b3e27] bg-[#211b11] p-4">
           <div className="text-sm font-semibold text-[#f1d39a]">아이템 조건</div>
+          {items.length > 0 && (
+            <select
+              className={`${input} mt-3`}
+              value={items.some((candidate) => candidate.minecraftId === item.id) ? item.id : ''}
+              onChange={(event) => onChange((condition) => void (condition.itemSpec = event.target.value ? `${event.target.value}:${Math.max(1, item.amount)}` : ''))}
+            >
+              <option value="">직접 입력 또는 서버 저장 아이템 선택</option>
+              {items.map((candidate) => <option key={candidate.id} value={candidate.minecraftId}>{candidate.displayName}</option>)}
+            </select>
+          )}
           <div className="mt-3 grid grid-cols-[1fr_100px] gap-2">
             <label className={label}>
               아이템 ID

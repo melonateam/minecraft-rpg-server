@@ -502,7 +502,10 @@ export function DialogueStudioV2() {
     setServerMessage(`${connection.playerName} · 서버 대화 목록을 동기화하는 중`);
     try {
       const api = new PlayerSessionApiClient(connection.sessionId);
-      const summaries = await api.listDialogues(connection.ownerUuid);
+      const [summaries, serverItems] = await Promise.all([
+        api.listDialogues(connection.ownerUuid),
+        api.listItems(connection.ownerUuid),
+      ]);
       const documents = await Promise.all(
         summaries.map((summary) => api.getDialogue(connection.ownerUuid, summary.name)),
       );
@@ -523,6 +526,15 @@ export function DialogueStudioV2() {
       });
 
       mutateProject(project.id, (draft) => {
+        draft.items = [
+          ...draft.items.filter((item) => !item.minecraftId.startsWith(`@${connection.ownerUuid}/`)),
+          ...serverItems.map((item) => ({
+            id: item.reference,
+            minecraftId: item.reference,
+            displayName: item.material ? `${item.title} · ${item.material}` : item.title,
+            amount: 1,
+          })),
+        ];
         draft.dialogues = draft.dialogues.filter((candidate) => {
           if (candidate.server?.ownerUuid !== connection.ownerUuid || !candidate.server.remoteName) return true;
           return remoteNames.has(serverNameKey(candidate.server.remoteName));
@@ -546,7 +558,7 @@ export function DialogueStudioV2() {
       const preferred = imported.find((candidate) => candidate.id === dialogue.id) ?? imported[0];
       if (preferred) selectDialogue(preferred.id, preferred.pages[0]?.id);
       setServerStatus('connected');
-      setServerMessage(`${connection.playerName} · 서버 대화 ${summaries.length}개를 웹에 동기화했습니다.`);
+      setServerMessage(`${connection.playerName} · 서버 대화 ${summaries.length}개와 저장 아이템 ${serverItems.length}개를 동기화했습니다.`);
     } catch (error) {
       setServerStatus('error');
       setServerMessage(error instanceof Error ? error.message : '서버 대화를 불러오지 못했습니다.');

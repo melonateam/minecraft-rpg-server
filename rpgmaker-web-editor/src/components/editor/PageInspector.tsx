@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CharacterDefinition, Dialogue, DialoguePage } from '../../domain/project';
+import { visibleLength } from '../../services/dialogueText';
 import { CharacterSelectorModal } from './CharacterSelectorModal';
 import { ServerSettingsPanel } from './ServerSettingsPanel';
 
@@ -35,7 +36,7 @@ export function PageInspector({ page, dialogue, characters, onChange, onAddChoic
       <section>
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold text-[#9da4b0]">화자</label>
-          <span className={`text-xs ${page.speaker.length > 10 ? 'text-red-400' : 'text-[#69717e]'}`}>{page.speaker.length} / 10</span>
+          <span className={`text-xs ${visibleLength(page.speaker) > 10 ? 'text-red-400' : 'text-[#69717e]'}`}>{visibleLength(page.speaker)} / 10</span>
         </div>
         <input
           value={page.speaker}

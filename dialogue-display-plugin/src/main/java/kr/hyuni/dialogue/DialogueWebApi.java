@@ -274,6 +274,22 @@ final class DialogueWebApi implements Listener {
                 return;
             }
 
+            if (segments.size() == 4 && segments.get(2).equals("items") && method.equals("GET")) {
+                UUID owner;
+                try {
+                    owner = UUID.fromString(decode(segments.get(3)));
+                } catch (IllegalArgumentException error) {
+                    send(exchange, 400, Map.of("error", "invalid_owner_uuid"));
+                    return;
+                }
+                if (playerSession != null && !playerSession.ownerUuid().equals(owner)) {
+                    send(exchange, 403, Map.of("error", "session_owner_mismatch"));
+                    return;
+                }
+                send(exchange, 200, Map.of("items", sync(() -> compatibility.listItems(owner))));
+                return;
+            }
+
             if (segments.size() >= 4 && segments.get(2).equals("dialogues")) {
                 UUID owner;
                 try {
