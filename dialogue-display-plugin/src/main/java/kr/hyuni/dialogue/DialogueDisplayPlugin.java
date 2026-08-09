@@ -80,8 +80,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private static final int MAXIMUM_LINES = 4;
     private static final int MAXIMUM_CHARACTERS_PER_LINE = 30;
     private static final int MAXIMUM_LINE_PIXELS = MAXIMUM_CHARACTERS_PER_LINE * 9;
+    private static final int CHOICE_LINE_PIXELS = 190;
     private static final int MAXIMUM_PAGES = 30;
     private static final int DEFAULT_TEXT_SIZE = 62;
+    private static final double MINIMUM_UI_SCALE = 0.6;
+    private static final double MAXIMUM_UI_SCALE = 1.4;
     private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{([a-zA-Z0-9._-]+)}}");
     private static final java.util.regex.Pattern VARIABLE_ASSIGNMENT = java.util.regex.Pattern.compile("^([^=+*/-]+?)\\s*([+*/-]?=)\\s*(.*)$");
     private static final java.util.regex.Pattern VARIABLE_CHECK = java.util.regex.Pattern.compile("^([^!<>=]+?)\\s*(==|=|!=|>=|<=|>|<)\\s*(.*)$");
@@ -107,7 +110,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private ExecutorService packExecutor;
     private CharacterRegistry characterRegistry;
     private DialogueWebApi webApi;
-    private NamespacedKey hotbarItemKey, hotbarSlotKey, temporaryHandKey;
+    private NamespacedKey hotbarItemKey, hotbarSlotKey, temporaryHandKey, uiScaleKey;
     private boolean skriptBridgeReady;
 
     @Override
@@ -115,6 +118,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         hotbarItemKey = new NamespacedKey(this, "dialogue_hotbar_item");
         hotbarSlotKey = new NamespacedKey(this, "dialogue_hotbar_slot");
         temporaryHandKey = new NamespacedKey(this, "temporary_hand");
+        uiScaleKey = new NamespacedKey(this, "dialogue_ui_scale");
         saveDefaultConfig();
         characterRegistry = CharacterRegistry.load(this);
         webApi = DialogueWebApi.start(this, new DialogueCompatibilityService(this), characterRegistry);
@@ -241,6 +245,20 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         String action = event.getIdentifier().asString();
         Player player = connection.getPlayer();
         DialogResponseView response = event.getDialogResponseView();
+        if (action.startsWith("dialoguedisplay:ui_scale_")) {
+            String operation = action.substring("dialoguedisplay:ui_scale_".length());
+            if (operation.equals("back")) Bukkit.getScheduler().runTask(this, () -> openQuickActions(player));
+            else {
+                double scale = switch (operation) {
+                    case "down" -> playerUiScale(player) - 0.1;
+                    case "up" -> playerUiScale(player) + 0.1;
+                    default -> 1.0;
+                };
+                setPlayerUiScale(player, scale);
+                Bukkit.getScheduler().runTask(this, () -> openPlayerSettings(player));
+            }
+            return;
+        }
         if (action.equals("dialoguedisplay:variable_help_back")) {
             Bukkit.getScheduler().runTask(this, () -> openQuickActions(player));
             return;
@@ -699,6 +717,10 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             return true;
         }
         String sub = args[0].toLowerCase();
+        if (sub.equals("settings")) {
+            openPlayerSettings(player);
+            return true;
+        }
         if (sub.equals("web")) {
             if (webApi == null) {
                 player.sendMessage(Component.text("웹 에디터 API가 비활성화되어 있습니다.", NamedTextColor.RED));
@@ -757,8 +779,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             dialogue.typed = dialogue.message.length();
             dialogue.expiresAt = Integer.MAX_VALUE;
             render(dialogue);
-            dialogue.choiceDisplay.text(Component.text("[1] 기록을 확인한다\n[2] 대화를 끝낸다\n숫자키 1 또는 2로 선택",
-                    NamedTextColor.WHITE));
+            dialogue.choiceDisplay.text(editorChoicePreview());
+            dialogue.choiceFrame.text(dialogueFrame());
             applyScales(dialogue);
             editorControls(player);
             return true;
@@ -771,8 +793,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             dialogue.typed = dialogue.message.length();
             dialogue.expiresAt = Integer.MAX_VALUE;
             render(dialogue);
-            dialogue.choiceDisplay.text(Component.text("[1] 기록을 확인한다\n[2] 대화를 끝낸다\n숫자키 1 또는 2로 선택",
-                    NamedTextColor.WHITE));
+            dialogue.choiceDisplay.text(editorChoicePreview());
+            dialogue.choiceFrame.text(dialogueFrame());
             applyScales(dialogue);
             editorControls(player);
             return true;
@@ -784,12 +806,28 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             if (!lineLayout && !List.of("vertical-offset", "frame-x-offset", "frame-scale", "frame-scale-x", "frame-scale-y", "portrait-x-offset",
                     "portrait-vertical-offset", "portrait-scale", "text-x-offset", "text-vertical-offset",
                     "text-scale", "speaker-x-offset", "speaker-vertical-offset", "speaker-scale",
-                    "choice-x-offset", "choice-vertical-offset", "choice-scale").contains(key)) return true;
+                    "choice-x-offset", "choice-vertical-offset", "choice-scale", "choice-frame-x-offset",
+                    "choice-frame-vertical-offset", "choice-frame-scale", "choice-frame-scale-x", "choice-frame-scale-y").contains(key)) return true;
             try {
                 Dialogue edited = active.get(player.getUniqueId());
-                String configKey = edited.showPortrait ? key : "plain-" + key;
-                double value = getConfig().getDouble(configKey, lineLayoutDefault(edited, key)) + Double.parseDouble(args[2]);
-                getConfig().set(configKey, value);
+                String prefix = edited.showPortrait ? "" : "plain-";
+                double delta = Double.parseDouble(args[2]);
+                if (key.equals("choice-frame-scale")) {
+                    for (String axis : List.of("x", "y")) {
+                        String configKey = prefix + "choice-frame-scale-" + axis;
+                        getConfig().set(configKey, getConfig().getDouble(configKey, choiceFrameScaleDefault(edited, axis)) + delta);
+                    }
+                } else {
+                    String configKey = prefix + key;
+                    double fallback = switch (key) {
+                        case "choice-frame-x-offset" -> layout(edited, "choice-x-offset", -0.06);
+                        case "choice-frame-vertical-offset" -> layout(edited, "choice-vertical-offset", -0.20);
+                        case "choice-frame-scale-x" -> choiceFrameScaleDefault(edited, "x");
+                        case "choice-frame-scale-y" -> choiceFrameScaleDefault(edited, "y");
+                        default -> lineLayoutDefault(edited, key);
+                    };
+                    getConfig().set(configKey, getConfig().getDouble(configKey, fallback) + delta);
+                }
                 applyScales(edited);
                 saveConfig();
                 editorControls(player);
@@ -1005,7 +1043,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (!player.isOp()) player.setGameMode(GameMode.ADVENTURE);
         Bukkit.getScheduler().runTaskLater(this, () -> {
             ensureExamples(player);
-            player.sendMessage(Component.text("[RPGMaker] /rpgmaker help · /rpgmaker editor · /rpgmaker web", NamedTextColor.GOLD));
+            player.sendMessage(Component.text("[RPGMaker] /rpgmaker help · /rpgmaker editor · /rpgmaker settings · /rpgmaker web", NamedTextColor.GOLD));
             player.sendMessage(Component.text("G키: 대화문·아이템 편집 및 새 대화문 만들기", NamedTextColor.GREEN));
             player.sendMessage(Component.text("대화 중 Space: 대화문 스킵 · Shift: 다음 대사", NamedTextColor.AQUA));
         }, 30L);
@@ -1016,8 +1054,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                                                 @NotNull String alias, @NotNull String[] args) {
         boolean admin = sender.hasPermission("rpgmaker.admin");
         List<String> commands = admin
-                ? List.of("help", "editor", "items", "examples", "load", "play", "delete", "share", "list", "edit", "edit2", "save", "show", "close", "admin")
-                : List.of("help", "editor", "items", "examples", "load", "play", "delete", "share", "list", "close");
+                ? List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "list", "edit", "edit2", "save", "show", "close", "admin")
+                : List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "list", "close");
         if (args.length == 1) return complete(args[0], commands);
         if (args.length == 2 && args[0].equalsIgnoreCase("editor")) return complete(args[1], List.of("help", "list", "variables"));
         if (args.length == 2 && args[0].equalsIgnoreCase("examples")) return complete(args[1], List.of("restore"));
@@ -1070,6 +1108,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 .append(Component.text(" - 에디터 상세 사용법", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/rpgmaker editor variables", NamedTextColor.YELLOW)
                 .append(Component.text(" - 변수 형식과 기본 변수 목록", NamedTextColor.GRAY)));
+        sender.sendMessage(Component.text("/rpgmaker settings", NamedTextColor.YELLOW)
+                .append(Component.text(" - 내 대화창 전체 크기 설정", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/rpgmaker items", NamedTextColor.YELLOW)
                 .append(Component.text(" - 특수 아이템 편집기", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/rpgmaker examples restore", NamedTextColor.YELLOW)
@@ -1316,6 +1356,47 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void openQuickActions(Player player) {
         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "dialog show " + player.getName() + " rpgmaker:editor");
+    }
+
+    private void openPlayerSettings(Player player) {
+        int percent = (int) Math.round(playerUiScale(player) * 100.0);
+        List<ActionButton> buttons = List.of(
+                ActionButton.builder(Component.text("10% 작게", NamedTextColor.AQUA)).width(150)
+                        .action(DialogAction.customClick(Key.key("dialoguedisplay", "ui_scale_down"), BinaryTagHolder.binaryTagHolder("{}"))).build(),
+                ActionButton.builder(Component.text("10% 크게", NamedTextColor.GREEN)).width(150)
+                        .action(DialogAction.customClick(Key.key("dialoguedisplay", "ui_scale_up"), BinaryTagHolder.binaryTagHolder("{}"))).build(),
+                ActionButton.builder(Component.text("100%로 초기화", NamedTextColor.YELLOW)).width(150)
+                        .action(DialogAction.customClick(Key.key("dialoguedisplay", "ui_scale_reset"), BinaryTagHolder.binaryTagHolder("{}"))).build(),
+                ActionButton.builder(Component.text("← 전체 메뉴", NamedTextColor.GRAY)).width(150)
+                        .action(DialogAction.customClick(Key.key("dialoguedisplay", "ui_scale_back"), BinaryTagHolder.binaryTagHolder("{}"))).build());
+        Dialog dialog = Dialog.create(factory -> factory.empty().base(DialogBase.builder(
+                        Component.text("내 대화창 크기 · " + percent + "% · 범위 60~140%", NamedTextColor.GOLD))
+                .pause(false).canCloseWithEscape(true).build()).type(DialogType.multiAction(buttons).columns(2).build()));
+        player.showDialog(dialog);
+    }
+
+    private double playerUiScale(Player player) {
+        Double stored = player.getPersistentDataContainer().get(uiScaleKey, PersistentDataType.DOUBLE);
+        return clampUiScale(stored == null ? 1.0 : stored);
+    }
+
+    private double effectiveUiScale(Dialogue dialogue) {
+        return dialogue.editing ? 1.0 : playerUiScale(dialogue.player);
+    }
+
+    private double clampUiScale(double value) {
+        return Double.isFinite(value) ? Math.max(MINIMUM_UI_SCALE, Math.min(MAXIMUM_UI_SCALE, value)) : 1.0;
+    }
+
+    private void setPlayerUiScale(Player player, double value) {
+        double scale = Math.round(clampUiScale(value) * 10.0) / 10.0;
+        player.getPersistentDataContainer().set(uiScaleKey, PersistentDataType.DOUBLE, scale);
+        player.saveData();
+        Dialogue dialogue = active.get(player.getUniqueId());
+        if (dialogue != null) {
+            applyScales(dialogue);
+            position(dialogue);
+        }
     }
 
     private void sendEditorHelp(CommandSender sender) {
@@ -2574,13 +2655,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         TextDisplay frame = spawn(player, origin,
                 Component.text("\uE000").font(Key.key("dialog", "frame")));
         frame.setTransformation(scale((float) getConfig().getDouble("frame-scale", 0.16)));
+        TextDisplay choiceFrame = spawn(player, origin, Component.empty());
         TextDisplay portrait = null;
         TextDisplay speakerDisplay = null;
         if (showPortrait) {
             portrait = spawn(player, origin, Component.text("\uE001").font(Key.key("dialog", "portrait")));
             portrait.setTextOpacity((byte) 249);
             speakerDisplay = spawn(player, origin, Component.text(fixedSpeakerText(resolvedSpeaker), NamedTextColor.GOLD));
-            speakerDisplay.setTextOpacity((byte) 249);
+            speakerDisplay.setTextOpacity((byte) 248);
             speakerDisplay.setAlignment(TextDisplay.TextAlignment.CENTER);
             speakerDisplay.setLineWidth(1024);
         }
@@ -2592,10 +2674,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             bodyLines[line].setLineWidth(1024);
         }
         TextDisplay choiceDisplay = spawn(player, origin, Component.empty());
+        choiceDisplay.setTextOpacity((byte) 248);
         choiceDisplay.setAlignment(TextDisplay.TextAlignment.LEFT);
-        choiceDisplay.setLineWidth(190);
+        choiceDisplay.setLineWidth(1024);
         choiceDisplay.setTransformation(scale((float) getConfig().getDouble("choice-scale", 0.58)));
-        Dialogue dialogue = new Dialogue(player, frame, portrait, speakerDisplay, bodyLines, choiceDisplay, showPortrait,
+        Dialogue dialogue = new Dialogue(player, frame, choiceFrame, portrait, speakerDisplay, bodyLines, choiceDisplay, showPortrait,
                 resolvedSpeaker, message, choices, lockedYaw, lockedPitch, dialogueDistance,
                 originalHeldSlot, originalNinthItem, originalMainHandItem);
         dialogue.pages = splitPages(message);
@@ -2693,22 +2776,31 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private void applyScales(Dialogue d) {
+        float uiScale = (float) effectiveUiScale(d);
         float oldFrameScale = (float) layout(d, "frame-scale", 0.22);
         d.frame.setTransformation(scale(
-                (float) layout(d, "frame-scale-x", oldFrameScale),
-                (float) layout(d, "frame-scale-y", oldFrameScale)));
+                (float) layout(d, "frame-scale-x", oldFrameScale) * uiScale,
+                (float) layout(d, "frame-scale-y", oldFrameScale) * uiScale));
+        d.choiceFrame.setTransformation(scale(
+                (float) layout(d, "choice-frame-scale-x", choiceFrameScaleDefault(d, "x")) * uiScale,
+                (float) layout(d, "choice-frame-scale-y", choiceFrameScaleDefault(d, "y")) * uiScale));
         if (d.showPortrait) {
-            d.portrait.setTransformation(scale((float) getConfig().getDouble("portrait-scale", 0.24)));
-            d.speakerDisplay.setTransformation(scale((float) getConfig().getDouble("speaker-scale", 0.68)));
+            d.portrait.setTransformation(scale((float) getConfig().getDouble("portrait-scale", 0.24) * uiScale));
+            d.speakerDisplay.setTransformation(scale((float) getConfig().getDouble("speaker-scale", 0.68) * uiScale));
         }
         float textScale = (float) layout(d, "text-scale", DEFAULT_TEXT_SIZE / 100.0);
         for (int line = 0; line < d.bodyLines.length; line++)
-            d.bodyLines[line].setTransformation(scale((float) layout(d, "text-line-" + (line + 1) + "-scale", textScale)));
-        d.choiceDisplay.setTransformation(scale((float) layout(d, "choice-scale", 0.60)));
+            d.bodyLines[line].setTransformation(scale((float) layout(d, "text-line-" + (line + 1) + "-scale", textScale) * uiScale));
+        d.choiceDisplay.setTransformation(scale((float) layout(d, "choice-scale", 0.60) * uiScale));
     }
 
     private double layout(Dialogue dialogue, String key, double fallback) {
         return getConfig().getDouble((dialogue.showPortrait ? "" : "plain-") + key, fallback);
+    }
+
+    private double choiceFrameScaleDefault(Dialogue dialogue, String axis) {
+        double oldFrameScale = layout(dialogue, "frame-scale", 0.22);
+        return layout(dialogue, "frame-scale-" + axis, oldFrameScale) * 0.5;
     }
 
     private double lineLayoutDefault(Dialogue dialogue, String key) {
@@ -2733,6 +2825,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 "text-line-" + line + "-x-offset", "text-line-" + line + "-vertical-offset", "text-line-" + line + "-scale");
         player.sendMessage(Component.text("본문 최대 4줄 · 줄당 공백 포함 30자", NamedTextColor.YELLOW));
         editorRow(player, "선택지", "choice-x-offset", "choice-vertical-offset", "choice-scale");
+        editorChoiceFrameRows(player);
         player.sendMessage(button("[저장]", "/rpgmaker save", NamedTextColor.GREEN)
                 .append(Component.text("  ")).append(button("[편집 종료]", "/rpgmaker close", NamedTextColor.RED)));
     }
@@ -2748,6 +2841,21 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 .append(button(" [폭－]", "/rpgmaker adjust frame-scale-x -0.02", NamedTextColor.GOLD))
                 .append(button(" [높이＋]", "/rpgmaker adjust frame-scale-y 0.02", NamedTextColor.LIGHT_PURPLE))
                 .append(button(" [높이－]", "/rpgmaker adjust frame-scale-y -0.02", NamedTextColor.LIGHT_PURPLE)));
+    }
+
+    private void editorChoiceFrameRows(Player player) {
+        player.sendMessage(Component.text("소형 박스 위치  ", NamedTextColor.YELLOW)
+                .append(button("←", "/rpgmaker adjust choice-frame-x-offset -0.03", NamedTextColor.AQUA))
+                .append(button(" →", "/rpgmaker adjust choice-frame-x-offset 0.03", NamedTextColor.AQUA))
+                .append(button("  ↑", "/rpgmaker adjust choice-frame-vertical-offset 0.03", NamedTextColor.GREEN))
+                .append(button(" ↓", "/rpgmaker adjust choice-frame-vertical-offset -0.03", NamedTextColor.GREEN)));
+        player.sendMessage(Component.text("소형 박스 크기  ", NamedTextColor.YELLOW)
+                .append(button("[전체＋]", "/rpgmaker adjust choice-frame-scale 0.02", NamedTextColor.GREEN))
+                .append(button(" [전체－]", "/rpgmaker adjust choice-frame-scale -0.02", NamedTextColor.GREEN))
+                .append(button(" [폭＋]", "/rpgmaker adjust choice-frame-scale-x 0.02", NamedTextColor.GOLD))
+                .append(button(" [폭－]", "/rpgmaker adjust choice-frame-scale-x -0.02", NamedTextColor.GOLD))
+                .append(button(" [높이＋]", "/rpgmaker adjust choice-frame-scale-y 0.02", NamedTextColor.LIGHT_PURPLE))
+                .append(button(" [높이－]", "/rpgmaker adjust choice-frame-scale-y -0.02", NamedTextColor.LIGHT_PURPLE)));
     }
 
     private void editorRow(Player player, String name, String x, String y, String scale) {
@@ -3120,14 +3228,31 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         return limitText(speaker, 10);
     }
 
+    private Component dialogueFrame() {
+        return Component.text("\uE000").font(Key.key("dialog", "frame"));
+    }
+
+    private Component fixedChoiceLine(String text) {
+        return Component.text(text, NamedTextColor.WHITE).append(Component.text(TextWidthRules.padding(text, CHOICE_LINE_PIXELS))
+                .font(Key.key("dialog", "spacing")));
+    }
+
+    private Component editorChoicePreview() {
+        return fixedChoiceLine("[1] 기록을 확인한다").append(Component.newline())
+                .append(fixedChoiceLine("[2] 대화를 끝낸다")).append(Component.newline())
+                .append(fixedChoiceLine("숫자키 1 또는 2로 선택"));
+    }
+
     private void showChoices(Dialogue dialogue) {
         if (dialogue.choices.isEmpty()) return;
         Component lines = Component.empty();
         for (int i = 0; i < Math.min(8, dialogue.choices.size()); i++) {
             if (i > 0) lines = lines.append(Component.newline());
-            lines = lines.append(Component.text("[" + (i + 1) + "] " + dialogue.choices.get(i).label, NamedTextColor.WHITE));
+            lines = lines.append(fixedChoiceLine("[" + (i + 1) + "] " + dialogue.choices.get(i).label));
         }
-        lines = lines.append(Component.text("\n숫자키 1~" + Math.min(8, dialogue.choices.size()) + "로 선택", NamedTextColor.WHITE));
+        lines = lines.append(Component.newline()).append(fixedChoiceLine(
+                "숫자키 1~" + Math.min(8, dialogue.choices.size()) + "로 선택"));
+        dialogue.choiceFrame.text(dialogueFrame());
         dialogue.choiceDisplay.text(lines);
         dialogue.waitingForChoice = true;
         dialogue.expiresAt = Integer.MAX_VALUE;
@@ -3680,6 +3805,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         dialogue.waitingForNext = false;
         dialogue.waitingForClose = false;
         dialogue.choices = List.of();
+        dialogue.choiceFrame.text(Component.empty());
         dialogue.choiceDisplay.text(Component.empty());
         clearBody(dialogue);
         dialogue.player.getInventory().setHeldItemSlot(dialogue.originalHeldSlot);
@@ -3773,6 +3899,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private void position(Dialogue d) {
+        double uiScale = effectiveUiScale(d);
         Location eye = d.player.getEyeLocation();
         eye.setYaw(d.lockedYaw);
         eye.setPitch(d.lockedPitch);
@@ -3783,28 +3910,33 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 .add(0, layout(d, "vertical-offset", -0.92), 0);
         face(base, forward); d.frame.teleport(base);
         if (d.showPortrait) {
-            Location portraitAt = base.clone().add(right.clone().multiply(getConfig().getDouble("portrait-x-offset", -0.82)))
-                    .add(0, getConfig().getDouble("portrait-vertical-offset", 0.01), 0)
+            Location portraitAt = base.clone().add(right.clone().multiply(getConfig().getDouble("portrait-x-offset", -0.82) * uiScale))
+                    .add(0, getConfig().getDouble("portrait-vertical-offset", 0.01) * uiScale, 0)
                     .subtract(forward.clone().multiply(0.080));
             face(portraitAt, forward); d.portrait.teleport(portraitAt);
-            Location speakerAt = base.clone().add(right.clone().multiply(getConfig().getDouble("speaker-x-offset", -1.10)))
-                    .add(0, getConfig().getDouble("speaker-vertical-offset", 0.42), 0)
-                    .subtract(forward.clone().multiply(0.024));
+            Location speakerAt = base.clone().add(right.clone().multiply(getConfig().getDouble("speaker-x-offset", -1.10) * uiScale))
+                    .add(0, getConfig().getDouble("speaker-vertical-offset", 0.42) * uiScale, 0)
+                    .subtract(forward.clone().multiply(0.100));
             face(speakerAt, forward); d.speakerDisplay.teleport(speakerAt);
         }
         for (int line = 0; line < d.bodyLines.length; line++) {
             String key = "text-line-" + (line + 1);
             Location bodyAt = base.clone().add(right.clone().multiply(layout(d, "text-x-offset", -0.06)
-                            + layout(d, key + "-x-offset", 0.0)))
-                    .add(0, layout(d, "text-vertical-offset", 0.05)
-                            + layout(d, key + "-vertical-offset", (1.5 - line) * 0.10), 0)
-                    .subtract(forward.clone().multiply(0.070));
+                            + layout(d, key + "-x-offset", 0.0)).multiply(uiScale))
+                    .add(0, (layout(d, "text-vertical-offset", 0.05)
+                            + layout(d, key + "-vertical-offset", (1.5 - line) * 0.10)) * uiScale, 0)
+                    .subtract(forward.clone().multiply(0.100));
             face(bodyAt, forward);
             d.bodyLines[line].teleport(bodyAt);
         }
-        Location choicesAt = base.clone().add(right.clone().multiply(layout(d, "choice-x-offset", -0.06)))
-                .add(0, layout(d, "choice-vertical-offset", -0.20), 0)
-                .subtract(forward.clone().multiply(0.026));
+        Location choiceFrameAt = base.clone().add(right.clone().multiply(layout(d, "choice-frame-x-offset",
+                        layout(d, "choice-x-offset", -0.06)) * uiScale))
+                .add(0, layout(d, "choice-frame-vertical-offset", layout(d, "choice-vertical-offset", -0.20)) * uiScale, 0)
+                .subtract(forward.clone().multiply(0.010));
+        face(choiceFrameAt, forward); d.choiceFrame.teleport(choiceFrameAt);
+        Location choicesAt = base.clone().add(right.clone().multiply(layout(d, "choice-x-offset", -0.06) * uiScale))
+                .add(0, layout(d, "choice-vertical-offset", -0.20) * uiScale, 0)
+                .subtract(forward.clone().multiply(0.100));
         face(choicesAt, forward); d.choiceDisplay.teleport(choicesAt);
     }
 
@@ -3904,7 +4036,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private final class Dialogue {
         final Player player;
-        final TextDisplay frame, portrait, speakerDisplay, choiceDisplay;
+        final TextDisplay frame, choiceFrame, portrait, speakerDisplay, choiceDisplay;
         final TextDisplay[] bodyLines;
         final boolean showPortrait;
         final String speaker;
@@ -3942,12 +4074,12 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         int finishCloseAt = Integer.MAX_VALUE;
         boolean editing;
 
-        Dialogue(Player player, TextDisplay frame, TextDisplay portrait, TextDisplay speakerDisplay, TextDisplay[] bodyLines,
+        Dialogue(Player player, TextDisplay frame, TextDisplay choiceFrame, TextDisplay portrait, TextDisplay speakerDisplay, TextDisplay[] bodyLines,
                  TextDisplay choiceDisplay, boolean showPortrait,
                  String speaker, String message, List<Choice> choices,
                  float lockedYaw, float lockedPitch, double dialogueDistance,
                  int originalHeldSlot, ItemStack originalNinthItem, ItemStack originalMainHandItem) {
-            this.player = player; this.frame = frame; this.portrait = portrait;
+            this.player = player; this.frame = frame; this.choiceFrame = choiceFrame; this.portrait = portrait;
             this.speakerDisplay = speakerDisplay; this.bodyLines = bodyLines; this.choiceDisplay = choiceDisplay;
             this.showPortrait = showPortrait;
             this.speaker = speaker; this.message = message; this.choices = choices;
@@ -3966,7 +4098,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         }
 
         void removeDisplays() {
-            for (TextDisplay display : new TextDisplay[]{frame, portrait, speakerDisplay, choiceDisplay})
+            for (TextDisplay display : new TextDisplay[]{frame, choiceFrame, portrait, speakerDisplay, choiceDisplay})
                 if (display != null && display.isValid()) display.remove();
             for (TextDisplay display : bodyLines) if (display != null && display.isValid()) display.remove();
         }
