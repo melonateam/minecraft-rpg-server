@@ -61,8 +61,10 @@ import org.joml.Vector3f;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.ArrayDeque;
 import java.util.Base64;
@@ -143,6 +145,34 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (webApi != null) webApi.stop();
         if (packServer != null) packServer.stop(0);
         if (packExecutor != null) packExecutor.shutdownNow();
+    }
+
+    @Override
+    public void saveConfig() {
+        Path target = getDataFolder().toPath().resolve("config.yml");
+        Path temporary = null;
+        IOException failure = null;
+        try {
+            Files.createDirectories(target.getParent());
+            temporary = Files.createTempFile(target.getParent(), "config-", ".tmp");
+            Files.writeString(temporary, getConfig().saveToString(), StandardCharsets.UTF_8);
+            for (int attempt = 0; attempt < 10; attempt++) {
+                try {
+                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+                    return;
+                } catch (IOException error) {
+                    failure = error;
+                    if (attempt < 9) Thread.sleep(50L);
+                }
+            }
+        } catch (IOException error) {
+            failure = error;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+        } finally {
+            if (temporary != null) try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
+        }
+        getLogger().log(java.util.logging.Level.SEVERE, "Could not save config to " + target, failure);
     }
 
     @EventHandler
@@ -794,7 +824,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             dialogue.expiresAt = Integer.MAX_VALUE;
             render(dialogue);
             dialogue.choiceDisplay.text(editorChoicePreview());
-            dialogue.choiceFrame.text(dialogueFrame());
             applyScales(dialogue);
             editorControls(player);
             return true;
@@ -1160,12 +1189,9 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             pageChoices.add(loadChoices(choicePath, player));
         }
         boolean legacyPortrait = getConfig().getBoolean(path + ".show-portrait", true);
-        boolean anyPortrait = false;
-        for (int page = 0; page < pageCount; page++)
-            anyPortrait |= getConfig().getBoolean(path + ".page-show-portraits." + page, legacyPortrait);
         String defaultSpeaker = getConfig().getString(path + ".speaker", "수호자");
         show(player, defaultSpeaker, message, List.of(),
-                getConfig().getString(path + ".camera-direction", "NORTH"), getConfig().getDouble("distance", 1.8), anyPortrait);
+                getConfig().getString(path + ".camera-direction", "NORTH"), getConfig().getDouble("distance", 1.8), true);
         Dialogue dialogue = active.get(player.getUniqueId());
         dialogue.pageChoices = pageChoices;
         String defaultPortrait = getConfig().getString(path + ".portrait", "SENTINEL");
@@ -2795,7 +2821,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private double layout(Dialogue dialogue, String key, double fallback) {
-        return getConfig().getDouble((dialogue.showPortrait ? "" : "plain-") + key, fallback);
+        return getConfig().getDouble((portraitVisible(dialogue) ? "" : "plain-") + key, fallback);
     }
 
     private double choiceFrameScaleDefault(Dialogue dialogue, String axis) {
@@ -3122,8 +3148,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void updatePortrait(Dialogue dialogue) {
         if (!dialogue.showPortrait) return;
-        boolean visible = dialogue.pageIndex >= dialogue.pagePortraitVisible.size()
-                || dialogue.pagePortraitVisible.get(dialogue.pageIndex);
+        boolean visible = portraitVisible(dialogue);
         dialogue.speakerDisplay.text(visible
                 ? Component.text(fixedSpeakerText(speakerForPage(dialogue)), NamedTextColor.GOLD) : Component.empty());
         if (!visible) {
@@ -3133,6 +3158,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         String portrait = dialogue.pageIndex < dialogue.pagePortraits.size() ? dialogue.pagePortraits.get(dialogue.pageIndex) : "SENTINEL";
         String expression = dialogue.pageIndex < dialogue.pageExpressions.size() ? dialogue.pageExpressions.get(dialogue.pageIndex) : "HAPPY";
         dialogue.portrait.text(Component.text(portraitGlyph(portrait, expression)).font(Key.key("dialog", "portrait")));
+    }
+
+    private boolean portraitVisible(Dialogue dialogue) {
+        return portraitVisible(dialogue.showPortrait, dialogue.pagePortraitVisible, dialogue.pageIndex);
+    }
+
+    static boolean portraitVisible(boolean showPortrait, List<Boolean> pagePortraitVisible, int pageIndex) {
+        return showPortrait && (pageIndex >= pagePortraitVisible.size() || pagePortraitVisible.get(pageIndex));
     }
 
     private String speakerForPage(Dialogue dialogue) {
@@ -3252,7 +3285,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         }
         lines = lines.append(Component.newline()).append(fixedChoiceLine(
                 "숫자키 1~" + Math.min(8, dialogue.choices.size()) + "로 선택"));
-        dialogue.choiceFrame.text(dialogueFrame());
+        dialogue.choiceFrame.text(portraitVisible(dialogue) ? dialogueFrame() : Component.empty());
         dialogue.choiceDisplay.text(lines);
         dialogue.waitingForChoice = true;
         dialogue.expiresAt = Integer.MAX_VALUE;
@@ -3712,7 +3745,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         java.util.ArrayList<PageRoute> routes = new java.util.ArrayList<>();
         String inheritedPortrait = pageIndex < state.pagePortraits.size() ? state.pagePortraits.get(pageIndex) : "SENTINEL";
         String inheritedExpression = pageIndex < state.pageExpressions.size() ? state.pageExpressions.get(pageIndex) : "HAPPY";
-        boolean inheritedVisible = pageIndex < state.pagePortraitVisible.size() && state.pagePortraitVisible.get(pageIndex);
         String inheritedSpeaker = pageIndex < state.pageRoutes.size() ? state.pageRoutes.get(pageIndex).speaker : "";
         if (!selected.speaker.isBlank()) inheritedSpeaker = selected.speaker;
         for (int page = 0; page < responsePages.size(); page++) {
@@ -3725,7 +3757,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             if (!expression.isBlank()) inheritedExpression = expression;
             portraits.add(inheritedPortrait);
             expressions.add(inheritedExpression);
-            portraitVisible.add(inheritedVisible);
+            portraitVisible.add(true);
             routes.add(new PageRoute(inheritedSpeaker, 0, false, 0, "AFTER", Condition.NONE));
         }
         boolean shouldEnd = state.closeAfterPages || selected.endDialogue;
