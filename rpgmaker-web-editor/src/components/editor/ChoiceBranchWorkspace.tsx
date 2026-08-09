@@ -1,4 +1,4 @@
-import type { DialogueChoice, DialogueChoiceResponsePage, DialoguePage } from '../../domain/project';
+import type { Dialogue, DialogueChoice, DialogueChoiceResponsePage, DialoguePage } from '../../domain/project';
 import { emptyChoiceSettings, emptyServerPage } from '../../domain/serverSettings';
 import {
   availableExpressions,
@@ -9,6 +9,9 @@ import {
 } from '../../services/characterRegistry';
 import { visibleLength } from '../../services/projectValidator';
 import { useProjectStore } from '../../store/projectStore';
+import { ConditionBuilder } from '../conditions/ConditionBuilder';
+import { playableDialogueName } from './DialogueMovementWorkspace';
+import { ReturnPicker } from './EffectsInspector';
 
 interface Props {
   page: DialoguePage;
@@ -103,6 +106,9 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
     ),
   );
   const dialogues = project?.dialogues ?? [];
+  const dialogue = dialogues.find((candidate) =>
+    candidate.pages.some((page) => visitChoice(page.choices, choice.id)),
+  );
   const mutateChoice = (mutator: (draft: DialogueChoice) => void) =>
     onChange((draftPage) => {
       const target = visitChoice(draftPage.choices, choice.id);
@@ -127,6 +133,34 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
           <input className={`${input} mt-1.5`} value={choice.speakerOverride ?? ''} placeholder="비워두면 원래 페이지 화자를 사용" onChange={(event) => mutateChoice((draft) => void (draft.speakerOverride = event.target.value || undefined))} />
         </label>
 
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <label className="block text-xs text-[#c0aaff]">
+            선택 즉시 이동할 페이지
+            <select
+              className={`${input} mt-1.5`}
+              value={choice.targetPageId ?? ''}
+              onChange={(event) => mutateChoice((draft) => void (draft.targetPageId = event.target.value || undefined))}
+            >
+              <option value="">페이지 이동 안 함 · 후속 대사 사용</option>
+              {dialogue?.pages.map((target, pageIndex) => (
+                <option key={target.id} value={target.id}>
+                  Page {pageIndex + 1} · {target.editorLabel || target.lines.find(Boolean) || '빈 페이지'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-end">
+            <span className="flex h-10 items-center gap-2 rounded-lg bg-[#120f16] px-3 text-xs text-[#a99db1]">
+              도착 후 종료
+              <input
+                type="checkbox"
+                checked={choice.endAfterTarget ?? false}
+                onChange={(event) => mutateChoice((draft) => void (draft.endAfterTarget = event.target.checked))}
+              />
+            </span>
+          </label>
+        </div>
+
         <label className="block text-xs text-[#c0aaff]">
           이 선택지가 끝난 뒤 대화 이동
           <select
@@ -135,12 +169,29 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
             onChange={(event) => mutateChoice((draft) => void (draft.targetDialogueName = event.target.value || undefined))}
           >
             <option value="">이동 안 함 · 현재 대화 흐름 사용</option>
-            {dialogues.map((dialogue) => (
-              <option key={dialogue.id} value={dialogue.name}>{dialogue.name}</option>
+            {dialogues.filter((candidate) => candidate.id !== dialogue?.id).map((candidate) => (
+              <option key={candidate.id} value={candidate.server?.remoteName || playableDialogueName(candidate.name)}>{candidate.name}</option>
             ))}
           </select>
           <span className="mt-1.5 block text-[10px] leading-4 text-[#766b7e]">후속 대사와 중첩 선택지가 모두 끝난 다음 지정한 대화를 시작합니다.</span>
         </label>
+
+        <details className="rounded-xl border border-[#30283a] bg-[#120f16] p-3">
+          <summary className="cursor-pointer text-xs font-semibold text-[#d4c8dc]">선택지 표시 조건</summary>
+          <div className="mt-3">
+            <ConditionBuilder
+              variables={project?.variables ?? []}
+              items={project?.items ?? []}
+              value={choice.server?.condition ?? emptyChoiceSettings().condition}
+              onChange={(mutator) =>
+                mutateChoice((draft) => {
+                  draft.server ??= emptyChoiceSettings();
+                  mutator(draft.server.condition);
+                })
+              }
+            />
+          </div>
+        </details>
 
         <div className="rounded-xl border border-[#30283a] bg-[#120f16] p-3">
           <div className="flex items-center justify-between">
@@ -149,7 +200,7 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
           </div>
           <div className="mt-3 space-y-3">
             {(choice.responsePages ?? []).map((response, responseIndex) => (
-              <ResponsePageEditor key={response.id} response={response} index={responseIndex} depth={depth} manifest={manifest} onChange={onChange} onDelete={() => mutateChoice((draft) => void (draft.responsePages = (draft.responsePages ?? []).filter((item) => item.id !== response.id)))} />
+              <ResponsePageEditor key={response.id} response={response} index={responseIndex} depth={depth} dialogue={dialogue} manifest={manifest} onChange={onChange} onDelete={() => mutateChoice((draft) => void (draft.responsePages = (draft.responsePages ?? []).filter((item) => item.id !== response.id)))} />
             ))}
             {!choice.responsePages?.length && <div className="rounded-lg border border-dashed border-[#30283a] px-3 py-5 text-center text-[11px] text-[#6e6476]">후속 대사가 없으면 선택 직후 대화 이동 규칙을 적용합니다.</div>}
           </div>
@@ -160,10 +211,11 @@ function ChoiceEditor({ choice, index, depth, manifest, onChange, onDelete }: {
   );
 }
 
-function ResponsePageEditor({ response, index, depth, manifest, onChange, onDelete }: {
+function ResponsePageEditor({ response, index, depth, dialogue, manifest, onChange, onDelete }: {
   response: DialogueChoiceResponsePage;
   index: number;
   depth: number;
+  dialogue?: Dialogue;
   manifest: CharacterManifest;
   onChange: Props['onChange'];
   onDelete: () => void;
@@ -234,18 +286,33 @@ function ResponsePageEditor({ response, index, depth, manifest, onChange, onDele
           <div className="mt-3 space-y-2">
             <input className={input} value={response.server?.effects.variablesSet ?? ''} placeholder="변수 설정: score+=1, roll=random(1..10)" onChange={(event) => mutate((draft) => void (draft.server!.effects.variablesSet = event.target.value))} />
             <input className={input} value={response.server?.effects.variablesDelete ?? ''} placeholder="변수 삭제" onChange={(event) => mutate((draft) => void (draft.server!.effects.variablesDelete = event.target.value))} />
-            <input className={input} value={response.server?.effects.giveItems ?? ''} placeholder="아이템 지급: minecraft:bread:1" onChange={(event) => mutate((draft) => void (draft.server!.effects.giveItems = event.target.value))} />
+            <input className={input} value={response.server?.effects.giveItems ?? ''} placeholder="아이템 지급: minecraft:bread:1[:표시이름:#색상]" onChange={(event) => mutate((draft) => void (draft.server!.effects.giveItems = event.target.value))} />
             <input className={input} value={response.server?.effects.takeItems ?? ''} placeholder="아이템 회수" onChange={(event) => mutate((draft) => void (draft.server!.effects.takeItems = event.target.value))} />
             <input className={input} value={response.server?.effects.sounds ?? ''} placeholder="사운드" onChange={(event) => mutate((draft) => void (draft.server!.effects.sounds = event.target.value))} />
-            <input className={input} value={response.server?.effects.message ?? ''} placeholder="메시지" onChange={(event) => mutate((draft) => void (draft.server!.effects.message = event.target.value))} />
+            <div className="grid grid-cols-[1fr_100px] gap-2">
+              <input className={input} value={response.server?.effects.message ?? ''} placeholder="플레이어에게 메시지 보내기" onChange={(event) => mutate((draft) => void (draft.server!.effects.message = event.target.value))} />
+              <input className={input} value={response.server?.effects.messageColor ?? '#FFFFFF'} placeholder="#FFFFFF" onChange={(event) => mutate((draft) => void (draft.server!.effects.messageColor = event.target.value))} />
+            </div>
             <input className={input} value={response.server?.effects.chatInputVariable ?? ''} placeholder="채팅 입력 변수" onChange={(event) => mutate((draft) => void (draft.server!.effects.chatInputVariable = event.target.value))} />
+            {dialogue && (
+              <div>
+                <div className="mb-1 text-[10px] text-[#8e8595]">Return 대상</div>
+                <ReturnPicker dialogue={dialogue} value={response.server?.effects.returnTarget ?? ''} onChange={(value) => mutate((draft) => void (draft.server!.effects.returnTarget = value))} />
+              </div>
+            )}
+            <textarea className={`${input} min-h-16 resize-y`} value={response.server?.effects.serverCommand ?? ''} placeholder="서버 명령어 · OP 전용" onChange={(event) => mutate((draft) => void (draft.server!.effects.serverCommand = event.target.value))} />
+            <select className={input} value={response.server?.effects.commandTarget ?? 'player'} onChange={(event) => mutate((draft) => void (draft.server!.effects.commandTarget = event.target.value as 'player' | 'all' | 'nearest'))}>
+              <option value="player">대화 플레이어</option>
+              <option value="all">모든 플레이어 (@a)</option>
+              <option value="nearest">가장 가까운 플레이어 (@p)</option>
+            </select>
           </div>
         </details>
 
         <div className="rounded-lg border border-[#392f43] bg-[#15111a] p-3">
           <div className="flex items-center justify-between">
             <div><div className="text-xs font-semibold text-[#beaacf]">이 후속 대사의 선택지</div><div className="mt-1 text-[10px] text-[#766b7e]">선택지 안에 다시 선택지를 만들 수 있습니다.</div></div>
-            <button type="button" disabled={response.choices.length >= 8 || depth >= 5} onClick={() => mutate((draft) => void draft.choices.push(newChoice(`선택지 ${draft.choices.length + 1}`)))} className="rounded-lg bg-[#2d2335] px-2 py-1.5 text-[10px] text-[#c0aaff] disabled:opacity-30">+ 선택지</button>
+            <button type="button" disabled={response.choices.length >= 8 || depth >= 15} onClick={() => mutate((draft) => void draft.choices.push(newChoice(`선택지 ${draft.choices.length + 1}`)))} className="rounded-lg bg-[#2d2335] px-2 py-1.5 text-[10px] text-[#c0aaff] disabled:opacity-30">+ 선택지</button>
           </div>
           <div className="mt-3 space-y-2">
             {response.choices.map((nested, nestedIndex) => (
