@@ -57,6 +57,7 @@ export interface DialoguePage {
 
 export interface PageAppearance {
   visible: boolean;
+  speakerVisible: boolean;
   inheritPrevious: boolean;
   characterId?: string;
   gender?: 'male' | 'female';

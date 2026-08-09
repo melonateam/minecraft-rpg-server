@@ -11,6 +11,7 @@ export function createPage(label?: string): DialoguePage {
     lines: ['', '', '', ''],
     appearance: {
       visible: true,
+      speakerVisible: true,
       inheritPrevious: false,
       expression: 'NEUTRAL',
     },

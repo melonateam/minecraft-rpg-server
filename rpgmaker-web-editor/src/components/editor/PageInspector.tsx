@@ -58,6 +58,14 @@ export function PageInspector({ page, dialogue, characters, onChange, onAddChoic
             />
             캐릭터 표시
           </label>
+          <label className="flex items-center gap-2 text-xs text-[#8b929e]">
+            <input
+              type="checkbox"
+              checked={page.appearance.speakerVisible}
+              onChange={(event) => onChange((draft) => void (draft.appearance.speakerVisible = event.target.checked))}
+            />
+            화자 이름 표시
+          </label>
         </div>
         <button onClick={() => setCharacterOpen(true)} className="mt-2 flex w-full items-center justify-between rounded-lg bg-[#20242c] px-3 py-2.5 text-sm hover:bg-[#272c35]">
           <span>{character ? `${character.emoji} ${character.name}` : '캐릭터 선택'}</span>

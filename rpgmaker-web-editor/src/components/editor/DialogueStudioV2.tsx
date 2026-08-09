@@ -59,7 +59,7 @@ const BUILTIN_VARIABLES = [
 const normalizedName = (value: string) => value.trim().toLocaleLowerCase();
 const serverNameKey = (value: string) => {
   const trimmed = value.trim();
-  return trimmed ? trimmed.replace(/[^\p{L}\p{N}_-]/gu, '_').toLocaleLowerCase() : '';
+  return trimmed ? trimmed.replace(/[^\p{L}\p{N}_.-]/gu, '_').toLocaleLowerCase() : '';
 };
 
 function forEachChoice(choices: DialogueChoice[], visit: (choice: DialogueChoice) => void) {
@@ -87,7 +87,7 @@ function sectionForIssue(section: ValidationIssue['section']): InspectorSection 
 
 function collectVariableNames(dialogue: Dialogue, projectVariables: string[]) {
   const names = new Set([...BUILTIN_VARIABLES, ...projectVariables]);
-  const placeholder = /\{\{([A-Za-z0-9._-]+)}}/g;
+  const placeholder = /\{\{([\p{L}\p{N}._-]+)\}\}/gu;
   for (const page of dialogue.pages) {
     for (const line of page.lines) {
       for (const match of line.matchAll(placeholder)) names.add(match[1]);
@@ -98,7 +98,7 @@ function collectVariableNames(dialogue: Dialogue, projectVariables: string[]) {
     if (settings.flow.condition.variable) names.add(settings.flow.condition.variable);
     if (settings.effects.chatInputVariable) names.add(settings.effects.chatInputVariable);
     for (const assignment of settings.effects.variablesSet.split(',')) {
-      const match = assignment.trim().match(/^([A-Za-z0-9._-]+)\s*(?:\+=|-=|\*=|\/=|=)/);
+      const match = assignment.trim().match(/^([\p{L}\p{N}._-]+)\s*(?:\+=|-=|\*=|\/=|=)/u);
       if (match) names.add(match[1]);
     }
   }

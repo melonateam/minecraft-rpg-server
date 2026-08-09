@@ -61,7 +61,7 @@ function compare(actual: unknown, operator: ServerCondition['operator'], expecte
 }
 
 function extraVariableResult(expression: string, variables: PreviewState['variables']) {
-  const match = expression.match(/^([\p{L}\p{N}_-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
+  const match = expression.match(/^([\p{L}\p{N}_.-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
   if (!match) return false;
   const [, name, operator, value] = match;
   const mapped: ServerCondition['operator'] =
@@ -133,7 +133,7 @@ function updateVariable(state: PreviewState, operation: string) {
     state.effects.push(`난수 변수: ${operation}`);
     return;
   }
-  const match = operation.match(/^([\p{L}\p{N}_-]+)\s*(=|\+=|-=|\*=|\/=)\s*(.*)$/u);
+  const match = operation.match(/^([\p{L}\p{N}_.-]+)\s*(=|\+=|-=|\*=|\/=)\s*(.*)$/u);
   if (!match) return;
   const [, name, operator, raw] = match;
   const numeric = asNumber(raw);

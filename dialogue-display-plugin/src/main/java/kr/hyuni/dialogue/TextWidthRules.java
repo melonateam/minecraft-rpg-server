@@ -3,15 +3,46 @@ package kr.hyuni.dialogue;
 final class TextWidthRules {
     private static final int FIRST_SPACE_GLYPH = 0xE100;
     private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER =
-            java.util.regex.Pattern.compile("\\{\\{[a-zA-Z0-9._-]+}}");
+            java.util.regex.Pattern.compile("\\{\\{[\\p{L}\\p{N}._-]+}}");
 
     private TextWidthRules() {}
 
     static String padding(String text, int targetWidth) {
-        int remaining = Math.max(0, targetWidth - visibleWidth(text));
+        return spacing(Math.max(0, targetWidth - visibleWidth(text)));
+    }
+
+    static String hiddenPadding(String text) {
+        int width = 0;
+        boolean wordStart = true;
+        for (int offset = 0; offset < text.length();) {
+            FormatToken token = inlineFormat(text, offset);
+            if (token == null && wordStart) token = wordFormat(text, offset);
+            int end = token == null ? variableEnd(text, offset) : token.end();
+            if (end > offset) {
+                for (int raw = offset; raw < end;) {
+                    int codePoint = text.codePointAt(raw);
+                    width += glyphWidth(codePoint);
+                    raw += Character.charCount(codePoint);
+                }
+                offset = end;
+                wordStart = false;
+                continue;
+            }
+            int codePoint = text.codePointAt(offset);
+            wordStart = Character.isWhitespace(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+        return spacing(width);
+    }
+
+    private static String spacing(int width) {
         StringBuilder result = new StringBuilder();
-        for (int bit = 8; bit >= 0; bit--)
-            if ((remaining & (1 << bit)) != 0) result.appendCodePoint(FIRST_SPACE_GLYPH + bit);
+        while (width > 0) {
+            int chunk = Math.min(width, 511);
+            for (int bit = 8; bit >= 0; bit--)
+                if ((chunk & (1 << bit)) != 0) result.appendCodePoint(FIRST_SPACE_GLYPH + bit);
+            width -= chunk;
+        }
         return result.toString();
     }
 
@@ -172,7 +203,7 @@ final class TextWidthRules {
         return matcher.lookingAt() ? matcher.end() : -1;
     }
 
-    private static int paddingWidth(String padding) {
+    static int paddingWidth(String padding) {
         return padding.codePoints().map(codePoint -> 1 << (codePoint - FIRST_SPACE_GLYPH)).sum();
     }
 
@@ -182,6 +213,8 @@ final class TextWidthRules {
         assert visibleWidth("{#00FF00}A") == visibleWidth("A");
         assert visibleWidth("#FF0000:bold,italic,strikethrough:가") == visibleWidth("가");
         assert visibleCharacters("123{{long_variable}}{#00FF00}456") == 6;
+        assert visibleCharacters("123{{한글_변수}}456") == 6;
+        assert paddingWidth(hiddenPadding("#FF0000:bold:말 {{한글_변수}}")) > 0;
         assert visibleCharacters("#FF0000:bold:화자") == 2;
         assert limitVisible("123{{name}}4567", 6).equals("123{{name}}456");
         assert limitVisible("#FF0000:bold:화자이름", 2).equals("#FF0000:bold:화자");

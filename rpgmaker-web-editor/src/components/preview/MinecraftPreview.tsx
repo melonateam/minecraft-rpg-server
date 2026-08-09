@@ -25,7 +25,7 @@ export function MinecraftPreview({ page, characters }: Props) {
                 {character.emoji}
               </div>
             )}
-            {page.appearance.visible && page.speaker && <div className="mb-2 text-sm font-bold text-[#f4d35e]">{page.speaker}</div>}
+            {page.appearance.speakerVisible && page.speaker && <div className="mb-2 text-sm font-bold text-[#f4d35e]">{page.speaker}</div>}
             <div className="min-h-20 space-y-1 font-mono text-[15px] leading-6 text-white">
               {visibleLines.length > 0
                 ? visibleLines.map((line, index) => <div key={index}>{line}</div>)

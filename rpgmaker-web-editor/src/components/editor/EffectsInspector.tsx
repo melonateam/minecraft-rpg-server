@@ -39,11 +39,11 @@ function parseAssignments(value: string): VariableAssignment[] {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const random = entry.match(/^([A-Za-z0-9_.-]+)\s*=\s*random\(\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\)$/i);
+      const random = entry.match(/^([\p{L}\p{N}_.-]+)\s*=\s*random\(\s*(-?\d+)\s*\.\.\s*(-?\d+)\s*\)$/iu);
       if (random) {
         return { name: random[1], operator: 'random', value: `${random[2]}..${random[3]}` };
       }
-      const match = entry.match(/^([A-Za-z0-9_.-]+)\s*(\+=|-=|\*=|\/=|=)\s*(.*)$/);
+      const match = entry.match(/^([\p{L}\p{N}_.-]+)\s*(\+=|-=|\*=|\/=|=)\s*(.*)$/u);
       return match
         ? {
             name: match[1],

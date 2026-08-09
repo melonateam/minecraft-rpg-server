@@ -104,12 +104,24 @@ function CharacterPanel({
       <label className="flex items-center justify-between rounded-xl bg-[#171b21] px-4 py-3 text-sm">
         <div>
           <div className="font-medium">초상화 표시</div>
-          <div className="mt-1 text-xs text-[#737d8b]">끄면 게임에서도 캐릭터와 화자를 숨깁니다.</div>
+          <div className="mt-1 text-xs text-[#737d8b]">캐릭터 이미지만 숨깁니다.</div>
         </div>
         <input
           type="checkbox"
           checked={page.appearance.visible}
           onChange={(event) => onChange((draft) => void (draft.appearance.visible = event.target.checked))}
+        />
+      </label>
+
+      <label className="flex items-center justify-between rounded-xl bg-[#171b21] p-3 text-sm">
+        <div>
+          <div className="font-medium">화자 이름 표시</div>
+          <div className="mt-1 text-xs text-[#737d8b]">끄면 화자 이름과 작은 박스를 숨깁니다.</div>
+        </div>
+        <input
+          type="checkbox"
+          checked={page.appearance.speakerVisible}
+          onChange={(event) => onChange((draft) => void (draft.appearance.speakerVisible = event.target.checked))}
         />
       </label>
 
