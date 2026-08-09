@@ -219,26 +219,7 @@ final class DialogueCompatibilityService {
     }
 
     private int visibleLength(String text) {
-        int visible = 0;
-        boolean wordStart = true;
-        for (int offset = 0; offset < text.length();) {
-            if (offset + 9 <= text.length() && text.charAt(offset) == '{' && text.charAt(offset + 1) == '#'
-                    && text.charAt(offset + 8) == '}' && text.substring(offset + 2, offset + 8).matches("[0-9A-Fa-f]{6}")) {
-                offset += 9;
-                continue;
-            }
-            if (wordStart && offset + 8 <= text.length() && text.charAt(offset) == '#'
-                    && text.substring(offset + 1, offset + 7).matches("[0-9A-Fa-f]{6}") && text.charAt(offset + 7) == ':') {
-                offset += 8;
-                wordStart = false;
-                continue;
-            }
-            int codePoint = text.codePointAt(offset);
-            visible++;
-            wordStart = Character.isWhitespace(codePoint);
-            offset += Character.charCount(codePoint);
-        }
-        return visible;
+        return TextWidthRules.visibleCharacters(text);
     }
 
     private int integer(Object value) {

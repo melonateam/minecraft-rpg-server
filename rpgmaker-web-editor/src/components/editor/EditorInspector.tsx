@@ -206,12 +206,10 @@ function CharacterPanel({
 
 function ChoicesPanel({
   page,
-  dialogue,
   project,
   onChange,
 }: {
   page: DialoguePage;
-  dialogue: Dialogue;
   project: RPGProject;
   onChange: Props['onChange'];
 }) {
@@ -250,24 +248,7 @@ function ChoicesPanel({
               </span>
             </div>
 
-            <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-              <select
-                className={input}
-                value={choice.targetPageId ?? ''}
-                onChange={(event) =>
-                  onChange((draft) => {
-                    const target = draft.choices.find((entry) => entry.id === choice.id);
-                    if (target) target.targetPageId = event.target.value || undefined;
-                  })
-                }
-              >
-                <option value="">대상 페이지 없음</option>
-                {dialogue.pages.map((target, pageIndex) => (
-                  <option key={target.id} value={target.id}>
-                    Page {pageIndex + 1} · {target.editorLabel || target.lines.find(Boolean) || '빈 페이지'}
-                  </option>
-                ))}
-              </select>
+            <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={() =>
@@ -685,7 +666,7 @@ export function EditorInspector({ section, page, dialogue, project, manifest, on
       <div className="min-h-0 flex-1 overflow-y-auto">
         {section === 'character' && <CharacterPanel page={page} manifest={manifest} onChange={onChange} />}
         {section === 'choices' && (
-          <ChoicesPanel page={page} dialogue={dialogue} project={project} onChange={onChange} />
+          <ChoicesPanel page={page} project={project} onChange={onChange} />
         )}
         {section === 'condition' && (
           <div className="p-5">

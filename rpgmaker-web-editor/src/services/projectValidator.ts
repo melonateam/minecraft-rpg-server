@@ -29,6 +29,7 @@ const extraCondition = /^[\p{L}\p{N}_-]+\s*(==|=|!=|>=|<=|>|<)\s*.+$/u;
 export function visibleLength(value: string) {
   return Array.from(
     value
+      .replace(/\{\{[A-Za-z0-9._-]+}}/g, '')
       .replace(/\{#[0-9a-fA-F]{6}\}/g, '')
       .replace(/(^|\s)#[0-9a-fA-F]{6}:/g, '$1'),
   ).length;
