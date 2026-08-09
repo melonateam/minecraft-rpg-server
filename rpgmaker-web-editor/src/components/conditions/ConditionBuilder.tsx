@@ -15,7 +15,7 @@ interface Props {
 const input =
   'w-full rounded-lg border border-[#2a3039] bg-[#171b21] px-3 py-2 text-sm text-[#eef1f5] outline-none transition focus:border-[#42d4d0]';
 const label = 'text-xs font-medium text-[#919aa8]';
-const variableNamePattern = /^[\p{L}\p{N}_.-]+$/u;
+const variableNamePattern = /^(?:[\p{L}\p{N}_.-]+|skript:.+|\{.+\})$/u;
 
 const operators: Array<[ServerCondition['operator'], string]> = [
   ['eq', '같음'],
@@ -48,7 +48,7 @@ function parseExtra(value: string): ExtraRow[] {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .map((entry) => {
-      const match = entry.match(/^([\p{L}\p{N}_.-]+)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
+      const match = entry.match(/^(.+?)\s*(==|=|!=|>=|<=|>|<)\s*(.*)$/u);
       return match
         ? { name: match[1], operator: match[2], value: match[3] }
         : { name: entry, operator: '=', value: '' };
@@ -134,7 +134,7 @@ export function ConditionBuilder({ value, variables, items, showReplacement = fa
           <div>
             <div className="text-sm font-semibold text-[#bcefed]">변수 조건</div>
             <div className="mt-1 text-xs text-[#7f9ca2]">
-              효과의 변수 연산과 같은 변수명 규칙을 사용합니다: 영문, 숫자, _, ., -
+              RPGMaker 변수 또는 Skript 변수(예: skript:quest::%uuid of player%)를 사용할 수 있습니다.
             </div>
           </div>
 
@@ -145,7 +145,7 @@ export function ConditionBuilder({ value, variables, items, showReplacement = fa
                 list="rpgmaker-variable-list"
                 className={`${input} mt-1.5 ${variableInvalid ? 'border-red-400/70' : ''}`}
                 value={value.variable}
-                placeholder="quest.progress"
+                placeholder="quest.progress / skript:quest::%uuid of player%"
                 onChange={(event) => onChange((condition) => void (condition.variable = event.target.value))}
               />
               {variableInvalid && <span className="mt-1 block text-[10px] text-red-300">사용할 수 없는 변수명 형식입니다.</span>}

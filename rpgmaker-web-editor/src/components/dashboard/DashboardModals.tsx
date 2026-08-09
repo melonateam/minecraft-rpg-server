@@ -86,7 +86,7 @@ function HelpContent() {
         조건은 변수나 아이템 상태에 따라 페이지 또는 선택지를 표시합니다. 효과는 아이템 지급·회수, 변수 연산, 난수식, 사운드, 메시지, 채팅 입력 저장, 서버 명령 등을 실행합니다.
       </Help>
       <Help title="변수">
-        대사 안에서 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9d8cff]">{'{{변수명}}'}</code>을 사용하면 플레이어별 변수 값을 출력할 수 있습니다. <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9d8cff]">#색코드:단어</code>로 색을 입히고, <code className="rounded bg-black/25 px-1.5 py-0.5">#FF0000:bold,italic,strikethrough:단어</code>로 굵기·기울임·취소선을 함께 지정할 수 있습니다. 효과에서 <code className="rounded bg-black/25 px-1.5 py-0.5">score+=1</code> 또는 <code className="rounded bg-black/25 px-1.5 py-0.5">roll=random(1..10)</code> 같은 연산을 사용할 수 있습니다.
+        대사 안에서 <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9d8cff]">{'{{변수명}}'}</code>을 사용하면 플레이어별 변수 값을 출력할 수 있습니다. Skript의 <code className="rounded bg-black/25 px-1.5 py-0.5">%player%</code>, <code className="rounded bg-black/25 px-1.5 py-0.5">%player's location%</code>, <code className="rounded bg-black/25 px-1.5 py-0.5">{'%{변수::%uuid of player%}%'}</code>도 사용할 수 있습니다. 조건·효과에서는 <code className="rounded bg-black/25 px-1.5 py-0.5">skript:변수::%uuid of player%</code> 형식을 사용합니다. <code className="rounded bg-black/25 px-1.5 py-0.5 text-[#9d8cff]">#색코드:단어</code>로 색을 입히고, <code className="rounded bg-black/25 px-1.5 py-0.5">#FF0000:bold,italic,strikethrough:단어</code>로 굵기·기울임·취소선을 함께 지정할 수 있습니다. 효과에서는 <code className="rounded bg-black/25 px-1.5 py-0.5">score+=1</code>과 <code className="rounded bg-black/25 px-1.5 py-0.5">roll=random(1..10)</code>도 사용할 수 있습니다.
       </Help>
       <Help title="서버 동기화">
         <b>서버에서 불러오기</b>는 서버의 현재 대화를 웹으로 가져오고, <b>서버에 반영</b>은 웹의 추가·수정·삭제 내용을 서버에 적용합니다. 같은 이름의 대화는 중복 생성하지 않고 기존 대화를 갱신합니다.

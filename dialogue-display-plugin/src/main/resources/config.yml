@@ -51,7 +51,7 @@ web-api:
     - http://localhost:5173
     - http://127.0.0.1:5173
   max-request-bytes: 1048576
-examples-version: 4
+examples-version: 5
 example-item-templates:
   moon_letter:
     example-version: 3
@@ -762,6 +762,47 @@ example-templates:
             return-mode: TARGET
             return-target: CHOICE:p2#c0
         end-3: false
+  skript-final:
+    example-version: 5
+    built-in-example: true
+    title: Skript 변수 연동 테스트
+    speaker: '#55FFFF:bold:Skript 연동'
+    camera-direction: NORTH
+    message-pages:
+    - |-
+      플레이어: %player%
+      위치: %player's location%
+      전역값: %{rpgmaker_test_global}%
+      개인값: %{rpgmaker_test::%uuid of player%}%
+    - |-
+      목록값: {{skript:rpgmaker_test_list::*}}
+      RPGMaker 미러: {{skript.quest_state}}
+      조건과 선택지도 연동됩니다.
+    page-conditions:
+      '1':
+        type: VARIABLE
+        variable: skript:rpgmaker_test_global
+        value: 전역_정상
+        replacement: |-
+          전역 변수가 준비되지 않았습니다.
+          먼저 /rpgskripttest 를 실행하세요.
+    page-choices:
+      '1':
+        choice-count: 2
+        choice-1: '%player%의 개인 변수 확인'
+        condition-1:
+          type: VARIABLE
+          variable: skript:rpgmaker_test::%uuid of player%
+          value: 개인_정상
+        response-pages-1:
+        - |-
+          전역·플레이어 개인 변수와
+          기본 Skript 표현식이 정상입니다.
+        end-1: true
+        choice-2: 테스트 종료
+        response-pages-2:
+        - 테스트를 종료합니다.
+        end-2: true
   shop-final:
     example-version: 4
     built-in-example: true

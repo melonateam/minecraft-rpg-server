@@ -54,4 +54,13 @@ class DialogueDisplayPluginTest {
         assertTrue(ExpressionRules.typedValue("12.5") instanceof Double);
         assertEquals("안녕", ExpressionRules.typedValue("안녕"));
     }
+
+    @Test
+    void skriptReferencesKeepGlobalAndDynamicVariableNames() {
+        assertEquals("global_flag", DialogueDisplayPlugin.exactSkriptVariable("skript:global_flag"));
+        assertEquals("quest::%uuid of player%", DialogueDisplayPlugin.exactSkriptVariable("{quest::%uuid of player%}"));
+        assertEquals("list::*", DialogueDisplayPlugin.exactSkriptVariable("skript:{list::*}"));
+        assertEquals(null, DialogueDisplayPlugin.exactSkriptVariable("quest.progress"));
+        assertEquals(6, TextWidthRules.visibleCharacters("123%{quest::%uuid of player%}%456"));
+    }
 }

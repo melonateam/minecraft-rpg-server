@@ -23,7 +23,7 @@ export function parseDialogueText(
   source: string,
   variables: Record<string, string | number | boolean> = {},
 ): DialogueTextSegment[] {
-  const value = source.replace(/\{\{([\p{L}\p{N}._-]+)\}\}/gu, (_, name: string) =>
+  const value = source.replace(/\{\{(.+?)\}\}/gu, (_, name: string) =>
     variables[name] == null ? '' : String(variables[name]),
   );
   const result: DialogueTextSegment[] = [];

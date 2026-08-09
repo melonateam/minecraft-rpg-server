@@ -1,6 +1,10 @@
 package kr.hyuni.dialogue;
 
 import com.sun.net.httpserver.HttpServer;
+import ch.njol.skript.lang.VariableString;
+import ch.njol.skript.lang.parser.ParserInstance;
+import ch.njol.skript.registrations.Classes;
+import ch.njol.skript.util.StringMode;
 import ch.njol.skript.variables.Variables;
 import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.Dialog;
@@ -37,7 +41,9 @@ import org.bukkit.entity.TextDisplay;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -87,8 +93,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private static final int DEFAULT_TEXT_SIZE = 62;
     private static final double MINIMUM_UI_SCALE = 0.6;
     private static final double MAXIMUM_UI_SCALE = 1.4;
-    private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{([\\p{L}\\p{N}._-]+)}}");
-    private static final java.util.regex.Pattern VARIABLE_ASSIGNMENT = java.util.regex.Pattern.compile("^([^=+*/-]+?)\\s*([+*/-]?=)\\s*(.*)$");
+    private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{(.+?)}}");
+    private static final java.util.regex.Pattern VARIABLE_ASSIGNMENT = java.util.regex.Pattern.compile("^(.+?)\\s*(\\+=|-=|\\*=|/=|=)\\s*(.*)$");
     private static final java.util.regex.Pattern VARIABLE_CHECK = java.util.regex.Pattern.compile("^([^!<>=]+?)\\s*(==|=|!=|>=|<=|>|<)\\s*(.*)$");
     private final Map<UUID, Dialogue> active = new HashMap<>();
     private final Map<UUID, String> awaitingChatInputs = new ConcurrentHashMap<>();
@@ -1041,7 +1047,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             sender.sendMessage(Component.text("온라인 플레이어를 찾을 수 없습니다.", NamedTextColor.RED));
             return true;
         }
-        String name = variableName(args[3]);
+        String name = args[3].strip();
         if (name.isBlank()) {
             sender.sendMessage(Component.text("변수 이름이 비어 있습니다.", NamedTextColor.RED));
             return true;
@@ -2010,6 +2016,10 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 variableHelpButton("{{held_item_amount}} · 손 아이템 개수"),
                 variableHelpButton("{{skript.변수}} · Skript 연동 변수 출력"),
                 variableHelpButton("Skript 키 · {rpgmaker::<UUID>::변수}"),
+                variableHelpButton("Skript 표현식 · %player%, %player's location%"),
+                variableHelpButton("Skript 전역 출력 · %{전역변수}%"),
+                variableHelpButton("Skript 개인 변수 · %{quest::%uuid of player%}%"),
+                variableHelpButton("조건·효과 · skript:quest::%uuid of player%"),
                 ActionButton.builder(Component.text("← 전체 메뉴", NamedTextColor.GRAY)).width(250)
                         .action(DialogAction.customClick(Key.key("dialoguedisplay", "variable_help_back"), BinaryTagHolder.binaryTagHolder("{}"))).build());
         player.showDialog(Dialog.create(factory -> factory.empty().base(DialogBase.builder(Component.text("변수 도움말", NamedTextColor.GOLD))
@@ -2550,7 +2560,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             changed = true;
         }
         changed |= ensureExampleItems(player);
-        for (var entry : Map.of("romance-final", "달빛_아래_피어난_약속", "shop-final", "초보_상점_이용법").entrySet()) {
+        for (var entry : Map.of("romance-final", "달빛_아래_피어난_약속", "shop-final", "초보_상점_이용법",
+                "skript-final", "Skript_변수_연동_테스트").entrySet()) {
             String source = "example-templates." + entry.getKey();
             String destination = personalDialoguePath(player, entry.getValue());
             int version = getConfig().getInt(source + ".example-version", 1);
@@ -3324,7 +3335,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         Component lines = Component.empty();
         for (int i = 0; i < Math.min(8, dialogue.choices.size()); i++) {
             if (i > 0) lines = lines.append(Component.newline());
-            lines = lines.append(fixedChoiceLine("[" + (i + 1) + "] " + dialogue.choices.get(i).label));
+            lines = lines.append(fixedChoiceLine("[" + (i + 1) + "] "
+                    + expandVariables(dialogue.player, dialogue.choices.get(i).label)));
         }
         lines = lines.append(Component.newline()).append(fixedChoiceLine(
                 "숫자키 1~" + Math.min(8, dialogue.choices.size()) + "로 선택"));
@@ -3378,13 +3390,13 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         for (String entry : effectEntries(effect.variablesSet)) {
             java.util.regex.Matcher assignment = VARIABLE_ASSIGNMENT.matcher(entry);
             if (!assignment.matches()) continue;
-            String variable = variableName(assignment.group(1));
+            String variable = assignment.group(1).strip();
             String current = variable.isBlank() ? null : variableValue(player, variable);
             if (!variable.isBlank()) setVariableValue(player, variable, ExpressionRules.calculate(
                     current, assignment.group(2), expandVariables(player, assignment.group(3))));
         }
         for (String entry : effectEntries(effect.variablesDelete)) {
-            String variable = variableName(entry);
+            String variable = entry.strip();
             if (!variable.isBlank()) deleteVariableValue(player, variable);
         }
         for (String entry : effectEntries(effect.sounds)) {
@@ -3639,12 +3651,19 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private String variableValue(Player player, String rawVariable) {
+        String exact = exactSkriptVariable(rawVariable);
+        if (exact != null) return exactSkriptValue(player, exact);
         String variable = variableName(rawVariable);
         if (variable.startsWith("skript.")) return skriptValue(player, variable.substring("skript.".length()));
         return player.getPersistentDataContainer().get(new NamespacedKey(this, variableStoragePath(variable)), PersistentDataType.STRING);
     }
 
     private void setVariableValue(Player player, String rawVariable, String value) {
+        String exact = exactSkriptVariable(rawVariable);
+        if (exact != null) {
+            setExactSkriptValue(player, exact, value);
+            return;
+        }
         String variable = variableName(rawVariable);
         if (variable.startsWith("skript.")) {
             setSkriptValue(player, variable.substring("skript.".length()), value);
@@ -3655,6 +3674,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private void deleteVariableValue(Player player, String rawVariable) {
+        String exact = exactSkriptVariable(rawVariable);
+        if (exact != null) {
+            deleteExactSkriptValue(player, exact);
+            return;
+        }
         String variable = variableName(rawVariable);
         if (variable.startsWith("skript.")) {
             deleteSkriptValue(player, variable.substring("skript.".length()));
@@ -3671,7 +3695,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private String skriptValue(Player player, String rawName) {
         if (!skriptBridgeReady || rawName.isBlank()) return null;
         Object value = Variables.getVariable(skriptKey(player, rawName), null, false);
-        return value == null ? null : String.valueOf(value);
+        return skriptText(value);
     }
 
     private void setSkriptValue(Player player, String rawName, String value) {
@@ -3682,6 +3706,64 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private void deleteSkriptValue(Player player, String rawName) {
         if (skriptBridgeReady && !rawName.isBlank())
             Variables.deleteVariable(skriptKey(player, rawName), null, false);
+    }
+
+    static String exactSkriptVariable(String rawVariable) {
+        if (rawVariable == null) return null;
+        String value = rawVariable.strip();
+        if (value.regionMatches(true, 0, "skript:", 0, "skript:".length()))
+            value = value.substring("skript:".length()).strip();
+        else if (!(value.startsWith("{") && value.endsWith("}"))) return null;
+        if (value.startsWith("{") && value.endsWith("}")) value = value.substring(1, value.length() - 1).strip();
+        return value.isBlank() ? null : value;
+    }
+
+    private String exactSkriptValue(Player player, String rawName) {
+        if (!skriptBridgeReady) return null;
+        String name = resolveSkriptText(player, rawName, StringMode.VARIABLE_NAME);
+        if (name.isBlank() || name.startsWith("_")) return null;
+        return skriptText(Variables.getVariable(name, null, false));
+    }
+
+    private void setExactSkriptValue(Player player, String rawName, String value) {
+        if (!skriptBridgeReady) return;
+        String name = resolveSkriptText(player, rawName, StringMode.VARIABLE_NAME);
+        if (!name.isBlank() && !name.startsWith("_") && !name.endsWith("::*"))
+            Variables.setVariable(name, ExpressionRules.typedValue(value), null, false);
+    }
+
+    private void deleteExactSkriptValue(Player player, String rawName) {
+        if (!skriptBridgeReady) return;
+        String name = resolveSkriptText(player, rawName, StringMode.VARIABLE_NAME);
+        if (!name.isBlank() && !name.startsWith("_")) Variables.deleteVariable(name, null, false);
+    }
+
+    private String expandSkriptExpressions(Player player, String text) {
+        int opening = text.indexOf('%');
+        if (!skriptBridgeReady || opening < 0 || text.indexOf('%', opening + 1) < 0) return text;
+        return resolveSkriptText(player, text, StringMode.MESSAGE);
+    }
+
+    private String resolveSkriptText(Player player, String text, StringMode mode) {
+        ParserInstance parser = ParserInstance.get();
+        ParserInstance.Backup backup = parser.backup();
+        try {
+            parser.setCurrentEvent("RPGMaker dialogue", RpgMakerSkriptEvent.class);
+            VariableString parsed = VariableString.newInstance(text, mode);
+            return parsed == null ? text : parsed.toString(new RpgMakerSkriptEvent(player));
+        } catch (RuntimeException error) {
+            getLogger().warning("Skript 표현식을 해석하지 못했습니다: " + text + " (" + error.getMessage() + ")");
+            return text;
+        } finally {
+            parser.restoreBackup(backup);
+        }
+    }
+
+    private String skriptText(Object value) {
+        if (value == null) return null;
+        if (value instanceof Map<?, ?> values)
+            return values.values().stream().map(Classes::toString).collect(java.util.stream.Collectors.joining(", "));
+        return Classes.toString(value);
     }
 
     private void syncRpgVariables(Player player) {
@@ -3697,11 +3779,12 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private String expandVariables(Player player, String text) {
         if (text == null || text.isEmpty()) return text == null ? "" : text;
+        text = expandSkriptExpressions(player, text);
         java.util.regex.Matcher matcher = VARIABLE_PLACEHOLDER.matcher(text);
         StringBuffer result = new StringBuffer();
         while (matcher.find()) {
-            String variable = variableName(matcher.group(1));
-            String value = builtInVariable(player, variable);
+            String variable = matcher.group(1).strip();
+            String value = builtInVariable(player, variableName(variable));
             if (value == null) value = variableValue(player, variable);
             matcher.appendReplacement(result, java.util.regex.Matcher.quoteReplacement(value == null ? "" : value));
         }
@@ -3751,7 +3834,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     private void requestChatInput(Dialogue dialogue, String rawVariable) {
-        String variable = variableName(rawVariable == null ? "" : rawVariable);
+        String variable = rawVariable == null ? "" : rawVariable.strip();
         if (variable.isBlank()) return;
         awaitingChatInputs.put(dialogue.player.getUniqueId(), variable);
         dialogue.waitingForChat = true;
@@ -3942,21 +4025,22 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private boolean matchesCondition(Player player, Condition condition) {
         if (condition == null || condition.type.equals("NONE")) return true;
-        String variable = variableName(condition.variable);
+        String variable = condition.variable.strip();
         String storedValue = variable.isBlank() ? null : variableValue(player, variable);
-        boolean variableMatch = !variable.isBlank() && ExpressionRules.compare(storedValue, condition.operator, condition.value);
+        boolean variableMatch = !variable.isBlank() && ExpressionRules.compare(
+                storedValue, condition.operator, expandVariables(player, condition.value));
         java.util.ArrayList<Boolean> variableMatches = new java.util.ArrayList<>();
         if (!variable.isBlank()) variableMatches.add(variableMatch);
         for (String entry : condition.extraVariables.split(",")) {
             java.util.regex.Matcher check = VARIABLE_CHECK.matcher(entry.strip());
             if (!check.matches()) continue;
-            String extra = variableName(check.group(1));
+            String extra = check.group(1).strip();
             String actual = extra.isBlank() ? null : variableValue(player, extra);
             String operator = switch (check.group(2)) {
                 case "!=" -> "NE"; case ">" -> "GT"; case ">=" -> "GTE";
                 case "<" -> "LT"; case "<=" -> "LTE"; default -> "EQ";
             };
-            variableMatches.add(ExpressionRules.compare(actual, operator, check.group(3)));
+            variableMatches.add(ExpressionRules.compare(actual, operator, expandVariables(player, check.group(3))));
         }
         if (!variableMatches.isEmpty()) variableMatch = ExpressionRules.combine(variableMatches, condition.variableLogic);
         ItemSpec required = parseItemSpec(condition.itemSpec);
@@ -3997,6 +4081,15 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         });
         viewer.showEntity(this, display);
         return display;
+    }
+
+    private static final class RpgMakerSkriptEvent extends PlayerEvent {
+        private static final HandlerList HANDLERS = new HandlerList();
+
+        private RpgMakerSkriptEvent(Player player) { super(player); }
+
+        @Override public @NotNull HandlerList getHandlers() { return HANDLERS; }
+        public static HandlerList getHandlerList() { return HANDLERS; }
     }
 
     private void position(Dialogue d) {

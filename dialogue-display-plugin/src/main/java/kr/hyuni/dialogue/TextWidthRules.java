@@ -3,7 +3,7 @@ package kr.hyuni.dialogue;
 final class TextWidthRules {
     private static final int FIRST_SPACE_GLYPH = 0xE100;
     private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER =
-            java.util.regex.Pattern.compile("\\{\\{[\\p{L}\\p{N}._-]+}}");
+            java.util.regex.Pattern.compile("\\{\\{.+?}}");
 
     private TextWidthRules() {}
 
@@ -176,7 +176,10 @@ final class TextWidthRules {
 
     private static int variableEnd(String text, int offset) {
         java.util.regex.Matcher matcher = VARIABLE_PLACEHOLDER.matcher(text).region(offset, text.length());
-        return matcher.lookingAt() ? matcher.end() : -1;
+        if (matcher.lookingAt()) return matcher.end();
+        if (text.charAt(offset) != '%') return -1;
+        int end = text.startsWith("%{", offset) ? text.indexOf("}%", offset + 2) : text.indexOf('%', offset + 1);
+        return end < 0 ? -1 : end + (text.startsWith("%{", offset) ? 2 : 1);
     }
 
     static int paddingWidth(String padding) {
@@ -190,6 +193,9 @@ final class TextWidthRules {
         assert visibleWidth("#FF0000:bold,italic,strikethrough:가") == visibleWidth("가");
         assert visibleCharacters("123{{long_variable}}{#00FF00}456") == 6;
         assert visibleCharacters("123{{한글_변수}}456") == 6;
+        assert visibleCharacters("123{{skript:quest::%uuid of player%}}456") == 6;
+        assert visibleCharacters("123%player's location%456") == 6;
+        assert visibleCharacters("123%{quest::%uuid of player%}%456") == 6;
         assert visibleCharacters("#FF0000:bold:화자") == 2;
         assert limitVisible("123{{name}}4567", 6).equals("123{{name}}456");
         assert limitVisible("#FF0000:bold:화자이름", 2).equals("#FF0000:bold:화자");
