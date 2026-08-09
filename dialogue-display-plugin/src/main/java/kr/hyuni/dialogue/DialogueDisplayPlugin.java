@@ -2749,7 +2749,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 resolvedSpeaker, message, choices, lockedYaw, lockedPitch, dialogueDistance,
                 originalHeldSlot, originalNinthItem, originalMainHandItem);
         dialogue.pages = splitPages(message);
-        dialogue.sourceMessage = dialogue.pages.get(0);
         dialogue.message = expandDialogueText(player, dialogue.pages.get(0));
         dialogue.pageChoices = new java.util.ArrayList<>();
         for (int i = 0; i < dialogue.pages.size(); i++) dialogue.pageChoices.add(List.of());
@@ -3060,14 +3059,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private void render(Dialogue dialogue) {
         String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
         String[] visibleLines = visible.split("\\n", -1);
-        String[] sourceLines = dialogue.sourceMessage.split("\\n", -1);
         for (int row = 0; row < dialogue.bodyLines.length; row++) {
             String line = row < visibleLines.length ? visibleLines[row] : "";
-            String source = row < sourceLines.length ? sourceLines[row] : "";
-            Component hiddenPadding = Component.text(TextWidthRules.hiddenPadding(source)).font(Key.key("dialog", "spacing"));
             Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
                     .font(Key.key("dialog", "spacing"));
-            dialogue.bodyLines[row].text(Component.empty().append(hiddenPadding).append(coloredLine(line)).append(padding));
+            dialogue.bodyLines[row].text(coloredLine(line).append(padding));
         }
     }
 
@@ -3936,9 +3932,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             }
             Condition condition = dialogue.pageIndex < dialogue.pageConditions.size()
                     ? dialogue.pageConditions.get(dialogue.pageIndex) : Condition.NONE;
-            dialogue.sourceMessage = matchesCondition(dialogue.player, condition) && !condition.replacement.isBlank()
-                    ? condition.replacement : dialogue.pages.get(dialogue.pageIndex);
-            dialogue.message = expandDialogueText(dialogue.player, dialogue.sourceMessage);
+            dialogue.message = expandDialogueText(dialogue.player, ExpressionRules.conditionalText(
+                    matchesCondition(dialogue.player, condition), dialogue.pages.get(dialogue.pageIndex), condition.replacement));
             return true;
         }
         Bukkit.getScheduler().runTask(this, () -> close(dialogue.player));
@@ -4155,7 +4150,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         final float lockedYaw, lockedPitch;
         final double dialogueDistance;
         String message;
-        String sourceMessage;
         String speakerOverride = "";
         List<String> pages;
         List<List<Choice>> pageChoices = List.of();

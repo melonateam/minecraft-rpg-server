@@ -44,6 +44,10 @@ final class ExpressionRules {
         };
     }
 
+    static String conditionalText(boolean matches, String original, String replacement) {
+        return !matches && replacement != null && !replacement.isBlank() ? replacement : original;
+    }
+
     static String calculate(String current, String operator, String operand) {
         String value = resolveOperand(operand);
         if (operator == null || operator.equals("="))
@@ -118,6 +122,9 @@ final class ExpressionRules {
         assert compare(null, "IS_UNSET", "");
         assert compare("10", "GT", "2");
         assert combine(List.of(true, false), "XOR");
+        assert conditionalText(true, "original", "replacement").equals("original");
+        assert conditionalText(false, "original", "replacement").equals("replacement");
+        assert conditionalText(false, "original", "").equals("original");
         assert calculate("5", "+=", "3").equals("8");
         assert calculate("true", "=", "FALSE").equals("false");
         assert isRandomRange("random(3..7)");
