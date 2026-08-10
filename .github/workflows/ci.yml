@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "25"
+          java-version: "21"
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.1.0"
@@ -57,3 +57,12 @@ jobs:
         working-directory: rpgmaker-web-editor
       - run: npm run build
         working-directory: rpgmaker-web-editor
+
+  windows-bootstrap:
+    name: Windows launcher build bootstrap
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Bootstrap tools and deploy RPGMaker.jar
+        shell: powershell
+        run: .\start-with-web-and-sync.ps1 -BuildOnly
