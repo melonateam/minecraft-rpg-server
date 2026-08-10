@@ -1,5 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { loadCharacterManifest } from '../../services/characterRegistry';
+import { importMinecraftDialogue } from '../../services/minecraftCompatibility';
+import {
+  connectPlayerSession,
+  PlayerSessionApiClient,
+  type PlayerSessionConnection,
+  type PublicDialogueSummary,
+} from '../../services/playerSessionApi';
 import { createDialogue } from '../../services/projectFactory';
 import { useEditorStore } from '../../store/editorStore';
 import { useProjectStore } from '../../store/projectStore';
@@ -14,9 +22,15 @@ function formatRelative(iso: string) {
   return `${Math.floor(hours / 24)}일 전 수정`;
 }
 
+const serverNameKey = (value: string) => value.trim().toLocaleLowerCase();
+
 export function Dashboard() {
   const navigate = useNavigate();
   const [modal, setModal] = useState<'settings' | 'help'>();
+  const [connection, setConnection] = useState<PlayerSessionConnection>();
+  const [publicDialogues, setPublicDialogues] = useState<PublicDialogueSummary[]>([]);
+  const [publicLoading, setPublicLoading] = useState(false);
+  const [publicMessage, setPublicMessage] = useState('');
   const projects = useProjectStore((state) => state.projects);
   const mutateProject = useProjectStore((state) => state.mutateProject);
   const selectDialogue = useEditorStore((state) => state.selectDialogue);
@@ -25,9 +39,84 @@ export function Dashboard() {
     project.dialogues.map((dialogue) => ({ project, dialogue })),
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    void connectPlayerSession()
+      .then(async (next) => {
+        if (cancelled || !next) return;
+        setConnection(next);
+        if (!next.admin) return;
+        setPublicLoading(true);
+        try {
+          const list = await new PlayerSessionApiClient(next.sessionId).listPublicDialogues();
+          if (!cancelled) setPublicDialogues(list);
+        } catch (error) {
+          if (!cancelled) setPublicMessage(error instanceof Error ? error.message : '공용 대화문을 불러오지 못했습니다.');
+        } finally {
+          if (!cancelled) setPublicLoading(false);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const openDialogue = (projectId: string, dialogueId: string, firstPageId?: string) => {
     selectDialogue(dialogueId, firstPageId);
     navigate(`/project/${projectId}`);
+  };
+
+  const openPublicDialogue = async (summary: PublicDialogueSummary) => {
+    if (!workspace || !connection?.admin) return;
+    setPublicLoading(true);
+    setPublicMessage(`${summary.title || summary.name} 불러오는 중...`);
+    try {
+      const api = new PlayerSessionApiClient(connection.sessionId);
+      const [document, manifest] = await Promise.all([
+        api.getPublicDialogue(summary.name),
+        loadCharacterManifest(),
+      ]);
+      const ownerUuid = document.ownerUuid || summary.ownerUuid || connection.ownerUuid;
+      const imported = importMinecraftDialogue(
+        document.name,
+        document.dialogue,
+        document.revision,
+        ownerUuid,
+        manifest,
+      );
+      imported.server = {
+        ...imported.server,
+        ownerUuid,
+        remoteName: document.name,
+        revision: document.revision,
+        scope: 'public',
+        publisher: document.publisher || summary.publisher,
+      };
+
+      const existing = workspace.dialogues.find(
+        (dialogue) =>
+          dialogue.server?.scope === 'public' &&
+          serverNameKey(dialogue.server.remoteName || dialogue.name) === serverNameKey(document.name),
+      );
+      if (existing) imported.id = existing.id;
+
+      mutateProject(workspace.id, (draft) => {
+        const index = draft.dialogues.findIndex(
+          (dialogue) =>
+            dialogue.server?.scope === 'public' &&
+            serverNameKey(dialogue.server.remoteName || dialogue.name) === serverNameKey(document.name),
+        );
+        if (index >= 0) draft.dialogues[index] = imported;
+        else draft.dialogues.push(imported);
+      });
+      setPublicMessage('');
+      openDialogue(workspace.id, imported.id, imported.pages[0]?.id);
+    } catch (error) {
+      setPublicMessage(error instanceof Error ? error.message : '공용 대화문을 열지 못했습니다.');
+    } finally {
+      setPublicLoading(false);
+    }
   };
 
   const handleCreate = () => {
@@ -165,6 +254,47 @@ export function Dashboard() {
           </div>
         )}
       </section>
+
+      {connection?.admin && (
+        <section className="mx-auto mt-12 max-w-6xl border-t border-[#26394a] pt-10">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-sm text-amber-200/70">OP 계정에서만 조회하고 수정할 수 있습니다.</p>
+              <h2 className="mt-2 text-2xl font-semibold">공용 대화문</h2>
+            </div>
+            <span className="rounded-full border border-amber-300/20 bg-amber-300/5 px-3 py-1 text-xs text-amber-200">
+              {publicDialogues.length}개
+            </span>
+          </div>
+
+          {publicMessage && <div className="mt-4 rounded-xl border border-[#3c4653] bg-[#121b24] px-4 py-3 text-sm text-[#aeb8c5]">{publicMessage}</div>}
+
+          <div className="mt-6 grid grid-cols-3 gap-4">
+            {publicDialogues.map((dialogue) => (
+              <button
+                key={dialogue.name}
+                type="button"
+                disabled={publicLoading}
+                onClick={() => void openPublicDialogue(dialogue)}
+                className="rounded-2xl border border-amber-300/20 bg-[#151b20] p-5 text-left transition hover:-translate-y-0.5 hover:border-amber-300/45 hover:bg-[#1b232b] disabled:opacity-50"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="truncate font-semibold text-white">{dialogue.title || dialogue.name}</h3>
+                  <span className="shrink-0 text-[10px] font-semibold text-amber-200">편집</span>
+                </div>
+                <div className="mt-5 text-xs text-[#9aa5b2]">{dialogue.pages} 페이지 · {dialogue.publisher || 'RPGMaker'}</div>
+                <div className="mt-1 truncate text-[10px] text-[#687583]">{dialogue.name}</div>
+              </button>
+            ))}
+          </div>
+
+          {!publicLoading && publicDialogues.length === 0 && !publicMessage && (
+            <div className="mt-6 rounded-2xl border border-dashed border-amber-300/20 bg-amber-300/[0.03] px-6 py-10 text-center text-sm text-[#8995a3]">
+              서버에 등록된 공용 대화문이 없습니다.
+            </div>
+          )}
+        </section>
+      )}
 
       {modal && <DashboardModal kind={modal} onClose={() => setModal(undefined)} />}
     </main>
