@@ -108,4 +108,10 @@ class DialogueDisplayPluginTest {
         assertEquals(List.of(owner, "점수"), List.of(DialogueDisplayPlugin.storedSkriptVariableParts("rpgmaker::" + owner + "::점수")));
         assertNull(DialogueDisplayPlugin.storedSkriptVariableParts("invalid::점수"));
     }
+
+    @Test
+    void templateItemsUseTheViewingPlayerAsOwner() {
+        UUID owner = UUID.fromString("12d0a2f0-6e70-4f53-88f7-9571b4c6bced");
+        assertEquals("@" + owner + "/회복약:2", DialogueDisplayPlugin.resolveItemOwner("@OWNER/회복약:2", owner));
+    }
 }

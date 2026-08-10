@@ -4,7 +4,9 @@ import net.citizensnpcs.api.CitizensAPI;
 import net.citizensnpcs.api.event.NPCRightClickEvent;
 import net.citizensnpcs.api.npc.NPC;
 import net.citizensnpcs.api.npc.NPCRegistry;
+import org.bukkit.Location;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -73,6 +75,16 @@ final class CitizensDialogueNpc implements Listener {
         String dialogue = event.getNPC().data().get(KEY, "");
         if (dialogue.isBlank()) return;
         event.setCancelled(true);
-        plugin.showNpcDialogue(event.getClicker(), dialogue);
+        Player player = event.getClicker();
+        if (event.getNPC().getEntity() != null) {
+            Location view = player.getEyeLocation();
+            Location target = event.getNPC().getEntity() instanceof LivingEntity living
+                    ? living.getEyeLocation() : event.getNPC().getEntity().getLocation();
+            if (view.getWorld().equals(target.getWorld()) && view.distanceSquared(target) > 0.0001) {
+                view.setDirection(target.toVector().subtract(view.toVector()));
+                player.setRotation(view.getYaw(), view.getPitch());
+            }
+        }
+        plugin.showNpcDialogue(player, dialogue);
     }
 }
