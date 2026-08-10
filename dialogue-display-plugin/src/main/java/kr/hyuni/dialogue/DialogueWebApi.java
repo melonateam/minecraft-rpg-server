@@ -320,6 +320,70 @@ final class DialogueWebApi implements Listener {
                 return;
             }
 
+            if (segments.size() == 3 && segments.get(2).equals("public-dialogues") && method.equals("GET")) {
+                send(exchange, 200, Map.of("dialogues", sync(compatibility::listPublic)));
+                return;
+            }
+
+            if (segments.size() == 4 && segments.get(2).equals("public-dialogues") && method.equals("GET")) {
+                String name = decode(segments.get(3));
+                DialogueCompatibilityService.DialogueDocument document = sync(() -> compatibility.getPublic(name));
+                if (document == null) {
+                    send(exchange, 404, Map.of("error", "dialogue_not_found"));
+                } else {
+                    Map<String, Object> result = new LinkedHashMap<>(documentMap(document));
+                    UUID owner = sync(() -> compatibility.publicOwner(name));
+                    result.put("ownerUuid", owner == null ? "" : owner.toString());
+                    result.put("publisher", sync(() -> compatibility.publicPublisher(name)));
+                    send(exchange, 200, result);
+                }
+                return;
+            }
+
+            if (segments.size() == 5 && segments.get(2).equals("public-dialogues") && method.equals("PUT")) {
+                UUID owner;
+                try {
+                    owner = UUID.fromString(decode(segments.get(3)));
+                } catch (IllegalArgumentException error) {
+                    send(exchange, 400, Map.of("error", "invalid_owner_uuid"));
+                    return;
+                }
+                if (!canAccessOwner(playerSession, owner)) {
+                    send(exchange, 403, Map.of("error", "session_owner_mismatch"));
+                    return;
+                }
+                String name = decode(segments.get(4));
+                Map<String, Object> body = readBody(exchange);
+                String expected = text(body.get("expectedRevision"));
+                Map<String, Object> dialogue = object(body.get("dialogue"));
+                if (playerSession != null && !playerSession.admin() && containsServerCommand(dialogue)) {
+                    send(exchange, 403, Map.of("error", "op_command_requires_admin"));
+                    return;
+                }
+                Map<String, Object> runtimeDialogue = prepareRuntimeTransitions(dialogue);
+                String publisher = java.util.Optional.ofNullable(Bukkit.getOfflinePlayer(owner).getName()).orElse(owner.toString());
+                PublicSaveResult outcome = sync(() -> {
+                    UUID existingOwner = compatibility.publicOwner(name);
+                    if (existingOwner != null && !existingOwner.equals(owner)) return new PublicSaveResult(true, null);
+                    return new PublicSaveResult(false,
+                            compatibility.savePublic(owner, publisher, name, expected, runtimeDialogue));
+                });
+                if (outcome.forbidden()) {
+                    send(exchange, 403, Map.of("error", "public_dialogue_read_only"));
+                    return;
+                }
+                DialogueCompatibilityService.SaveResult result = outcome.result();
+                if (result.conflict()) {
+                    send(exchange, 409, Map.of("error", "revision_conflict",
+                            "serverRevision", result.revision() == null ? "" : result.revision()));
+                } else if (!result.errors().isEmpty()) {
+                    send(exchange, 422, Map.of("error", "validation_failed", "issues", result.errors()));
+                } else {
+                    send(exchange, 200, Map.of("saved", true, "revision", result.revision()));
+                }
+                return;
+            }
+
             if (segments.size() >= 4 && segments.get(2).equals("dialogues")) {
                 UUID owner;
                 try {
@@ -625,6 +689,8 @@ final class DialogueWebApi implements Listener {
         exchange.sendResponseHeaders(status, bytes.length);
         try (var response = exchange.getResponseBody()) { response.write(bytes); }
     }
+
+    private record PublicSaveResult(boolean forbidden, DialogueCompatibilityService.SaveResult result) {}
 
     private static final class RequestTooLarge extends Exception {}
 }

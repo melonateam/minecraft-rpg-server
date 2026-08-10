@@ -20,7 +20,8 @@ import java.util.logging.Logger;
 
 final class RpgDataStore {
     private static final Set<String> DATA_ROOTS = Set.of(
-            "player-dialogues", "custom-items", "dismissed-examples", "player-variables", "shared-dialogues");
+            "player-dialogues", "custom-items", "dismissed-examples", "player-variables",
+            "shared-dialogues", "public-dialogues");
     private static final long BACKUP_INTERVAL_MILLIS = 5 * 60 * 1000L;
     private static final int MAXIMUM_BACKUPS = 20;
 
@@ -54,7 +55,11 @@ final class RpgDataStore {
         }
         Path commonFile = folder.resolve("common.yml");
         if (Files.isRegularFile(commonFile))
-            copy(YamlConfiguration.loadConfiguration(commonFile.toFile()), "shared-dialogues", live, "shared-dialogues", true);
+        {
+            YamlConfiguration common = YamlConfiguration.loadConfiguration(commonFile.toFile());
+            copy(common, "shared-dialogues", live, "shared-dialogues", true);
+            copy(common, "public-dialogues", live, "public-dialogues", true);
+        }
     }
 
     synchronized void save(FileConfiguration live) throws IOException {
@@ -89,6 +94,7 @@ final class RpgDataStore {
 
         YamlConfiguration common = new YamlConfiguration();
         copy(live, "shared-dialogues", common, "shared-dialogues", false);
+        copy(live, "public-dialogues", common, "public-dialogues", false);
         writeAtomic(folder.resolve("common.yml"), common.saveToString());
     }
 

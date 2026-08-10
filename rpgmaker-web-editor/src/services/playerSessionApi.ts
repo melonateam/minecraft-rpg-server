@@ -23,6 +23,13 @@ export interface ServerDialogueDocument {
   name: string;
   revision: string;
   dialogue: Record<string, unknown>;
+  ownerUuid?: string;
+  publisher?: string;
+}
+
+export interface PublicDialogueSummary extends ServerDialogueSummary {
+  ownerUuid: string;
+  publisher: string;
 }
 
 export interface ServerItemSummary {
@@ -163,6 +170,27 @@ export class PlayerSessionApiClient {
       `/items/${encodeURIComponent(ownerUuid)}`,
     );
     return result.items;
+  }
+
+  async listPublicDialogues() {
+    const result = await this.request<{ dialogues: PublicDialogueSummary[] }>('/public-dialogues');
+    return result.dialogues;
+  }
+
+  getPublicDialogue(name: string) {
+    return this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`);
+  }
+
+  savePublicDialogue(
+    ownerUuid: string,
+    name: string,
+    expectedRevision: string | undefined,
+    dialogue: Record<string, unknown>,
+  ) {
+    return this.request<{ saved: boolean; revision: string }>(
+      `/public-dialogues/${encodeURIComponent(ownerUuid)}/${encodeURIComponent(name)}`,
+      { method: 'PUT', body: JSON.stringify({ expectedRevision: expectedRevision ?? '', dialogue }) },
+    );
   }
 
   getDialogue(ownerUuid: string, name: string) {

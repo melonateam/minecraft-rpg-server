@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import type { PlayerSessionConnection, ServerDialogueDocument, ServerDialogueSummary } from '../../services/playerSessionApi';
+import type { PlayerSessionConnection, PublicDialogueSummary, ServerDialogueDocument, ServerDialogueSummary } from '../../services/playerSessionApi';
 import { PlayerSessionApiClient } from '../../services/playerSessionApi';
 
 interface Props {
   connection?: PlayerSessionConnection;
   onClose: () => void;
-  onImport: (document: ServerDialogueDocument) => Promise<void> | void;
+  onImport: (document: ServerDialogueDocument, scope: 'personal' | 'public') => Promise<void> | void;
 }
 
 export function PlayerConnectionModal({ connection, onClose, onImport }: Props) {
   const [dialogues, setDialogues] = useState<ServerDialogueSummary[]>([]);
+  const [publicDialogues, setPublicDialogues] = useState<PublicDialogueSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -18,10 +19,12 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
     let cancelled = false;
     setLoading(true);
     const api = new PlayerSessionApiClient(connection.sessionId);
-    void api
-      .listDialogues(connection.ownerUuid)
-      .then((items) => {
-        if (!cancelled) setDialogues(items);
+    void Promise.all([api.listDialogues(connection.ownerUuid), api.listPublicDialogues()])
+      .then(([personal, published]) => {
+        if (!cancelled) {
+          setDialogues(personal);
+          setPublicDialogues(published);
+        }
       })
       .catch((error) => {
         if (!cancelled) setMessage(error instanceof Error ? error.message : '대화 목록을 읽지 못했습니다.');
@@ -34,14 +37,16 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
     };
   }, [connection]);
 
-  const importDialogue = async (summary: ServerDialogueSummary) => {
+  const importDialogue = async (summary: ServerDialogueSummary, scope: 'personal' | 'public') => {
     if (!connection) return;
     setLoading(true);
     setMessage(`${summary.name} 불러오는 중...`);
     try {
       const api = new PlayerSessionApiClient(connection.sessionId);
-      const document = await api.getDialogue(connection.ownerUuid, summary.name);
-      await onImport(document);
+      const document = scope === 'public'
+        ? await api.getPublicDialogue(summary.name)
+        : await api.getDialogue(connection.ownerUuid, summary.name);
+      await onImport(document, scope);
       onClose();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '대화를 불러오지 못했습니다.');
@@ -82,7 +87,7 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
                       key={dialogue.name}
                       type="button"
                       disabled={loading}
-                      onClick={() => void importDialogue(dialogue)}
+                      onClick={() => void importDialogue(dialogue, 'personal')}
                       className="flex w-full items-center gap-3 rounded-xl border border-[#2d3540] bg-[#11161c] px-4 py-3 text-left hover:border-[#4d5a6c] disabled:opacity-50"
                     >
                       <div className="min-w-0 flex-1">
@@ -92,6 +97,35 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
                       <span className="text-xs text-[#8b99ff]">불러오기</span>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-xs font-semibold text-[#9aa4b2]">공용 대화문 보기</div>
+                <div className="max-h-72 space-y-2 overflow-y-auto">
+                  {publicDialogues.map((dialogue) => {
+                    const mine = dialogue.ownerUuid === connection.ownerUuid;
+                    return (
+                      <button
+                        key={dialogue.name}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => void importDialogue(dialogue, 'public')}
+                        className="flex w-full items-center gap-3 rounded-xl border border-[#2d3540] bg-[#11161c] px-4 py-3 text-left hover:border-[#4d5a6c] disabled:opacity-50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold">{dialogue.title || dialogue.name}</div>
+                          <div className="mt-1 text-[10px] text-[#737e8d]">
+                            {dialogue.pages} 페이지 · {dialogue.publisher || 'RPGMaker'} · {mine ? '작성자 수정 가능' : '읽기 전용'}
+                          </div>
+                        </div>
+                        <span className="text-xs text-[#8b99ff]">보기</span>
+                      </button>
+                    );
+                  })}
+                  {!loading && publicDialogues.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-[#333b47] py-6 text-center text-xs text-[#74808f]">공용 대화문이 없습니다.</div>
+                  )}
                 </div>
               </div>
             </>
