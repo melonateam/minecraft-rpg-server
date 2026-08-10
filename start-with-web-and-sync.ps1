@@ -8,9 +8,52 @@ $PluginProjectPath = Join-Path $RepoPath 'dialogue-display-plugin'
 $PluginJar         = Join-Path $ServerPath 'plugins\RPGMaker.jar'
 $StartBat          = Join-Path $ServerPath 'start.bat'
 $SyncScript        = Join-Path $RepoPath 'sync.ps1'
+$BundledJavaHome   = Join-Path $ServerPath 'runtime\jdk-25.0.4+7-jre'
+
+$GradleVersion = '9.1.0'
+$GradleSha256  = 'a17ddd85a26b6a7f5ddb71ff8b05fc5104c0202c6e64782429790c933686c806'
+$ToolsPath     = Join-Path $RepoPath '.tools'
+$GradleHome    = Join-Path $ToolsPath "gradle-$GradleVersion"
+$GradleBat     = Join-Path $GradleHome 'bin\gradle.bat'
+$GradleZip     = Join-Path $ToolsPath "gradle-$GradleVersion-bin.zip"
+$GradleUrl     = "https://services.gradle.org/distributions/gradle-$GradleVersion-bin.zip"
 
 $webProcess = $null
 $serverExitCode = $null
+
+function Ensure-Gradle {
+    if (Test-Path -LiteralPath $GradleBat) {
+        return
+    }
+
+    New-Item -ItemType Directory -Force -Path $ToolsPath | Out-Null
+
+    if (-not (Test-Path -LiteralPath $GradleZip)) {
+        Write-Host "Gradle $GradleVersion is not cached. Downloading it once..."
+        $previousProgressPreference = $ProgressPreference
+        try {
+            $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -UseBasicParsing -Uri $GradleUrl -OutFile $GradleZip
+        }
+        finally {
+            $ProgressPreference = $previousProgressPreference
+        }
+    }
+
+    $actualHash = (Get-FileHash -LiteralPath $GradleZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $GradleSha256) {
+        Remove-Item -LiteralPath $GradleZip -Force -ErrorAction SilentlyContinue
+        throw "Gradle download checksum mismatch. Expected $GradleSha256 but got $actualHash."
+    }
+
+    Remove-Item -LiteralPath $GradleHome -Recurse -Force -ErrorAction SilentlyContinue
+    Expand-Archive -LiteralPath $GradleZip -DestinationPath $ToolsPath -Force
+    Remove-Item -LiteralPath $GradleZip -Force -ErrorAction SilentlyContinue
+
+    if (-not (Test-Path -LiteralPath $GradleBat)) {
+        throw "Gradle $GradleVersion was downloaded but gradle.bat was not found: $GradleBat"
+    }
+}
 
 try {
     if (-not (Test-Path -LiteralPath $WebPath)) {
@@ -25,20 +68,40 @@ try {
         throw "Minecraft start.bat not found: $StartBat"
     }
 
+    if (-not (Test-Path -LiteralPath (Join-Path $BundledJavaHome 'bin\java.exe'))) {
+        throw "Bundled Java runtime not found: $BundledJavaHome"
+    }
+
     Write-Host ''
     Write-Host '========================================'
     Write-Host ' Building RPGMaker Plugin'
     Write-Host '========================================'
 
-    $gradleCommand = Get-Command 'gradle' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $gradleCommand) {
-        throw 'Gradle was not found on PATH. RPGMaker.jar cannot be refreshed from the current source.'
+    Ensure-Gradle
+
+    $previousJavaHome = $env:JAVA_HOME
+    $previousPath = $env:Path
+    try {
+        # Gradle 9.1 can run on the server's bundled Java 25 runtime.
+        # The build requests Java 21 and the Foojay toolchain resolver provisions it automatically when needed.
+        $env:JAVA_HOME = $BundledJavaHome
+        $env:Path = (Join-Path $BundledJavaHome 'bin') + ';' + $previousPath
+
+        & $GradleBat -p $PluginProjectPath deployToServer --no-daemon --console=plain
+        if ($LASTEXITCODE -ne 0) {
+            throw "RPGMaker plugin deployment failed with exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        if ($null -eq $previousJavaHome) {
+            Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:JAVA_HOME = $previousJavaHome
+        }
+        $env:Path = $previousPath
     }
 
-    & $gradleCommand.Source -p $PluginProjectPath deployToServer --no-daemon --console=plain
-    if ($LASTEXITCODE -ne 0) {
-        throw "RPGMaker plugin deployment failed with exit code $LASTEXITCODE"
-    }
     if (-not (Test-Path -LiteralPath $PluginJar)) {
         throw "RPGMaker plugin JAR was not created: $PluginJar"
     }
