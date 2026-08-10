@@ -173,7 +173,7 @@ export function DialogueStudioV2() {
   const dialogue = project?.dialogues.find((candidate) => candidate.id === activeDialogueId) ?? project?.dialogues[0];
   const page = dialogue?.pages.find((candidate) => candidate.id === activePageId) ?? dialogue?.pages[0];
   const isPublic = dialogue?.server?.scope === 'public';
-  const readOnly = Boolean(isPublic && dialogue?.server?.ownerUuid !== connection?.ownerUuid);
+  const readOnly = Boolean(isPublic && dialogue?.server?.ownerUuid !== connection?.ownerUuid && !connection?.admin);
 
   const issues = useMemo(
     () => (project && manifest ? validateProject(project, manifest) : []),
@@ -626,7 +626,7 @@ export function DialogueStudioV2() {
 
       const savedMetadata = new Map<
         string,
-        { remoteName: string; revision: string; raw: Record<string, unknown>; scope: 'personal' | 'public'; publisher?: string }
+        { ownerUuid: string; remoteName: string; revision: string; raw: Record<string, unknown>; scope: 'personal' | 'public'; publisher?: string }
       >();
       for (const local of project.dialogues.filter((candidate) => candidate.server?.scope !== 'public')) {
         const remoteName = local.server?.remoteName || local.name;
@@ -645,6 +645,7 @@ export function DialogueStudioV2() {
         );
         await api.reloadDialogue(connection.ownerUuid, remoteName);
         savedMetadata.set(local.id, {
+          ownerUuid: connection.ownerUuid,
           remoteName,
           revision: saved.revision,
           raw: structuredClone(payload),
@@ -653,23 +654,26 @@ export function DialogueStudioV2() {
       }
 
       for (const local of project.dialogues.filter(
-        (candidate) => candidate.server?.scope === 'public' && candidate.server.ownerUuid === connection.ownerUuid,
+        (candidate) => candidate.server?.scope === 'public' &&
+          (candidate.server.ownerUuid === connection.ownerUuid || connection.admin),
       )) {
+        const ownerUuid = local.server?.ownerUuid || connection.ownerUuid;
         const remoteName = local.server?.remoteName || local.name;
         const payload = exportMinecraftDialogue(local, manifest);
         await api.validate(payload);
         const saved = await api.savePublicDialogue(
-          connection.ownerUuid,
+          ownerUuid,
           remoteName,
           local.server?.revision,
           payload,
         );
         savedMetadata.set(local.id, {
+          ownerUuid,
           remoteName,
           revision: saved.revision,
           raw: structuredClone(payload),
           scope: 'public',
-          publisher: connection.playerName,
+          publisher: local.server?.publisher || connection.playerName,
         });
       }
 
@@ -678,7 +682,7 @@ export function DialogueStudioV2() {
           const saved = savedMetadata.get(target.id);
           if (!saved) continue;
           target.server = {
-            ownerUuid: connection.ownerUuid,
+            ownerUuid: saved.ownerUuid,
             remoteName: saved.remoteName,
             revision: saved.revision,
             scope: saved.scope,
@@ -722,10 +726,12 @@ export function DialogueStudioV2() {
     try {
       const api = new PlayerSessionApiClient(connection.sessionId);
       const remoteName = dialogue.server?.remoteName || dialogue.name;
+      const ownerUuid = isPublic ? dialogue.server?.ownerUuid || connection.ownerUuid : connection.ownerUuid;
+      const publisher = isPublic ? dialogue.server?.publisher || connection.playerName : connection.playerName;
       const payload = exportMinecraftDialogue(dialogue, manifest);
       await api.validate(payload);
       const saved = await api.savePublicDialogue(
-        connection.ownerUuid,
+        ownerUuid,
         remoteName,
         isPublic ? dialogue.server?.revision : undefined,
         payload,
@@ -734,11 +740,11 @@ export function DialogueStudioV2() {
         const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
         if (!target) return;
         target.server = {
-          ownerUuid: connection.ownerUuid,
+          ownerUuid,
           remoteName,
           revision: saved.revision,
           scope: 'public',
-          publisher: connection.playerName,
+          publisher,
           raw: structuredClone(payload),
           lastSyncedAt: new Date().toISOString(),
         };
@@ -781,7 +787,6 @@ export function DialogueStudioV2() {
           onPublishServer={() => void publishCurrent()}
           onVariables={() => setVariableHelp(true)}
           isAdmin={connection?.admin}
-          onAdmin={() => navigate('/admin')}
           onPublicHelp={() => setPublicHelp(true)}
         />
       )}
@@ -874,7 +879,7 @@ export function DialogueStudioV2() {
               <div>
                 <h2 className="font-semibold text-white">공용 대화문 사용법 · OP 전용</h2>
                 <p className="mt-2 text-sm leading-6 text-[#aab3c0]">
-                  웹에서는 대화를 연 뒤 <b>공용으로 저장</b>을 누릅니다. 올린 사람만 공용본을 수정할 수 있고 다른 유저는 읽기 전용입니다.
+                  웹에서는 대화를 연 뒤 <b>공용으로 저장</b>을 누릅니다. 원래 소유권은 유지되며 OP는 모든 공용본을 조회하고 수정할 수 있습니다.
                 </p>
                 <div className="mt-4 space-y-2 rounded-xl bg-black/20 p-4 font-mono text-xs text-[#c4cbff]">
                   <div>/rpgmaker publish &lt;개인 대화명&gt;</div>
