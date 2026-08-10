@@ -3038,6 +3038,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 dialogue.remove();
                 return true;
             }
+            if (dialogue.player.getInventory().getHeldItemSlot() != 8)
+                dialogue.player.getInventory().setHeldItemSlot(8);
             position(dialogue);
             if (dialogue.editing) return false;
             if (dialogue.waitingForChat) {
