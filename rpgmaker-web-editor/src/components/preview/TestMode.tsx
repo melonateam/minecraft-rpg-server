@@ -106,7 +106,9 @@ export function TestMode({ dialogue, manifest, onExit }: Props) {
         <header className="flex h-14 items-center border-b border-[#232a33] bg-[#11151a] px-5">
           <div>
             <div className="text-sm font-semibold">테스트 모드</div>
-            <div className="text-[11px] text-[#6d7785]">서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다.</div>
+            <div className="text-[11px] text-[#6d7785]">
+              서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다. 실제 서버에서는 F로 타이핑 전체 표시와 다음 진행을 모두 조작하며, 수동 전체 표시 후 1초 동안 다음 진행이 잠깁니다.
+            </div>
           </div>
           <button
             type="button"
@@ -199,7 +201,7 @@ export function TestMode({ dialogue, manifest, onExit }: Props) {
                         onClick={() => setState((current) => advancePreview(dialogue, current))}
                         className="mt-5 w-full rounded-md border-t border-white/10 pt-4 text-right font-mono text-xs text-[#a5adba] hover:text-white"
                       >
-                        Shift · 다음 ›
+                        F · 다음 ›
                       </button>
                     )}
                   </>
