@@ -19,6 +19,10 @@ choice-scale: 0.6
 choice-x-offset: -0.06
 text-vertical-offset: 0.05
 choice-vertical-offset: -0.2
+choice-frame-x-offset: -0.06
+choice-frame-vertical-offset: -0.2
+choice-frame-scale-x: 0.12
+choice-frame-scale-y: 0.12
 plain-vertical-offset: -0.92
 plain-frame-x-offset: 0.0
 plain-frame-scale: 0.24
@@ -30,6 +34,10 @@ plain-text-vertical-offset: 0.05
 plain-choice-scale: 0.6
 plain-choice-x-offset: -0.06
 plain-choice-vertical-offset: -0.2
+plain-choice-frame-x-offset: -0.06
+plain-choice-frame-vertical-offset: -0.2
+plain-choice-frame-scale-x: 0.12
+plain-choice-frame-scale-y: 0.12
 pack-server-port: 25566
 pack-file: RPGMaker-Pack.zip
 web-api:
@@ -43,7 +51,7 @@ web-api:
     - http://localhost:5173
     - http://127.0.0.1:5173
   max-request-bytes: 1048576
-examples-version: 3
+examples-version: 5
 example-item-templates:
   moon_letter:
     example-version: 3
@@ -549,17 +557,17 @@ example-templates:
         end-3: true
     built-in-example: true
   romance-final:
-    example-version: 3
+    example-version: 4
     built-in-example: true
     title: 달빛 아래 피어난 약속 · 최종판
-    speaker: 세레나
+    speaker: '#FF77CC:bold,italic:세레나'
     portrait: FEMALE_NOBLE
     expression: NEUTRAL
     camera-direction: NORTH
     message-pages:
     - |-
       #FFD966:달빛이 정원을 비추고 있어요.
-      오래 기다렸죠, 용사님.
+      {{player_name}}님, 오래 기다렸죠.
       오늘은 제 진심을 전할게요.
     - |-
       이 #FF77CC:편지에는 제 마음과
@@ -754,11 +762,52 @@ example-templates:
             return-mode: TARGET
             return-target: CHOICE:p2#c0
         end-3: false
+  skript-final:
+    example-version: 5
+    built-in-example: true
+    title: Skript 변수 연동 테스트
+    speaker: '#55FFFF:bold:Skript 연동'
+    camera-direction: NORTH
+    message-pages:
+    - |-
+      플레이어: %player%
+      위치: %player's location%
+      전역값: %{rpgmaker_test_global}%
+      개인값: %{rpgmaker_test::%uuid of player%}%
+    - |-
+      목록값: {{skript:rpgmaker_test_list::*}}
+      RPGMaker 미러: {{skript.quest_state}}
+      조건과 선택지도 연동됩니다.
+    page-conditions:
+      '1':
+        type: VARIABLE
+        variable: skript:rpgmaker_test_global
+        value: 전역_정상
+        replacement: |-
+          전역 변수가 준비되지 않았습니다.
+          먼저 /rpgskripttest 를 실행하세요.
+    page-choices:
+      '1':
+        choice-count: 2
+        choice-1: '%player%의 개인 변수 확인'
+        condition-1:
+          type: VARIABLE
+          variable: skript:rpgmaker_test::%uuid of player%
+          value: 개인_정상
+        response-pages-1:
+        - |-
+          전역·플레이어 개인 변수와
+          기본 Skript 표현식이 정상입니다.
+        end-1: true
+        choice-2: 테스트 종료
+        response-pages-2:
+        - 테스트를 종료합니다.
+        end-2: true
   shop-final:
-    example-version: 3
+    example-version: 4
     built-in-example: true
     title: 왕도 잡화점 · 최종판
-    speaker: 잡화점 주인
+    speaker: '#FFAA00:bold:잡화점 주인'
     portrait: MALE_INNKEEPER
     expression: HAPPY
     camera-direction: NORTH
@@ -769,8 +818,8 @@ example-templates:
       상품을 살 수 있습니다.
     - |-
       #FFAA00:오늘의 상품을 골라 보세요.
+      오늘의 행운은 {{shop_fortune}}점입니다.
       단골권과 에메랄드를 확인한 뒤
-      물건을 안전하게 교환합니다.
     - |-
       구매가 끝났습니다.
       더 둘러보시겠습니까?
@@ -785,6 +834,7 @@ example-templates:
     page-effects:
       '0':
         sounds: minecraft:entity.villager.yes:1.0:0.7:1
+        variables-set: shop_fortune=random(1..100)
         message: 왕도 잡화점 예제가 시작되었습니다.
         message-color: '#55FF55'
       '2':
