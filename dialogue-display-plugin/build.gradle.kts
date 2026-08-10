@@ -157,10 +157,21 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
 """,
             """    private void render(Dialogue dialogue) {
         String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
-        dialogue.bodyLines[0].text(formattedText(visible, NamedTextColor.WHITE));
+        String[] visibleLines = visible.split("\\n", -1);
+        String[] completeLines = dialogue.message.split("\\n", -1);
+        int lineCount = Math.max(1, Math.min(MAXIMUM_LINES, completeLines.length));
+        Component body = Component.empty();
+        for (int row = 0; row < lineCount; row++) {
+            if (row > 0) body = body.append(Component.newline());
+            String line = row < visibleLines.length ? visibleLines[row] : "";
+            Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
+                    .font(Key.key("dialog", "spacing"));
+            body = body.append(coloredLine(line)).append(padding);
+        }
+        dialogue.bodyLines[0].text(body);
     }
 """,
-            "multiline body renderer",
+            "fixed-width multiline body renderer",
         )
 
         text = text
@@ -182,7 +193,8 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         check(!text.contains("대화 중 Space:")) { "Legacy Space guidance remains in generated source." }
         check(!text.contains("후속 대사 후 쉬프트로 종료")) { "Legacy Shift choice guidance remains in generated source." }
         check(text.contains("TextDisplay[] bodyLines = new TextDisplay[1];")) { "Multiline body TextDisplay patch was not applied." }
-        check(!text.contains("TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS)")) { "Legacy per-line body padding remains in generated source." }
+        check(text.contains("String[] completeLines = dialogue.message.split(\"\\\\n\", -1);")) { "Fixed multiline body height patch was not applied." }
+        check(text.contains("TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS)")) { "Fixed-width multiline padding patch was not applied." }
 
         source.writeText(text, Charsets.UTF_8)
     }
