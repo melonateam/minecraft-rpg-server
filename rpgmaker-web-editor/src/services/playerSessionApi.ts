@@ -3,6 +3,13 @@ export interface PlayerSessionConnection {
   playerName: string;
   ownerUuid: string;
   expiresAt: number;
+  admin: boolean;
+}
+
+export interface AdminDialogueOwner {
+  ownerUuid: string;
+  playerName: string;
+  dialogues: number;
 }
 
 export interface ServerDialogueSummary {
@@ -33,6 +40,7 @@ export class RevisionConflictError extends Error {
 }
 
 const SESSION_KEY = 'rpgmaker.player-session.v1';
+let connectionPromise: Promise<PlayerSessionConnection | undefined> | undefined;
 
 function apiRoot() {
   const configured = import.meta.env.VITE_RPGMAKER_API_URL as string | undefined;
@@ -60,6 +68,31 @@ export function capturePlayerSession(): string | undefined {
 
 export function clearPlayerSession() {
   sessionStorage.removeItem(SESSION_KEY);
+}
+
+export function connectPlayerSession() {
+  connectionPromise ??= connectPlayerSessionOnce().finally(() => {
+    connectionPromise = undefined;
+  });
+  return connectionPromise;
+}
+
+async function connectPlayerSessionOnce(): Promise<PlayerSessionConnection | undefined> {
+  const stored = capturePlayerSession();
+  if (stored) {
+    try {
+      return await new PlayerSessionApiClient(stored).connect();
+    } catch {
+      clearPlayerSession();
+    }
+  }
+
+  const response = await fetch(`${apiRoot()}/session/auto`, { method: 'POST' });
+  if (response.status === 404) return undefined;
+  if (!response.ok) throw new Error(`자동 서버 연결 실패 (HTTP ${response.status})`);
+  const result = (await response.json()) as PlayerSessionConnection;
+  sessionStorage.setItem(SESSION_KEY, result.sessionId);
+  return result;
 }
 
 export class PlayerSessionApiClient {
@@ -102,13 +135,20 @@ export class PlayerSessionApiClient {
       playerName: string;
       ownerUuid: string;
       expiresAt: number;
+      admin: boolean;
     }>('/me');
     return {
       sessionId: this.sessionId,
       playerName: result.playerName,
       ownerUuid: result.ownerUuid,
       expiresAt: result.expiresAt,
+      admin: result.admin,
     };
+  }
+
+  async listDialogueOwners() {
+    const result = await this.request<{ owners: AdminDialogueOwner[] }>('/admin/owners');
+    return result.owners;
   }
 
   async listDialogues(ownerUuid: string) {

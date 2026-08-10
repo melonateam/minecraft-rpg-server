@@ -8,7 +8,7 @@ import {
   type CharacterManifest,
 } from '../../services/characterRegistry';
 import {
-  capturePlayerSession,
+  connectPlayerSession,
   PlayerSessionApiClient,
   RevisionConflictError,
   type PlayerSessionConnection,
@@ -39,6 +39,7 @@ import {
   type ServerUiStatus,
 } from './StudioToolbar';
 import { ValidationPanel } from './ValidationPanel';
+import { VariableHelpModal } from './VariableHelpModal';
 
 type RightPanel =
   | { kind: 'inspector'; section: InspectorSection }
@@ -118,6 +119,7 @@ export function DialogueStudioV2() {
   const [rightPanel, setRightPanel] = useState<RightPanel>();
   const [testMode, setTestMode] = useState(false);
   const [serverModal, setServerModal] = useState(false);
+  const [variableHelp, setVariableHelp] = useState(false);
   const [connection, setConnection] = useState<PlayerSessionConnection>();
   const [serverStatus, setServerStatus] = useState<ServerUiStatus>('disconnected');
   const [serverMessage, setServerMessage] = useState('게임에서 /rpgmaker web 링크로 연결하세요.');
@@ -129,18 +131,17 @@ export function DialogueStudioV2() {
   }, []);
 
   useEffect(() => {
-    const sessionId = capturePlayerSession();
-    if (!sessionId) {
-      setServerStatus('disconnected');
-      return;
-    }
     let cancelled = false;
     setServerStatus('connecting');
-    setServerMessage('서버 링크의 플레이어 정보를 확인하는 중입니다.');
-    void new PlayerSessionApiClient(sessionId)
-      .connect()
+    setServerMessage('접속 주소로 플레이어 정보를 확인하는 중입니다.');
+    void connectPlayerSession()
       .then((next) => {
         if (cancelled) return;
+        if (!next) {
+          setServerStatus('disconnected');
+          setServerMessage('같은 IP로 접속 중인 플레이어를 찾지 못했습니다.');
+          return;
+        }
         setConnection(next);
         setServerStatus('connected');
         setServerMessage(`${next.playerName} 계정으로 자동 연결됨`);
@@ -687,6 +688,9 @@ export function DialogueStudioV2() {
           onValidate={() => setRightPanel({ kind: 'validation' })}
           onServer={() => void pullFromServer()}
           onApplyServer={() => void applyToServer()}
+          onVariables={() => setVariableHelp(true)}
+          isAdmin={connection?.admin}
+          onAdmin={() => navigate('/admin')}
         />
       )}
 
@@ -767,6 +771,7 @@ export function DialogueStudioV2() {
           onImport={importRemote}
         />
       )}
+      {variableHelp && <VariableHelpModal onClose={() => setVariableHelp(false)} />}
     </main>
   );
 }

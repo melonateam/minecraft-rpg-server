@@ -5,6 +5,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.net.InetAddress;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -28,15 +29,31 @@ final class WebPlayerSessions {
     }
 
     String issue(Player player) {
+        IssuedSession issued = issueSession(player);
+        String separator = editorUrl.contains("?") ? "&" : "?";
+        return editorUrl + separator + "session=" + URLEncoder.encode(issued.id(), StandardCharsets.UTF_8);
+    }
+
+    IssuedSession issueByAddress(InetAddress address) {
+        Player match = null;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.getAddress() == null || !player.getAddress().getAddress().equals(address)) continue;
+            if (match != null) return null;
+            match = player;
+        }
+        return match == null ? null : issueSession(match);
+    }
+
+    private IssuedSession issueSession(Player player) {
         cleanupExpired();
         byte[] random = new byte[32];
         RANDOM.nextBytes(random);
         String id = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
         long expiresAt = System.currentTimeMillis() + ttlMillis;
         boolean admin = player.hasPermission("rpgmaker.admin");
-        sessions.put(id, new Session(player.getUniqueId(), player.getName(), expiresAt, admin));
-        String separator = editorUrl.contains("?") ? "&" : "?";
-        return editorUrl + separator + "session=" + URLEncoder.encode(id, StandardCharsets.UTF_8);
+        Session session = new Session(player.getUniqueId(), player.getName(), expiresAt, admin);
+        sessions.put(id, session);
+        return new IssuedSession(id, session);
     }
 
     Session resolve(String id) {
@@ -71,6 +88,8 @@ final class WebPlayerSessions {
     }
 
     record Session(UUID ownerUuid, String playerName, long expiresAt, boolean admin) {}
+
+    record IssuedSession(String id, Session session) {}
 
     record PlayerIdentity(UUID ownerUuid, String playerName, boolean online) {}
 }

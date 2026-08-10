@@ -22,6 +22,7 @@ import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -202,6 +203,7 @@ final class DialogueWebApi implements Listener {
     private void handle(HttpExchange exchange) {
         try {
             String origin = exchange.getRequestHeaders().getFirst("Origin");
+            String forwarded = exchange.getRequestHeaders().getFirst("X-Forwarded-For");
             if (origin != null && !origin.isBlank() && !allowedOrigins.contains(origin)) {
                 send(exchange, 403, Map.of("error", "origin_not_allowed"));
                 return;
@@ -212,12 +214,6 @@ final class DialogueWebApi implements Listener {
                 exchange.close();
                 return;
             }
-            WebPlayerSessions.Session requestSession = sessions.resolve(exchange.getRequestHeaders().getFirst("X-RPGMaker-Session"));
-            if (!authenticated(exchange) && requestSession == null) {
-                send(exchange, 401, Map.of("error", "unauthorized"));
-                return;
-            }
-
             String path = exchange.getRequestURI().getPath();
             if (!path.startsWith(API_ROOT)) {
                 send(exchange, 404, Map.of("error", "not_found"));
@@ -225,6 +221,29 @@ final class DialogueWebApi implements Listener {
             }
             List<String> segments = pathSegments(path);
             String method = exchange.getRequestMethod().toUpperCase(java.util.Locale.ROOT);
+            if (segments.size() == 4 && segments.get(2).equals("session")
+                    && segments.get(3).equals("auto") && method.equals("POST")) {
+                InetAddress address = clientAddress(exchange.getRemoteAddress().getAddress(), forwarded);
+                WebPlayerSessions.IssuedSession issued = sync(() -> sessions.issueByAddress(address));
+                if (issued == null) {
+                    send(exchange, 404, Map.of("error", "online_player_not_found_for_address"));
+                } else {
+                    WebPlayerSessions.Session session = issued.session();
+                    send(exchange, 200, Map.of(
+                            "sessionId", issued.id(),
+                            "playerName", session.playerName(),
+                            "ownerUuid", session.ownerUuid().toString(),
+                            "expiresAt", session.expiresAt(),
+                            "admin", session.admin()));
+                }
+                return;
+            }
+
+            WebPlayerSessions.Session requestSession = sessions.resolve(exchange.getRequestHeaders().getFirst("X-RPGMaker-Session"));
+            if (!authenticated(exchange) && requestSession == null) {
+                send(exchange, 401, Map.of("error", "unauthorized"));
+                return;
+            }
             WebPlayerSessions.Session playerSession = requestSession;
 
             if (segments.size() == 3 && segments.get(2).equals("me") && method.equals("GET")) {
@@ -236,7 +255,18 @@ final class DialogueWebApi implements Listener {
                         "connected", true,
                         "playerName", playerSession.playerName(),
                         "ownerUuid", playerSession.ownerUuid().toString(),
-                        "expiresAt", playerSession.expiresAt()));
+                        "expiresAt", playerSession.expiresAt(),
+                        "admin", playerSession.admin()));
+                return;
+            }
+
+            if (segments.size() == 4 && segments.get(2).equals("admin")
+                    && segments.get(3).equals("owners") && method.equals("GET")) {
+                if (playerSession == null || !playerSession.admin()) {
+                    send(exchange, 403, Map.of("error", "admin_required"));
+                    return;
+                }
+                send(exchange, 200, Map.of("owners", sync(compatibility::listOwners)));
                 return;
             }
 
@@ -282,7 +312,7 @@ final class DialogueWebApi implements Listener {
                     send(exchange, 400, Map.of("error", "invalid_owner_uuid"));
                     return;
                 }
-                if (playerSession != null && !playerSession.ownerUuid().equals(owner)) {
+                if (!canAccessOwner(playerSession, owner)) {
                     send(exchange, 403, Map.of("error", "session_owner_mismatch"));
                     return;
                 }
@@ -298,7 +328,7 @@ final class DialogueWebApi implements Listener {
                     send(exchange, 400, Map.of("error", "invalid_owner_uuid"));
                     return;
                 }
-                if (playerSession != null && !playerSession.ownerUuid().equals(owner)) {
+                if (!canAccessOwner(playerSession, owner)) {
                     send(exchange, 403, Map.of("error", "session_owner_mismatch"));
                     return;
                 }
@@ -465,6 +495,17 @@ final class DialogueWebApi implements Listener {
                 : exchange.getRequestHeaders().getFirst("X-RPGMaker-Token");
         if (supplied == null) return false;
         return MessageDigest.isEqual(token.getBytes(StandardCharsets.UTF_8), supplied.getBytes(StandardCharsets.UTF_8));
+    }
+
+    static InetAddress clientAddress(InetAddress remote, String forwarded) throws IOException {
+        if (!remote.isLoopbackAddress() || forwarded == null || forwarded.isBlank()) return remote;
+        String value = forwarded.substring(forwarded.lastIndexOf(',') + 1).strip();
+        if (value.startsWith("[") && value.endsWith("]")) value = value.substring(1, value.length() - 1);
+        return InetAddress.getByName(value);
+    }
+
+    static boolean canAccessOwner(WebPlayerSessions.Session session, UUID owner) {
+        return session == null || session.admin() || session.ownerUuid().equals(owner);
     }
 
     private Map<String, Object> readBody(HttpExchange exchange) throws IOException, RequestTooLarge {
