@@ -3,6 +3,7 @@
 #
 # version: 2.16.1
 
+random, long, 0000000000000001
 rpgmaker::1de234fb-62eb-4864-9829-4dc23cdeced8::affection, string, 800132
 rpgmaker::1de234fb-62eb-4864-9829-4dc23cdeced8::promise, string, 8005626567756E
 rpgmaker::1de234fb-62eb-4864-9829-4dc23cdeced8::relationship, string, 80056C6F766572
@@ -18,6 +19,7 @@ rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::password, long, 000000000000000B
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::promise, string, 8005626567756E
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::quest_state, string, 800DEBAFB8EB9FAC5FECA095EC8381
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::relationship, string, 80056C6F766572
+rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::shop_fortune, long, 000000000000001C
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::shop_gift, string, 80087265636569766564
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::shop_last_purchase, string, 8006656C69786972
 rpgmaker::88ab4f4b-bed0-45ac-a1ce-befcd67fd548::shop_member, string, 8003796573
