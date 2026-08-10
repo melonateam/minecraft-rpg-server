@@ -114,8 +114,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private ExecutorService packExecutor;
     private CharacterRegistry characterRegistry;
     private DialogueWebApi webApi;
-    private NamespacedKey hotbarItemKey, hotbarSlotKey, temporaryHandKey, uiScaleKey;
-    private boolean skriptBridgeReady;
+    private NamespacedKey hotbarItemKey, hotbarSlotKey, temporaryHandKey, uiScaleKey, skriptSyncKey;
+    private boolean skriptBridgeReady, skriptSyncReady;
 
     @Override
     public void onEnable() {
@@ -123,6 +123,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         hotbarSlotKey = new NamespacedKey(this, "dialogue_hotbar_slot");
         temporaryHandKey = new NamespacedKey(this, "temporary_hand");
         uiScaleKey = new NamespacedKey(this, "dialogue_ui_scale");
+        skriptSyncKey = new NamespacedKey(this, "skript_sync_initialized");
         saveDefaultConfig();
         characterRegistry = CharacterRegistry.load(this);
         webApi = DialogueWebApi.start(this, new DialogueCompatibilityService(this), characterRegistry);
@@ -136,6 +137,10 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             restoreDialogueHotbar(player);
             syncRpgVariables(player);
         });
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            skriptSyncReady = true;
+            Bukkit.getOnlinePlayers().forEach(this::syncRpgVariables);
+        }, 100L);
     }
 
     @Override
@@ -2956,6 +2961,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void tick() {
         int now = Bukkit.getCurrentTick();
+        if (skriptSyncReady && now % 20 == 0) Bukkit.getOnlinePlayers().forEach(this::syncRpgVariables);
         active.values().removeIf(dialogue -> {
             if (!dialogue.player.isOnline() || dialogue.expiresAt <= now) {
                 dialogue.remove();
@@ -3653,7 +3659,20 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (exact != null) return exactSkriptValue(player, exact);
         String variable = variableName(rawVariable);
         if (variable.startsWith("skript.")) return skriptValue(player, variable.substring("skript.".length()));
-        return player.getPersistentDataContainer().get(new NamespacedKey(this, variableStoragePath(variable)), PersistentDataType.STRING);
+        var data = player.getPersistentDataContainer();
+        NamespacedKey key = new NamespacedKey(this, variableStoragePath(variable));
+        String stored = data.get(key, PersistentDataType.STRING);
+        if (!skriptBridgeReady) return stored;
+        String mirrored = skriptValue(player, variable);
+        boolean initialized = data.getOrDefault(skriptSyncKey, PersistentDataType.BOOLEAN, false);
+        String resolved = resolvedRpgVariable(stored, mirrored, initialized);
+        if (resolved == null) data.remove(key);
+        else if (!resolved.equals(stored)) data.set(key, PersistentDataType.STRING, resolved);
+        return resolved;
+    }
+
+    static String resolvedRpgVariable(String stored, String mirrored, boolean initialized) {
+        return mirrored != null ? mirrored : initialized ? null : stored;
     }
 
     private void setVariableValue(Player player, String rawVariable, String value) {
@@ -3773,13 +3792,44 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void syncRpgVariables(Player player) {
         if (!skriptBridgeReady) return;
+        var data = player.getPersistentDataContainer();
         String namespace = getName().toLowerCase(java.util.Locale.ROOT);
-        player.getPersistentDataContainer().getKeys().stream()
-                .filter(key -> key.getNamespace().equals(namespace) && !variableFromStoragePath(key.getKey()).isBlank())
-                .forEach(key -> {
-                    String value = player.getPersistentDataContainer().get(key, PersistentDataType.STRING);
-                    if (value != null) setSkriptValue(player, variableFromStoragePath(key.getKey()), value);
-                });
+        Map<String, String> stored = new HashMap<>();
+        for (NamespacedKey key : data.getKeys()) {
+            String variable = key.getNamespace().equals(namespace) ? variableFromStoragePath(key.getKey()) : "";
+            String value = variable.isBlank() ? null : data.get(key, PersistentDataType.STRING);
+            if (value != null) stored.put(variable, value);
+        }
+        if (!skriptSyncReady) {
+            stored.forEach((variable, value) -> setSkriptValue(player, variable, value));
+            return;
+        }
+
+        Map<String, String> mirrored = new HashMap<>();
+        var iterator = Variables.getVariableIterator("rpgmaker::" + player.getUniqueId() + "::*", false, null);
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            String variable = variableName(entry.getFirst());
+            String value = skriptText(entry.getSecond());
+            if (!variable.isBlank() && value != null) mirrored.put(variable, value);
+        }
+        boolean initialized = data.getOrDefault(skriptSyncKey, PersistentDataType.BOOLEAN, false);
+        Map<String, String> resolved = synchronizedRpgVariables(stored, mirrored, initialized);
+        stored.keySet().stream().filter(variable -> !resolved.containsKey(variable))
+                .forEach(variable -> data.remove(new NamespacedKey(this, variableStoragePath(variable))));
+        resolved.forEach((variable, value) -> {
+            data.set(new NamespacedKey(this, variableStoragePath(variable)), PersistentDataType.STRING, value);
+            if (!value.equals(mirrored.get(variable))) setSkriptValue(player, variable, value);
+        });
+        data.set(skriptSyncKey, PersistentDataType.BOOLEAN, true);
+    }
+
+    static Map<String, String> synchronizedRpgVariables(Map<String, String> stored, Map<String, String> mirrored,
+                                                         boolean initialized) {
+        Map<String, String> resolved = new HashMap<>();
+        if (!initialized) resolved.putAll(stored);
+        resolved.putAll(mirrored);
+        return resolved;
     }
 
     private String expandVariables(Player player, String text) {
