@@ -19,7 +19,8 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
     let cancelled = false;
     setLoading(true);
     const api = new PlayerSessionApiClient(connection.sessionId);
-    void Promise.all([api.listDialogues(connection.ownerUuid), api.listPublicDialogues()])
+    const publicRequest = connection.admin ? api.listPublicDialogues() : Promise.resolve([] as PublicDialogueSummary[]);
+    void Promise.all([api.listDialogues(connection.ownerUuid), publicRequest])
       .then(([personal, published]) => {
         if (!cancelled) {
           setDialogues(personal);
@@ -104,16 +105,14 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
                 </div>
               </div>
 
-              <div>
-                <div className="mb-2 flex items-center justify-between text-xs font-semibold text-[#9aa4b2]">
-                  <span>공용 대화문 · {publicDialogues.length}개</span>
-                  {connection.admin && <span className="text-amber-300">관리자: 전체 수정 가능</span>}
-                </div>
-                <div className="space-y-2">
-                  {publicDialogues.map((dialogue) => {
-                    const mine = dialogue.ownerUuid === connection.ownerUuid;
-                    const editable = mine || connection.admin;
-                    return (
+              {connection.admin && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-xs font-semibold text-[#9aa4b2]">
+                    <span>공용 대화문 · {publicDialogues.length}개</span>
+                    <span className="text-amber-300">OP 전용 · 전체 수정 가능</span>
+                  </div>
+                  <div className="space-y-2">
+                    {publicDialogues.map((dialogue) => (
                       <button
                         key={dialogue.name}
                         type="button"
@@ -124,18 +123,18 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-semibold">{dialogue.title || dialogue.name}</div>
                           <div className="mt-1 text-[10px] text-[#737e8d]">
-                            {dialogue.pages} 페이지 · {dialogue.publisher || 'RPGMaker'} · {editable ? (mine ? '작성자 수정 가능' : '관리자 수정 가능') : '읽기 전용'}
+                            {dialogue.pages} 페이지 · {dialogue.publisher || 'RPGMaker'} · 관리자 수정 가능
                           </div>
                         </div>
-                        <span className="text-xs text-[#8b99ff]">{editable ? '편집' : '보기'}</span>
+                        <span className="text-xs text-[#8b99ff]">편집</span>
                       </button>
-                    );
-                  })}
-                  {!loading && publicDialogues.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-[#333b47] py-6 text-center text-xs text-[#74808f]">공용 대화문이 없습니다.</div>
-                  )}
+                    ))}
+                    {!loading && publicDialogues.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-[#333b47] py-6 text-center text-xs text-[#74808f]">공용 대화문이 없습니다.</div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           ) : (
             <div className="rounded-xl border border-[#344052] bg-[#121820] p-5">
