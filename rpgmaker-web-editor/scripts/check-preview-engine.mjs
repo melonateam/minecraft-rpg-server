@@ -40,6 +40,9 @@ state = advancePreview(dialogue, state);
 assert.equal(state.currentPageId, 'p1');
 assert.equal(visibleLength('{{player_name}} #FF0000:bold:완료'), 3);
 assert.equal(visibleLength('{{skript:quest::%uuid of player%}}완료'), 2);
+assert.equal(visibleLength("123%player's location%456"), 6);
+assert.equal(visibleLength('123%{quest::%uuid of player%}%456'), 6);
+assert.equal(visibleLength('123{{한글_변수}}456'), 6);
 assert.deepEqual(parseDialogueText('#FF0000:bold,italic:완료')[0], {
   text: '완료', color: '#FF0000', bold: true, italic: true, strikethrough: false,
 });

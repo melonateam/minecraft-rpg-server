@@ -105,6 +105,7 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
                 <div className="max-h-72 space-y-2 overflow-y-auto">
                   {publicDialogues.map((dialogue) => {
                     const mine = dialogue.ownerUuid === connection.ownerUuid;
+                    const editable = mine || connection.admin;
                     return (
                       <button
                         key={dialogue.name}
@@ -116,10 +117,10 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-semibold">{dialogue.title || dialogue.name}</div>
                           <div className="mt-1 text-[10px] text-[#737e8d]">
-                            {dialogue.pages} 페이지 · {dialogue.publisher || 'RPGMaker'} · {mine ? '작성자 수정 가능' : '읽기 전용'}
+                            {dialogue.pages} 페이지 · {dialogue.publisher || 'RPGMaker'} · {editable ? (mine ? '작성자 수정 가능' : '관리자 수정 가능') : '읽기 전용'}
                           </div>
                         </div>
-                        <span className="text-xs text-[#8b99ff]">보기</span>
+                        <span className="text-xs text-[#8b99ff]">{editable ? '열기' : '보기'}</span>
                       </button>
                     );
                   })}
