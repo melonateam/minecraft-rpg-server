@@ -8,7 +8,8 @@ final class TextWidthRules {
     private TextWidthRules() {}
 
     static String padding(String text, int targetWidth) {
-        return spacing(Math.max(0, targetWidth - visibleWidth(text)));
+        String padding = spacing(Math.max(0, targetWidth - visibleWidth(text)));
+        return trimTrailingPaddingGlyphs(padding, visibleSpaces(text) / 3);
     }
 
     private static String spacing(int width) {
@@ -20,6 +21,41 @@ final class TextWidthRules {
             width -= chunk;
         }
         return result.toString();
+    }
+
+    private static String trimTrailingPaddingGlyphs(String padding, int count) {
+        int codePoints = padding.codePointCount(0, padding.length());
+        int keep = Math.max(0, codePoints - Math.max(0, count));
+        return padding.substring(0, padding.offsetByCodePoints(0, keep));
+    }
+
+    private static int visibleSpaces(String text) {
+        if (text == null || text.isEmpty()) return 0;
+        int spaces = 0;
+        boolean wordStart = true;
+        for (int offset = 0; offset < text.length();) {
+            FormatToken inline = inlineFormat(text, offset);
+            if (inline != null) {
+                offset = inline.end();
+                continue;
+            }
+            FormatToken word = wordStart ? wordFormat(text, offset) : null;
+            if (word != null) {
+                offset = word.end();
+                wordStart = false;
+                continue;
+            }
+            int variableEnd = variableEnd(text, offset);
+            if (variableEnd > offset) {
+                offset = variableEnd;
+                continue;
+            }
+            int codePoint = text.codePointAt(offset);
+            if (codePoint == ' ') spaces++;
+            wordStart = Character.isWhitespace(codePoint);
+            offset += Character.charCount(codePoint);
+        }
+        return spaces;
     }
 
     static int visibleWidth(String text) {
@@ -205,6 +241,19 @@ final class TextWidthRules {
         assert paddingWidth(padding("", 270)) == 270;
         assert visibleWidth("aa") + paddingWidth(padding("aa", 270)) == 270;
         assert visibleWidth("[1] 선택") + paddingWidth(padding("[1] 선택", 190)) == 190;
+
+        String threeSpacesText = "가 나 다 라";
+        String untrimmedThree = spacing(Math.max(0, 270 - visibleWidth(threeSpacesText)));
+        assert padding(threeSpacesText, 270).codePointCount(0, padding(threeSpacesText, 270).length())
+                == Math.max(0, untrimmedThree.codePointCount(0, untrimmedThree.length()) - 1);
+
+        String sixSpacesText = "가 나 다 라 마 바 사";
+        String untrimmedSix = spacing(Math.max(0, 270 - visibleWidth(sixSpacesText)));
+        assert padding(sixSpacesText, 270).codePointCount(0, padding(sixSpacesText, 270).length())
+                == Math.max(0, untrimmedSix.codePointCount(0, untrimmedSix.length()) - 2);
+
+        assert visibleSpaces("가 나 {{ignored variable space}} 다") == 2;
+        assert visibleSpaces("{#00FF00}가 나 다 라") == 3;
     }
 
     record TextFormat(String color, boolean bold, boolean italic, boolean strikethrough) {}
