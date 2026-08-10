@@ -1380,7 +1380,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 .action(DialogAction.customClick(Key.key("dialoguedisplay", "toggle_speaker"), BinaryTagHolder.binaryTagHolder("{}"))).build();
         java.util.ArrayList<ActionButton> buttons = new java.util.ArrayList<>();
         if (showPortrait) buttons.addAll(List.of(characterButton, genderButton, expressionButton));
-        buttons.addAll(List.of(portraitToggle, speakerToggle, previous, next, deletePage, addChoice, viewChoices,
+        buttons.addAll(List.of(previous, next, portraitToggle, speakerToggle, deletePage, addChoice, viewChoices,
                 discard, save, settings, preview, delete, back));
         Dialog dialog = Dialog.create(factory -> factory.empty().base(DialogBase.builder(Component.text((index + 1) + " / " + messages.size() + " 페이지 (최대 30)", NamedTextColor.GOLD))
                 .pause(false).canCloseWithEscape(true).inputs(inputs).build()).type(DialogType.multiAction(buttons).columns(3).build()));
