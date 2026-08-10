@@ -107,7 +107,7 @@ export function TestMode({ dialogue, manifest, onExit }: Props) {
           <div>
             <div className="text-sm font-semibold">테스트 모드</div>
             <div className="text-[11px] text-[#6d7785]">
-              서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다. 실제 서버에서는 F로 타이핑 전체 표시와 다음 진행을 모두 조작하며, 수동 전체 표시 후 1초 동안 다음 진행이 잠깁니다.
+              서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다. 실제 서버에서는 F로 타이핑 전체 표시와 다음 진행을 모두 조작하며, 수동 전체 표시 후 0.5초 동안 다음 진행이 잠깁니다.
             </div>
           </div>
           <button
