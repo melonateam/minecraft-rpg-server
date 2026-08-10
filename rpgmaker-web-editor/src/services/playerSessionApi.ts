@@ -6,12 +6,6 @@ export interface PlayerSessionConnection {
   admin: boolean;
 }
 
-export interface AdminDialogueOwner {
-  ownerUuid: string;
-  playerName: string;
-  dialogues: number;
-}
-
 export interface ServerDialogueSummary {
   name: string;
   title: string;
@@ -153,11 +147,6 @@ export class PlayerSessionApiClient {
     };
   }
 
-  async listDialogueOwners() {
-    const result = await this.request<{ owners: AdminDialogueOwner[] }>('/admin/owners');
-    return result.owners;
-  }
-
   async listDialogues(ownerUuid: string) {
     const result = await this.request<{ dialogues: ServerDialogueSummary[] }>(
       `/dialogues/${encodeURIComponent(ownerUuid)}`,
@@ -179,33 +168,18 @@ export class PlayerSessionApiClient {
     );
   }
 
-  async getPublicDialogue(name: string) {
-    const document = await this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`);
-    const session = await this.connect();
-    if (!session.admin) return document;
-
-    // The current editor uses owner equality to decide read-only state. An admin
-    // receives an editable local view, while savePublicDialogue resolves the real
-    // owner from the server immediately before saving so ownership stays intact.
-    return { ...document, ownerUuid: session.ownerUuid };
+  getPublicDialogue(name: string) {
+    return this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`);
   }
 
-  async savePublicDialogue(
+  savePublicDialogue(
     ownerUuid: string,
     name: string,
     expectedRevision: string | undefined,
     dialogue: Record<string, unknown>,
   ) {
-    // Always resolve the current server-side owner immediately before PUT. This
-    // avoids depending on the editable admin view's temporary owner UUID and also
-    // avoids the extra /me request that previously caused the admin save path to
-    // fail in some sessions.
-    const current = await this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`)
-      .catch(() => undefined);
-    const targetOwnerUuid = current?.ownerUuid?.trim() || ownerUuid;
-
     return this.request<{ saved: boolean; revision: string }>(
-      `/public-dialogues/${encodeURIComponent(targetOwnerUuid)}/${encodeURIComponent(name)}`,
+      `/public-dialogues/${encodeURIComponent(ownerUuid)}/${encodeURIComponent(name)}`,
       { method: 'PUT', body: JSON.stringify({ expectedRevision: expectedRevision ?? '', dialogue }) },
     );
   }
