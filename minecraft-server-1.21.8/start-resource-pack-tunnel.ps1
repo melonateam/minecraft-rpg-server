@@ -23,7 +23,7 @@ if ($Stop) {
 $serverProcesses = Get-CimInstance Win32_Process | Where-Object {
     $_.Name -eq 'java.exe' -and
     $_.ExecutablePath -eq $serverJava -and
-    $_.CommandLine -match '(?i)(^|\s|["''])paper\.jar(["'']|\s|$)'
+    $_.CommandLine -match '(?i)(^|\s|")paper\.jar("|\s|$)'
 }
 if ($serverProcesses) {
     throw 'Minecraft server is already running; refusing to replace its resource-pack tunnel.'
