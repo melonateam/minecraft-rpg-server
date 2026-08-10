@@ -39,7 +39,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -181,23 +180,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         } catch (IOException error) {
             getLogger().log(java.util.logging.Level.SEVERE, "Could not save RPGMaker data", error);
         }
-    }
-
-    @EventHandler
-    public void onMove(PlayerMoveEvent event) {
-        Dialogue dialogue = active.get(event.getPlayer().getUniqueId());
-        if (dialogue == null) return;
-        if (dialogue.editing) {
-            Location target = event.getTo();
-            if (target != null) {
-                target.setYaw(dialogue.lockedYaw);
-                target.setPitch(dialogue.lockedPitch);
-                event.setTo(target);
-            }
-            return;
-        }
-        event.setTo(event.getFrom());
-        event.getPlayer().setVelocity(new Vector());
     }
 
     @EventHandler
@@ -421,7 +403,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                     case "dialoguedisplay:settings_return" -> openEffectEditor(player, choiceMode, "RETURN");
                     case "dialoguedisplay:settings_command" -> openEffectEditor(player, choiceMode, "COMMAND");
                     case "dialoguedisplay:settings_condition" -> openConditionHub(player, choiceMode);
-                    case "dialoguedisplay:settings_camera" -> openCameraEditor(player, choiceMode);
                     case "dialoguedisplay:settings_flow" -> { if (!choiceMode) openFlowEditor(player); else openSettingsHub(player, true); }
                     default -> { if (choiceMode) openChoiceEditor(player); else openContentEditor(player); }
                 }
@@ -434,17 +415,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             Bukkit.getScheduler().runTask(this, () -> {
                 if (section.equals("BACK")) openSettingsHub(player, choiceMode);
                 else openConditionEditor(player, choiceMode, section);
-            });
-            return;
-        }
-        if (List.of("dialoguedisplay:save_camera", "dialoguedisplay:back_camera").contains(action)) {
-            boolean choiceMode = effectChoiceMode.getOrDefault(player.getUniqueId(), false);
-            String direction = response.getText("camera_direction");
-            if (direction != null) getConfig().set(editorPath(player) + ".camera-direction", direction);
-            saveConfig();
-            Bukkit.getScheduler().runTask(this, () -> {
-                if (action.equals("dialoguedisplay:save_camera")) openCameraEditor(player, choiceMode);
-                else openSettingsHub(player, choiceMode);
             });
             return;
         }
@@ -1524,7 +1494,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         sender.sendMessage(Component.text("이미지·성별·표정은 페이지마다 설정합니다. 다음 대사는 현재 내용을 저장하고 새 페이지를 엽니다.", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("선택지는 목표 대사 번호와 변경 화자를 지정합니다. 목표 0만 기존 후속 대사를 사용합니다.", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("대화 흐름 설정에서 다음 번호, 조건 이동 전/후, 조건부 종결을 페이지마다 지정합니다.", NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("기타 설정: 아이템 지급/소모, 변수, 사운드, 채팅, 표시 조건, 카메라. OP는 서버 명령어도 설정합니다.", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("기타 설정: 아이템 지급/소모, 변수, 사운드, 채팅, 표시 조건. OP는 서버 명령어도 설정합니다.", NamedTextColor.GRAY));
         sender.sendMessage(Component.text("저장하기는 계속 편집하고, 미리보기는 현재 대화를 실행합니다. 저장하지 않기는 목록으로 돌아갑니다.", NamedTextColor.GRAY));
     }
 
@@ -1952,8 +1922,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 settingsButton("사운드 설정하기", "sound", NamedTextColor.GREEN),
                 settingsButton("채팅 메시지 설정하기", "message", NamedTextColor.WHITE),
                 settingsButton("이전 진행으로 돌아가기", "return", NamedTextColor.AQUA),
-                settingsButton("표시 조건", "condition", NamedTextColor.YELLOW),
-                settingsButton("카메라 설정하기", "camera", NamedTextColor.LIGHT_PURPLE)));
+                settingsButton("표시 조건", "condition", NamedTextColor.YELLOW)));
         if (!choiceMode) buttons.add(0, settingsButton("대화 흐름 설정", "flow", NamedTextColor.GREEN));
         if (player.hasPermission("rpgmaker.admin"))
             buttons.add(settingsButton("명령어 설정하기 (OP)", "command", NamedTextColor.RED));
@@ -2800,12 +2769,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (originalMainHandItem != null) originalMainHandItem = originalMainHandItem.clone();
         ItemStack originalNinthItem = player.getInventory().getItem(8);
         if (originalNinthItem != null) originalNinthItem = originalNinthItem.clone();
-        float lockedYaw = directionYaw(cameraDirection);
-        float lockedPitch = 0.0f;
-        Location facing = player.getLocation();
-        facing.setYaw(lockedYaw);
-        facing.setPitch(lockedPitch);
-        player.teleport(facing);
+        float lockedYaw = player.getLocation().getYaw();
+        float lockedPitch = player.getLocation().getPitch();
         Location origin = player.getEyeLocation();
         TextDisplay frame = spawn(player, origin,
                 Component.text("\uE000").font(Key.key("dialog", "frame")));
@@ -4294,23 +4259,28 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private void position(Dialogue d) {
         double uiScale = effectiveUiScale(d);
         Location eye = d.player.getEyeLocation();
-        eye.setYaw(d.lockedYaw);
-        eye.setPitch(d.lockedPitch);
         Vector forward = eye.getDirection().normalize();
-        Vector right = forward.clone().crossProduct(new Vector(0, 1, 0)).normalize();
+        Vector right = forward.clone().crossProduct(new Vector(0, 1, 0));
+        if (right.lengthSquared() < 1.0e-8) {
+            double yaw = Math.toRadians(eye.getYaw());
+            right = new Vector(-Math.cos(yaw), 0.0, -Math.sin(yaw));
+        } else {
+            right.normalize();
+        }
+        Vector up = right.clone().crossProduct(forward).normalize();
         Location base = eye.clone().add(forward.clone().multiply(d.dialogueDistance))
                 .add(right.clone().multiply(layout(d, "frame-x-offset", 0.0)))
-                .add(0, layout(d, "vertical-offset", -0.92), 0);
+                .add(up.clone().multiply(layout(d, "vertical-offset", -0.92)));
         face(base, forward); d.frame.teleport(base);
         if (d.showPortrait) {
             Location portraitAt = base.clone().add(right.clone().multiply(layout(d, "portrait-x-offset", -0.82) * uiScale))
-                    .add(0, layout(d, "portrait-vertical-offset", 0.01) * uiScale, 0)
+                    .add(up.clone().multiply(layout(d, "portrait-vertical-offset", 0.01) * uiScale))
                     .subtract(forward.clone().multiply(0.080));
             face(portraitAt, forward); d.portrait.teleport(portraitAt);
         }
         if (d.showSpeaker) {
             Location speakerAt = base.clone().add(right.clone().multiply(layout(d, "speaker-x-offset", -1.10) * uiScale))
-                    .add(0, layout(d, "speaker-vertical-offset", 0.42) * uiScale, 0)
+                    .add(up.clone().multiply(layout(d, "speaker-vertical-offset", 0.42) * uiScale))
                     .subtract(forward.clone().multiply(0.100));
             face(speakerAt, forward); d.speakerDisplay.teleport(speakerAt);
         }
@@ -4318,19 +4288,19 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             String key = "text-line-" + (line + 1);
             Location bodyAt = base.clone().add(right.clone().multiply(layout(d, "text-x-offset", -0.06)
                             + layout(d, key + "-x-offset", 0.0)).multiply(uiScale))
-                    .add(0, (layout(d, "text-vertical-offset", 0.05)
-                            + layout(d, key + "-vertical-offset", (1.5 - line) * 0.10)) * uiScale, 0)
+                    .add(up.clone().multiply((layout(d, "text-vertical-offset", 0.05)
+                            + layout(d, key + "-vertical-offset", (1.5 - line) * 0.10)) * uiScale))
                     .subtract(forward.clone().multiply(0.100));
             face(bodyAt, forward);
             d.bodyLines[line].teleport(bodyAt);
         }
         Location choiceFrameAt = base.clone().add(right.clone().multiply(layout(d, "choice-frame-x-offset",
                         layout(d, "choice-x-offset", -0.06)) * uiScale))
-                .add(0, layout(d, "choice-frame-vertical-offset", layout(d, "choice-vertical-offset", -0.20)) * uiScale, 0)
+                .add(up.clone().multiply(layout(d, "choice-frame-vertical-offset", layout(d, "choice-vertical-offset", -0.20)) * uiScale))
                 .subtract(forward.clone().multiply(0.010));
         face(choiceFrameAt, forward); d.choiceFrame.teleport(choiceFrameAt);
         Location choicesAt = base.clone().add(right.clone().multiply(layout(d, "choice-x-offset", -0.06) * uiScale))
-                .add(0, layout(d, "choice-vertical-offset", -0.20) * uiScale, 0)
+                .add(up.clone().multiply(layout(d, "choice-vertical-offset", -0.20) * uiScale))
                 .subtract(forward.clone().multiply(0.100));
         face(choicesAt, forward); d.choiceDisplay.teleport(choicesAt);
     }
