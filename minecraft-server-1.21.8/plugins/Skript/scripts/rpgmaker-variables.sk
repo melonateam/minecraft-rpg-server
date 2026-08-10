@@ -138,3 +138,7 @@ command /rpgskriptclear:
         delete {rpgmaker_test_list::*}
         delete {rpgmaker::%uuid of player%::quest_state}
         send "&aSkript 테스트 변수를 삭제했습니다."
+
+command /asdf:
+	trigger:
+		set {random} to random integer between 1 and 5
