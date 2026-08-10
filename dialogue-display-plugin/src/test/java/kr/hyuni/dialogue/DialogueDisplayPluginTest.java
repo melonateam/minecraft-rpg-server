@@ -53,6 +53,7 @@ class DialogueDisplayPluginTest {
         String storage = DialogueDisplayPlugin.variableStoragePath(variable);
         assertEquals("호감도_값", variable);
         assertEquals(variable, DialogueDisplayPlugin.variableFromStoragePath(storage));
+        assertEquals(variable, DialogueDisplayPlugin.variableFromDataKey(DialogueDisplayPlugin.variableDataKey(variable)));
         assertTrue(ExpressionRules.typedValue("123") instanceof Long);
         assertTrue(ExpressionRules.typedValue("12.5") instanceof Double);
         assertEquals("안녕", ExpressionRules.typedValue("안녕"));

@@ -4,7 +4,7 @@ main: kr.hyuni.dialogue.DialogueDisplayPlugin
 api-version: "1.21.8"
 description: Player-screen dialogue using display entities and a resource-pack font.
 author: hyuni
-softdepend: [Skript]
+softdepend: [Skript, Citizens]
 commands:
   rpgmaker:
     description: RPG dialogue editor and playback commands.

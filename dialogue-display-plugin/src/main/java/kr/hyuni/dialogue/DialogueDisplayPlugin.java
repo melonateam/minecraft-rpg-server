@@ -62,10 +62,8 @@ import org.joml.Vector3f;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.ArrayDeque;
 import java.util.Base64;
@@ -114,6 +112,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private ExecutorService packExecutor;
     private CharacterRegistry characterRegistry;
     private DialogueWebApi webApi;
+    private RpgDataStore dataStore;
     private NamespacedKey hotbarItemKey, hotbarSlotKey, temporaryHandKey, uiScaleKey, skriptSyncKey;
     private boolean skriptBridgeReady, skriptSyncReady;
 
@@ -125,12 +124,21 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         uiScaleKey = new NamespacedKey(this, "dialogue_ui_scale");
         skriptSyncKey = new NamespacedKey(this, "skript_sync_initialized");
         saveDefaultConfig();
+        dataStore = new RpgDataStore(getDataFolder().toPath(), getLogger());
+        try {
+            dataStore.loadInto(getConfig());
+            saveConfig();
+        } catch (IOException error) {
+            getLogger().log(java.util.logging.Level.SEVERE, "Could not load RPGMaker player data", error);
+        }
         characterRegistry = CharacterRegistry.load(this);
         webApi = DialogueWebApi.start(this, new DialogueCompatibilityService(this), characterRegistry);
         installBundledExamples();
         skriptBridgeReady = Bukkit.getPluginManager().isPluginEnabled("Skript");
         if (!skriptBridgeReady) getLogger().warning("Skript bridge is disabled: Skript is not installed.");
         Bukkit.getPluginManager().registerEvents(this, this);
+        if (Bukkit.getPluginManager().isPluginEnabled("Citizens")) new CitizensDialogueNpc(this).install();
+        else getLogger().warning("Citizens dialogue NPC is disabled: Citizens is not installed.");
         startPackServer();
         tracker = Bukkit.getScheduler().runTaskTimer(this, this::tick, 1L, 1L);
         Bukkit.getOnlinePlayers().forEach(player -> {
@@ -155,31 +163,16 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     @Override
-    public void saveConfig() {
-        Path target = getDataFolder().toPath().resolve("config.yml");
-        Path temporary = null;
-        IOException failure = null;
-        try {
-            Files.createDirectories(target.getParent());
-            temporary = Files.createTempFile(target.getParent(), "config-", ".tmp");
-            Files.writeString(temporary, getConfig().saveToString(), StandardCharsets.UTF_8);
-            for (int attempt = 0; attempt < 10; attempt++) {
-                try {
-                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-                    return;
-                } catch (IOException error) {
-                    failure = error;
-                    if (attempt < 9) Thread.sleep(50L);
-                }
-            }
-        } catch (IOException error) {
-            failure = error;
-        } catch (InterruptedException error) {
-            Thread.currentThread().interrupt();
-        } finally {
-            if (temporary != null) try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
+    public synchronized void saveConfig() {
+        if (dataStore == null) {
+            super.saveConfig();
+            return;
         }
-        getLogger().log(java.util.logging.Level.SEVERE, "Could not save config to " + target, failure);
+        try {
+            dataStore.save(getConfig());
+        } catch (IOException error) {
+            getLogger().log(java.util.logging.Level.SEVERE, "Could not save RPGMaker data", error);
+        }
     }
 
     @EventHandler
@@ -1195,6 +1188,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             return;
         }
         showPath(player, path);
+    }
+
+    void showNpcDialogue(Player player, String name) {
+        ensureExamples(player);
+        showNamed(player, sanitizeName(name));
     }
 
     private void showPath(Player player, String path) {
@@ -3654,6 +3652,20 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         } catch (IllegalArgumentException ignored) { return ""; }
     }
 
+    static String variableDataKey(String variable) {
+        return java.util.HexFormat.of().formatHex(variable.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    static String variableFromDataKey(String key) {
+        try {
+            return new String(java.util.HexFormat.of().parseHex(key), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ignored) { return ""; }
+    }
+
+    private String variableDataPath(Player player, String variable) {
+        return "player-variables." + player.getUniqueId() + "." + variableDataKey(variable);
+    }
+
     private String variableValue(Player player, String rawVariable) {
         String exact = exactSkriptVariable(rawVariable);
         if (exact != null) return exactSkriptValue(player, exact);
@@ -3661,13 +3673,13 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (variable.startsWith("skript.")) return skriptValue(player, variable.substring("skript.".length()));
         var data = player.getPersistentDataContainer();
         NamespacedKey key = new NamespacedKey(this, variableStoragePath(variable));
-        String stored = data.get(key, PersistentDataType.STRING);
+        String stored = getConfig().getString(variableDataPath(player, variable), data.get(key, PersistentDataType.STRING));
         if (!skriptBridgeReady) return stored;
         String mirrored = skriptValue(player, variable);
         boolean initialized = data.getOrDefault(skriptSyncKey, PersistentDataType.BOOLEAN, false);
         String resolved = resolvedRpgVariable(stored, mirrored, initialized);
         if (resolved == null) data.remove(key);
-        else if (!resolved.equals(stored)) data.set(key, PersistentDataType.STRING, resolved);
+        else if (!resolved.equals(data.get(key, PersistentDataType.STRING))) data.set(key, PersistentDataType.STRING, resolved);
         return resolved;
     }
 
@@ -3687,6 +3699,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             return;
         }
         player.getPersistentDataContainer().set(new NamespacedKey(this, variableStoragePath(variable)), PersistentDataType.STRING, value);
+        getConfig().set(variableDataPath(player, variable), value);
+        saveConfig();
         setSkriptValue(player, variable, value);
     }
 
@@ -3702,6 +3716,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             return;
         }
         player.getPersistentDataContainer().remove(new NamespacedKey(this, variableStoragePath(variable)));
+        getConfig().set(variableDataPath(player, variable), null);
+        saveConfig();
         deleteSkriptValue(player, variable);
     }
 
@@ -3795,13 +3811,23 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         var data = player.getPersistentDataContainer();
         String namespace = getName().toLowerCase(java.util.Locale.ROOT);
         Map<String, String> stored = new HashMap<>();
+        var saved = getConfig().getConfigurationSection("player-variables." + player.getUniqueId());
+        if (saved != null) saved.getKeys(false).forEach(key -> {
+            String variable = variableFromDataKey(key);
+            String value = saved.getString(key);
+            if (!variable.isBlank() && value != null) stored.put(variable, value);
+        });
         for (NamespacedKey key : data.getKeys()) {
             String variable = key.getNamespace().equals(namespace) ? variableFromStoragePath(key.getKey()) : "";
             String value = variable.isBlank() ? null : data.get(key, PersistentDataType.STRING);
             if (value != null) stored.put(variable, value);
         }
         if (!skriptSyncReady) {
-            stored.forEach((variable, value) -> setSkriptValue(player, variable, value));
+            stored.forEach((variable, value) -> {
+                data.set(new NamespacedKey(this, variableStoragePath(variable)), PersistentDataType.STRING, value);
+                setSkriptValue(player, variable, value);
+            });
+            savePlayerVariables(player, stored);
             return;
         }
 
@@ -3822,6 +3848,20 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             if (!value.equals(mirrored.get(variable))) setSkriptValue(player, variable, value);
         });
         data.set(skriptSyncKey, PersistentDataType.BOOLEAN, true);
+        savePlayerVariables(player, resolved);
+    }
+
+    private void savePlayerVariables(Player player, Map<String, String> variables) {
+        String root = "player-variables." + player.getUniqueId();
+        Map<String, String> current = new HashMap<>();
+        var section = getConfig().getConfigurationSection(root);
+        if (section != null) section.getKeys(false).forEach(key -> current.put(key, section.getString(key, "")));
+        Map<String, String> encoded = new HashMap<>();
+        variables.forEach((name, value) -> encoded.put(variableDataKey(name), value));
+        if (current.equals(encoded)) return;
+        getConfig().set(root, null);
+        encoded.forEach((key, value) -> getConfig().set(root + "." + key, value));
+        saveConfig();
     }
 
     static Map<String, String> synchronizedRpgVariables(Map<String, String> stored, Map<String, String> mirrored,
