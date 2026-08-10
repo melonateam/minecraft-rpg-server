@@ -177,18 +177,37 @@ export class PlayerSessionApiClient {
     return result.dialogues;
   }
 
-  getPublicDialogue(name: string) {
-    return this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`);
+  async getPublicDialogue(name: string) {
+    const document = await this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`);
+    const session = await this.connect();
+    if (!session.admin) return document;
+
+    // DialogueStudio treats a public dialogue as editable when its ownerUuid matches
+    // the connected editor. For admins, expose an editable local view while the real
+    // public owner is still resolved again at save time below, so ownership is never
+    // transferred merely because an OP edited the shared copy.
+    return { ...document, ownerUuid: session.ownerUuid };
   }
 
-  savePublicDialogue(
+  async savePublicDialogue(
     ownerUuid: string,
     name: string,
     expectedRevision: string | undefined,
     dialogue: Record<string, unknown>,
   ) {
+    const session = await this.connect();
+    let targetOwnerUuid = ownerUuid;
+
+    if (session.admin) {
+      // Admins may edit somebody else's public dialogue, but the server API protects
+      // public ownership by path. Resolve the original owner immediately before the
+      // PUT and save through that owner instead of transferring the public copy to OP.
+      const current = await this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`);
+      if (current.ownerUuid?.trim()) targetOwnerUuid = current.ownerUuid;
+    }
+
     return this.request<{ saved: boolean; revision: string }>(
-      `/public-dialogues/${encodeURIComponent(ownerUuid)}/${encodeURIComponent(name)}`,
+      `/public-dialogues/${encodeURIComponent(targetOwnerUuid)}/${encodeURIComponent(name)}`,
       { method: 'PUT', body: JSON.stringify({ expectedRevision: expectedRevision ?? '', dialogue }) },
     );
   }
