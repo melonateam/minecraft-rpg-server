@@ -1,11 +1,13 @@
 ﻿$ErrorActionPreference = 'Stop'
 
 # Resolve the repository root from this script's own location.
-$RepoPath   = $PSScriptRoot
-$WebPath    = Join-Path $RepoPath 'rpgmaker-web-editor'
-$ServerPath = Join-Path $RepoPath 'minecraft-server-1.21.8'
-$StartBat   = Join-Path $ServerPath 'start.bat'
-$SyncScript = Join-Path $RepoPath 'sync.ps1'
+$RepoPath          = $PSScriptRoot
+$WebPath           = Join-Path $RepoPath 'rpgmaker-web-editor'
+$ServerPath        = Join-Path $RepoPath 'minecraft-server-1.21.8'
+$PluginProjectPath = Join-Path $RepoPath 'dialogue-display-plugin'
+$PluginJar         = Join-Path $ServerPath 'plugins\RPGMaker.jar'
+$StartBat          = Join-Path $ServerPath 'start.bat'
+$SyncScript        = Join-Path $RepoPath 'sync.ps1'
 
 $webProcess = $null
 $serverExitCode = $null
@@ -15,10 +17,33 @@ try {
         throw "Web editor directory not found: $WebPath"
     }
 
+    if (-not (Test-Path -LiteralPath $PluginProjectPath)) {
+        throw "RPGMaker plugin project not found: $PluginProjectPath"
+    }
+
     if (-not (Test-Path -LiteralPath $StartBat)) {
         throw "Minecraft start.bat not found: $StartBat"
     }
 
+    Write-Host ''
+    Write-Host '========================================'
+    Write-Host ' Building RPGMaker Plugin'
+    Write-Host '========================================'
+
+    $gradleCommand = Get-Command 'gradle' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $gradleCommand) {
+        throw 'Gradle was not found on PATH. RPGMaker.jar cannot be refreshed from the current source.'
+    }
+
+    & $gradleCommand.Source -p $PluginProjectPath deployToServer --no-daemon --console=plain
+    if ($LASTEXITCODE -ne 0) {
+        throw "RPGMaker plugin deployment failed with exit code $LASTEXITCODE"
+    }
+    if (-not (Test-Path -LiteralPath $PluginJar)) {
+        throw "RPGMaker plugin JAR was not created: $PluginJar"
+    }
+
+    Write-Host 'RPGMaker plugin deployed.'
     Write-Host ''
     Write-Host '========================================'
     Write-Host ' Starting RPGMaker Web Editor'
