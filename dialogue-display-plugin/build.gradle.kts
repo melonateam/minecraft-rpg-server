@@ -179,6 +179,280 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
             "stable multiline body renderer",
         )
 
+        replaceRequired(
+            """    @EventHandler(ignoreCancelled = true)
+    public void onChatInput(AsyncChatEvent event) {
+        Player player = event.getPlayer();
+        String variable = awaitingChatInputs.remove(player.getUniqueId());
+        if (variable == null) return;
+        event.setCancelled(true);
+        String value = PlainTextComponentSerializer.plainText().serialize(event.message()).strip();
+        if (value.length() > 200) value = value.substring(0, 200);
+        String captured = value;
+        Bukkit.getScheduler().runTask(this, () -> {
+            if (captured.isBlank()) {
+                awaitingChatInputs.put(player.getUniqueId(), variable);
+                player.sendMessage(Component.text("빈 값은 저장할 수 없습니다. 채팅에 다시 입력해 주세요.", NamedTextColor.RED));
+                return;
+            }
+            setVariableValue(player, variable, captured);
+            Dialogue dialogue = active.get(player.getUniqueId());
+            if (dialogue != null) {
+                dialogue.waitingForChat = false;
+                player.sendActionBar(Component.text("입력이 저장되었습니다. Shift 키를 눌러 계속", NamedTextColor.GREEN));
+            }
+        });
+    }
+""",
+            """    @EventHandler(ignoreCancelled = true)
+    public void onChatInput(AsyncChatEvent event) {
+        Player player = event.getPlayer();
+        String variable = awaitingChatInputs.remove(player.getUniqueId());
+        if (variable == null) return;
+        event.setCancelled(true);
+        String value = PlainTextComponentSerializer.plainText().serialize(event.message()).strip();
+        if (value.length() > 200) value = value.substring(0, 200);
+        String captured = value;
+        Bukkit.getScheduler().runTask(this, () -> {
+            if (captured.isBlank()) {
+                awaitingChatInputs.put(player.getUniqueId(), variable);
+                player.sendMessage(Component.text("빈 값은 저장할 수 없습니다. 채팅에 다시 입력해 주세요.", NamedTextColor.RED));
+                return;
+            }
+            if (variable.startsWith("@layout:")) {
+                String key = variable.substring("@layout:".length());
+                Dialogue edited = active.get(player.getUniqueId());
+                if (edited == null || !edited.editing || !editableLayoutKey(key)) return;
+                try {
+                    double newValue = Double.parseDouble(captured);
+                    if (!Double.isFinite(newValue) || Math.abs(newValue) > 20.0) throw new NumberFormatException();
+                    setLayoutValue(edited, key, newValue);
+                    applyScales(edited);
+                    saveConfig();
+                    player.sendMessage(Component.text(key + " 수치를 " + layoutNumber(newValue) + "(으)로 변경했습니다.", NamedTextColor.GREEN));
+                    editorControls(player);
+                } catch (NumberFormatException error) {
+                    awaitingChatInputs.put(player.getUniqueId(), variable);
+                    player.sendMessage(Component.text("올바른 숫자를 입력해 주세요. 현재 수치: " + layoutNumber(layoutValue(edited, key)), NamedTextColor.RED));
+                }
+                return;
+            }
+            setVariableValue(player, variable, captured);
+            Dialogue dialogue = active.get(player.getUniqueId());
+            if (dialogue != null) {
+                dialogue.waitingForChat = false;
+                player.sendActionBar(Component.text("입력이 저장되었습니다. Shift 키를 눌러 계속", NamedTextColor.GREEN));
+            }
+        });
+    }
+""",
+            "numeric layout chat input",
+        )
+
+        replaceRequired(
+            "List.of(\"edit\", \"edit2\", \"edit3\", \"edit4\", \"adjust\", \"save\", \"show\", \"npc\")",
+            "List.of(\"edit\", \"edit2\", \"edit3\", \"edit4\", \"adjust\", \"setvalue\", \"save\", \"show\", \"npc\")",
+            "numeric layout permission gate",
+        )
+
+        replaceRequired(
+            """        if (args.length == 3 && args[0].equalsIgnoreCase("adjust")) {
+""",
+            """        if (args.length == 2 && args[0].equalsIgnoreCase("setvalue")) {
+            Dialogue edited = active.get(player.getUniqueId());
+            if (edited == null || !edited.editing) return true;
+            String key = args[1];
+            if (!editableLayoutKey(key)) return true;
+            awaitingChatInputs.put(player.getUniqueId(), "@layout:" + key);
+            player.sendMessage(Component.text("현재 수치: " + layoutNumber(layoutValue(edited, key)), NamedTextColor.AQUA));
+            player.sendMessage(Component.text("채팅에 새 수치를 입력해 주세요.", NamedTextColor.YELLOW));
+            return true;
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("adjust")) {
+""",
+            "numeric layout command",
+        )
+
+        replaceRequired(
+            """        for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow(player, "본문 " + line + "줄",
+                "text-line-" + line + "-x-offset", "text-line-" + line + "-vertical-offset", "text-line-" + line + "-scale");
+""",
+            """        editorRow(player, "본문", "text-line-1-x-offset", "text-line-1-vertical-offset", "text-line-1-scale");
+""",
+            "remove body line 2-4 editor controls",
+        )
+
+        replaceRequired(
+            """    private void editorFrameRow(Player player) {
+        player.sendMessage(Component.text("외곽선 위치  ", NamedTextColor.YELLOW)
+                .append(button("←", "/rpgmaker adjust frame-x-offset -0.03", NamedTextColor.AQUA))
+                .append(button(" →", "/rpgmaker adjust frame-x-offset 0.03", NamedTextColor.AQUA))
+                .append(button("  ↑", "/rpgmaker adjust vertical-offset 0.03", NamedTextColor.GREEN))
+                .append(button(" ↓", "/rpgmaker adjust vertical-offset -0.03", NamedTextColor.GREEN)));
+        player.sendMessage(Component.text("외곽선 크기  ", NamedTextColor.YELLOW)
+                .append(button("[폭＋]", "/rpgmaker adjust frame-scale-x 0.02", NamedTextColor.GOLD))
+                .append(button(" [폭－]", "/rpgmaker adjust frame-scale-x -0.02", NamedTextColor.GOLD))
+                .append(button(" [높이＋]", "/rpgmaker adjust frame-scale-y 0.02", NamedTextColor.LIGHT_PURPLE))
+                .append(button(" [높이－]", "/rpgmaker adjust frame-scale-y -0.02", NamedTextColor.LIGHT_PURPLE)));
+    }
+""",
+            """    private void editorFrameRow(Player player) {
+        Dialogue dialogue = active.get(player.getUniqueId());
+        if (dialogue == null) return;
+        player.sendMessage(Component.text("외곽선 위치 · X " + layoutNumber(layoutValue(dialogue, "frame-x-offset"))
+                        + " · Y " + layoutNumber(layoutValue(dialogue, "vertical-offset")) + "  ", NamedTextColor.YELLOW)
+                .append(button("←", "/rpgmaker adjust frame-x-offset -0.03", NamedTextColor.AQUA))
+                .append(button(" →", "/rpgmaker adjust frame-x-offset 0.03", NamedTextColor.AQUA))
+                .append(button(" ↑", "/rpgmaker adjust vertical-offset 0.03", NamedTextColor.GREEN))
+                .append(button(" ↓", "/rpgmaker adjust vertical-offset -0.03", NamedTextColor.GREEN))
+                .append(button(" [X 수치]", "/rpgmaker setvalue frame-x-offset", NamedTextColor.WHITE))
+                .append(button(" [Y 수치]", "/rpgmaker setvalue vertical-offset", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("외곽선 크기 · 폭 " + layoutNumber(layoutValue(dialogue, "frame-scale-x"))
+                        + " · 높이 " + layoutNumber(layoutValue(dialogue, "frame-scale-y")) + "  ", NamedTextColor.YELLOW)
+                .append(button("[폭＋]", "/rpgmaker adjust frame-scale-x 0.02", NamedTextColor.GOLD))
+                .append(button(" [폭－]", "/rpgmaker adjust frame-scale-x -0.02", NamedTextColor.GOLD))
+                .append(button(" [높이＋]", "/rpgmaker adjust frame-scale-y 0.02", NamedTextColor.LIGHT_PURPLE))
+                .append(button(" [높이－]", "/rpgmaker adjust frame-scale-y -0.02", NamedTextColor.LIGHT_PURPLE))
+                .append(button(" [폭 수치]", "/rpgmaker setvalue frame-scale-x", NamedTextColor.WHITE))
+                .append(button(" [높이 수치]", "/rpgmaker setvalue frame-scale-y", NamedTextColor.WHITE)));
+    }
+""",
+            "frame current values and numeric buttons",
+        )
+
+        replaceRequired(
+            """    private void editorChoiceFrameRows(Player player) {
+        player.sendMessage(Component.text("소형 박스 위치  ", NamedTextColor.YELLOW)
+                .append(button("←", "/rpgmaker adjust choice-frame-x-offset -0.03", NamedTextColor.AQUA))
+                .append(button(" →", "/rpgmaker adjust choice-frame-x-offset 0.03", NamedTextColor.AQUA))
+                .append(button("  ↑", "/rpgmaker adjust choice-frame-vertical-offset 0.03", NamedTextColor.GREEN))
+                .append(button(" ↓", "/rpgmaker adjust choice-frame-vertical-offset -0.03", NamedTextColor.GREEN)));
+        player.sendMessage(Component.text("소형 박스 크기  ", NamedTextColor.YELLOW)
+                .append(button("[전체＋]", "/rpgmaker adjust choice-frame-scale 0.02", NamedTextColor.GREEN))
+                .append(button(" [전체－]", "/rpgmaker adjust choice-frame-scale -0.02", NamedTextColor.GREEN))
+                .append(button(" [폭＋]", "/rpgmaker adjust choice-frame-scale-x 0.02", NamedTextColor.GOLD))
+                .append(button(" [폭－]", "/rpgmaker adjust choice-frame-scale-x -0.02", NamedTextColor.GOLD))
+                .append(button(" [높이＋]", "/rpgmaker adjust choice-frame-scale-y 0.02", NamedTextColor.LIGHT_PURPLE))
+                .append(button(" [높이－]", "/rpgmaker adjust choice-frame-scale-y -0.02", NamedTextColor.LIGHT_PURPLE)));
+    }
+""",
+            """    private void editorChoiceFrameRows(Player player) {
+        Dialogue dialogue = active.get(player.getUniqueId());
+        if (dialogue == null) return;
+        player.sendMessage(Component.text("소형 박스 위치 · X " + layoutNumber(layoutValue(dialogue, "choice-frame-x-offset"))
+                        + " · Y " + layoutNumber(layoutValue(dialogue, "choice-frame-vertical-offset")) + "  ", NamedTextColor.YELLOW)
+                .append(button("←", "/rpgmaker adjust choice-frame-x-offset -0.03", NamedTextColor.AQUA))
+                .append(button(" →", "/rpgmaker adjust choice-frame-x-offset 0.03", NamedTextColor.AQUA))
+                .append(button(" ↑", "/rpgmaker adjust choice-frame-vertical-offset 0.03", NamedTextColor.GREEN))
+                .append(button(" ↓", "/rpgmaker adjust choice-frame-vertical-offset -0.03", NamedTextColor.GREEN))
+                .append(button(" [X 수치]", "/rpgmaker setvalue choice-frame-x-offset", NamedTextColor.WHITE))
+                .append(button(" [Y 수치]", "/rpgmaker setvalue choice-frame-vertical-offset", NamedTextColor.WHITE)));
+        player.sendMessage(Component.text("소형 박스 크기 · 폭 " + layoutNumber(layoutValue(dialogue, "choice-frame-scale-x"))
+                        + " · 높이 " + layoutNumber(layoutValue(dialogue, "choice-frame-scale-y")) + "  ", NamedTextColor.YELLOW)
+                .append(button("[전체＋]", "/rpgmaker adjust choice-frame-scale 0.02", NamedTextColor.GREEN))
+                .append(button(" [전체－]", "/rpgmaker adjust choice-frame-scale -0.02", NamedTextColor.GREEN))
+                .append(button(" [폭＋]", "/rpgmaker adjust choice-frame-scale-x 0.02", NamedTextColor.GOLD))
+                .append(button(" [폭－]", "/rpgmaker adjust choice-frame-scale-x -0.02", NamedTextColor.GOLD))
+                .append(button(" [높이＋]", "/rpgmaker adjust choice-frame-scale-y 0.02", NamedTextColor.LIGHT_PURPLE))
+                .append(button(" [높이－]", "/rpgmaker adjust choice-frame-scale-y -0.02", NamedTextColor.LIGHT_PURPLE))
+                .append(button(" [전체 수치]", "/rpgmaker setvalue choice-frame-scale", NamedTextColor.WHITE))
+                .append(button(" [폭 수치]", "/rpgmaker setvalue choice-frame-scale-x", NamedTextColor.WHITE))
+                .append(button(" [높이 수치]", "/rpgmaker setvalue choice-frame-scale-y", NamedTextColor.WHITE)));
+    }
+""",
+            "choice frame current values and numeric buttons",
+        )
+
+        replaceRequired(
+            """    private void editorRow(Player player, String name, String x, String y, String scale) {
+        player.sendMessage(Component.text(name + "  ", NamedTextColor.YELLOW)
+                .append(button("←", "/rpgmaker adjust " + x + " -0.03", NamedTextColor.AQUA))
+                .append(button(" →", "/rpgmaker adjust " + x + " 0.03", NamedTextColor.AQUA))
+                .append(button("  ↑", "/rpgmaker adjust " + y + " 0.03", NamedTextColor.GREEN))
+                .append(button(" ↓", "/rpgmaker adjust " + y + " -0.03", NamedTextColor.GREEN))
+                .append(button("  ＋", "/rpgmaker adjust " + scale + " 0.02", NamedTextColor.GOLD))
+                .append(button(" －", "/rpgmaker adjust " + scale + " -0.02", NamedTextColor.GOLD)));
+    }
+
+    private Component button(String text, String command, NamedTextColor color) {
+""",
+            """    private void editorRow(Player player, String name, String x, String y, String scale) {
+        Dialogue dialogue = active.get(player.getUniqueId());
+        if (dialogue == null) return;
+        player.sendMessage(Component.text(name + " · X " + layoutNumber(layoutValue(dialogue, x))
+                        + " · Y " + layoutNumber(layoutValue(dialogue, y))
+                        + " · 크기 " + layoutNumber(layoutValue(dialogue, scale)) + "  ", NamedTextColor.YELLOW)
+                .append(button("←", "/rpgmaker adjust " + x + " -0.03", NamedTextColor.AQUA))
+                .append(button(" →", "/rpgmaker adjust " + x + " 0.03", NamedTextColor.AQUA))
+                .append(button(" ↑", "/rpgmaker adjust " + y + " 0.03", NamedTextColor.GREEN))
+                .append(button(" ↓", "/rpgmaker adjust " + y + " -0.03", NamedTextColor.GREEN))
+                .append(button(" ＋", "/rpgmaker adjust " + scale + " 0.02", NamedTextColor.GOLD))
+                .append(button(" －", "/rpgmaker adjust " + scale + " -0.02", NamedTextColor.GOLD))
+                .append(button(" [X 수치]", "/rpgmaker setvalue " + x, NamedTextColor.WHITE))
+                .append(button(" [Y 수치]", "/rpgmaker setvalue " + y, NamedTextColor.WHITE))
+                .append(button(" [크기 수치]", "/rpgmaker setvalue " + scale, NamedTextColor.WHITE)));
+    }
+
+    private boolean editableLayoutKey(String key) {
+        return key.matches("text-line-[1-4]-(x-offset|vertical-offset|scale)") || List.of(
+                "vertical-offset", "frame-x-offset", "frame-scale", "frame-scale-x", "frame-scale-y",
+                "portrait-x-offset", "portrait-vertical-offset", "portrait-scale", "text-x-offset",
+                "text-vertical-offset", "text-scale", "speaker-x-offset", "speaker-vertical-offset",
+                "speaker-scale", "choice-x-offset", "choice-vertical-offset", "choice-scale",
+                "choice-frame-x-offset", "choice-frame-vertical-offset", "choice-frame-scale",
+                "choice-frame-scale-x", "choice-frame-scale-y").contains(key);
+    }
+
+    private double layoutValue(Dialogue dialogue, String key) {
+        if (key.equals("choice-frame-scale"))
+            return (layoutValue(dialogue, "choice-frame-scale-x") + layoutValue(dialogue, "choice-frame-scale-y")) / 2.0;
+        double fallback = switch (key) {
+            case "vertical-offset" -> -0.92;
+            case "frame-x-offset" -> 0.0;
+            case "frame-scale" -> 0.22;
+            case "frame-scale-x", "frame-scale-y" -> layout(dialogue, "frame-scale", 0.22);
+            case "portrait-x-offset" -> -0.82;
+            case "portrait-vertical-offset" -> 0.01;
+            case "portrait-scale" -> 0.24;
+            case "text-x-offset" -> -0.06;
+            case "text-vertical-offset" -> 0.05;
+            case "text-scale" -> DEFAULT_TEXT_SIZE / 100.0;
+            case "speaker-x-offset" -> -1.10;
+            case "speaker-vertical-offset" -> 0.42;
+            case "speaker-scale" -> 0.68;
+            case "choice-x-offset" -> -0.06;
+            case "choice-vertical-offset" -> -0.20;
+            case "choice-scale" -> 0.60;
+            case "choice-frame-x-offset" -> layout(dialogue, "choice-x-offset", -0.06);
+            case "choice-frame-vertical-offset" -> layout(dialogue, "choice-vertical-offset", -0.20);
+            case "choice-frame-scale-x" -> choiceFrameScaleDefault(dialogue, "x");
+            case "choice-frame-scale-y" -> choiceFrameScaleDefault(dialogue, "y");
+            default -> key.matches("text-line-[1-4]-(x-offset|vertical-offset|scale)")
+                    ? lineLayoutDefault(dialogue, key) : 0.0;
+        };
+        return layout(dialogue, key, fallback);
+    }
+
+    private void setLayoutValue(Dialogue dialogue, String key, double value) {
+        String prefix = layoutPrefix(dialogue.showPortrait, dialogue.showSpeaker);
+        if (key.equals("choice-frame-scale")) {
+            getConfig().set(prefix + "choice-frame-scale-x", value);
+            getConfig().set(prefix + "choice-frame-scale-y", value);
+        } else getConfig().set(prefix + key, value);
+    }
+
+    private String layoutNumber(double value) {
+        String text = String.format(java.util.Locale.ROOT, "%.3f", value);
+        while (text.contains(".") && text.endsWith("0")) text = text.substring(0, text.length() - 1);
+        if (text.endsWith(".")) text = text.substring(0, text.length() - 1);
+        return text;
+    }
+
+    private Component button(String text, String command, NamedTextColor color) {
+""",
+            "numeric editor rows and helpers",
+        )
+
         text = text
             .replace("입력이 저장되었습니다. Shift 키를 눌러 계속", "입력이 저장되었습니다. F키를 눌러 계속")
             .replace("대화 중 Space: 대화문 스킵 · Shift: 다음 대사", "대화 중 F: 타이핑 전체 표시 / 다음 대사 · 수동 전체 표시 후 0.5초간 다음 진행 방지")
@@ -200,6 +474,9 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         check(text.contains("TextDisplay[] bodyLines = new TextDisplay[1];")) { "Multiline body TextDisplay patch was not applied." }
         check(text.contains("TextWidthRules.padding(\"\", MAXIMUM_LINE_PIXELS)")) { "Stable body width anchor was not applied." }
         check(!text.contains("TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS)")) { "Per-character body padding still changes during typing." }
+        check(!text.contains("for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow")) { "Body line 2-4 editor controls remain." }
+        check(text.contains("/rpgmaker setvalue ")) { "Numeric editor controls were not generated." }
+        check(text.contains("현재 수치: ")) { "Numeric chat prompt was not generated." }
 
         source.writeText(text, Charsets.UTF_8)
     }
