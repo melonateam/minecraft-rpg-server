@@ -26,16 +26,6 @@ export function DialogueMovementWorkspace({ page }: Props) {
       if (target) target.nextDialogueName = name || undefined;
     });
   };
-  const cameraDirection = String(dialogue.server?.raw?.['camera-direction'] ?? 'NORTH');
-  const setCameraDirection = (direction: string) => {
-    mutateProject(project.id, (draft) => {
-      const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
-      if (!target) return;
-      target.server ??= {};
-      target.server.raw ??= {};
-      target.server.raw['camera-direction'] = direction;
-    });
-  };
 
   return (
     <section className="mt-8 rounded-2xl border border-[#4a4030] bg-[#17140e] p-5">
@@ -66,19 +56,6 @@ export function DialogueMovementWorkspace({ page }: Props) {
           종료 후 → {dialogue.nextDialogueName}
         </div>
       )}
-      <label className="mt-5 block text-xs text-[#c9b98f]">
-        대화 시작 시 플레이어가 바라볼 방향
-        <select
-          value={cameraDirection}
-          onChange={(event) => setCameraDirection(event.target.value)}
-          className="mt-2 w-full rounded-xl border border-[#4a4030] bg-[#110f0b] px-3 py-3 text-sm text-[#f4ead2] outline-none focus:border-[#f1c66d]"
-        >
-          <option value="NORTH">북쪽</option>
-          <option value="EAST">동쪽</option>
-          <option value="SOUTH">남쪽</option>
-          <option value="WEST">서쪽</option>
-        </select>
-      </label>
     </section>
   );
 }
