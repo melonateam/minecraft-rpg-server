@@ -3,6 +3,7 @@ package kr.hyuni.dialogue;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -62,5 +63,23 @@ class DialogueDisplayPluginTest {
         assertEquals("list::*", DialogueDisplayPlugin.exactSkriptVariable("skript:{list::*}"));
         assertEquals(null, DialogueDisplayPlugin.exactSkriptVariable("quest.progress"));
         assertEquals(6, TextWidthRules.visibleCharacters("123%{quest::%uuid of player%}%456"));
+    }
+
+    @Test
+    void skriptPlayerTokensResolveWithoutAnActiveParser() {
+        UUID playerId = UUID.fromString("12d0a2f0-6e70-4f53-88f7-9571b4c6bced");
+        assertEquals("Melona500|world at 1, 2, 3|%{quest::12d0a2f0-6e70-4f53-88f7-9571b4c6bced}%",
+                DialogueDisplayPlugin.resolveSkriptPlayerTokens(
+                        "%player%|%player's location%|%{quest::%uuid of player%}%",
+                        "Melona500", playerId, "world at 1, 2, 3"));
+        assertEquals("global / player / first, second",
+                DialogueDisplayPlugin.replaceSkriptVariablePlaceholders(
+                        "%{global}% / %{quest::12d0a2f0-6e70-4f53-88f7-9571b4c6bced}% / %{list::*}%",
+                        name -> switch (name) {
+                            case "global" -> "global";
+                            case "quest::12d0a2f0-6e70-4f53-88f7-9571b4c6bced" -> "player";
+                            case "list::*" -> "first, second";
+                            default -> null;
+                        }));
     }
 }

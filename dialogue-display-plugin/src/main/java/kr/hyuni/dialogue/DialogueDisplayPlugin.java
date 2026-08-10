@@ -1,10 +1,7 @@
 package kr.hyuni.dialogue;
 
 import com.sun.net.httpserver.HttpServer;
-import ch.njol.skript.lang.VariableString;
-import ch.njol.skript.lang.parser.ParserInstance;
 import ch.njol.skript.registrations.Classes;
-import ch.njol.skript.util.StringMode;
 import ch.njol.skript.variables.Variables;
 import io.papermc.paper.connection.PlayerGameConnection;
 import io.papermc.paper.dialog.Dialog;
@@ -41,9 +38,7 @@ import org.bukkit.entity.TextDisplay;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -94,6 +89,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private static final double MINIMUM_UI_SCALE = 0.6;
     private static final double MAXIMUM_UI_SCALE = 1.4;
     private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{(.+?)}}");
+    private static final java.util.regex.Pattern SKRIPT_VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("%\\{(.+?)}%");
     private static final java.util.regex.Pattern VARIABLE_ASSIGNMENT = java.util.regex.Pattern.compile("^(.+?)\\s*(\\+=|-=|\\*=|/=|=)\\s*(.*)$");
     private static final java.util.regex.Pattern VARIABLE_CHECK = java.util.regex.Pattern.compile("^([^!<>=]+?)\\s*(==|=|!=|>=|<=|>|<)\\s*(.*)$");
     private final Map<UUID, Dialogue> active = new HashMap<>();
@@ -2721,6 +2717,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                       String cameraDirection, double dialogueDistance, boolean showPortrait, boolean showSpeaker) {
         close(player);
         String resolvedSpeaker = expandVariables(player, speaker);
+        List<String> pages = splitPages(message);
+        String resolvedMessage = expandDialogueText(player, pages.get(0));
         int originalHeldSlot = player.getInventory().getHeldItemSlot();
         ItemStack originalMainHandItem = player.getInventory().getItem(originalHeldSlot);
         if (originalMainHandItem != null) originalMainHandItem = originalMainHandItem.clone();
@@ -2759,8 +2757,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         Dialogue dialogue = new Dialogue(player, frame, choiceFrame, portrait, speakerDisplay, bodyLines, choiceDisplay, showPortrait, showSpeaker,
                 resolvedSpeaker, message, choices, lockedYaw, lockedPitch, dialogueDistance,
                 originalHeldSlot, originalNinthItem, originalMainHandItem);
-        dialogue.pages = splitPages(message);
-        dialogue.message = expandDialogueText(player, dialogue.pages.get(0));
+        dialogue.pages = pages;
+        dialogue.message = resolvedMessage;
         dialogue.pageChoices = new java.util.ArrayList<>();
         for (int i = 0; i < dialogue.pages.size(); i++) dialogue.pageChoices.add(List.of());
         dialogue.pageEffects = new java.util.ArrayList<>();
@@ -3720,43 +3718,50 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private String exactSkriptValue(Player player, String rawName) {
         if (!skriptBridgeReady) return null;
-        String name = resolveSkriptText(player, rawName, StringMode.VARIABLE_NAME);
+        String name = resolveSkriptPlayerTokens(player, rawName);
         if (name.isBlank() || name.startsWith("_")) return null;
         return skriptText(Variables.getVariable(name, null, false));
     }
 
     private void setExactSkriptValue(Player player, String rawName, String value) {
         if (!skriptBridgeReady) return;
-        String name = resolveSkriptText(player, rawName, StringMode.VARIABLE_NAME);
+        String name = resolveSkriptPlayerTokens(player, rawName);
         if (!name.isBlank() && !name.startsWith("_") && !name.endsWith("::*"))
             Variables.setVariable(name, ExpressionRules.typedValue(value), null, false);
     }
 
     private void deleteExactSkriptValue(Player player, String rawName) {
         if (!skriptBridgeReady) return;
-        String name = resolveSkriptText(player, rawName, StringMode.VARIABLE_NAME);
+        String name = resolveSkriptPlayerTokens(player, rawName);
         if (!name.isBlank() && !name.startsWith("_")) Variables.deleteVariable(name, null, false);
     }
 
     private String expandSkriptExpressions(Player player, String text) {
-        int opening = text.indexOf('%');
-        if (!skriptBridgeReady || opening < 0 || text.indexOf('%', opening + 1) < 0) return text;
-        return resolveSkriptText(player, text, StringMode.MESSAGE);
+        if (!skriptBridgeReady || text.indexOf('%') < 0) return text;
+        return replaceSkriptVariablePlaceholders(resolveSkriptPlayerTokens(player, text), name ->
+                name.startsWith("_") ? null : skriptText(Variables.getVariable(name, null, false)));
     }
 
-    private String resolveSkriptText(Player player, String text, StringMode mode) {
-        ParserInstance parser = ParserInstance.get();
-        ParserInstance.Backup backup = parser.backup();
-        try {
-            parser.setCurrentEvent("RPGMaker dialogue", RpgMakerSkriptEvent.class);
-            VariableString parsed = VariableString.newInstance(text, mode);
-            return parsed == null ? text : parsed.toString(new RpgMakerSkriptEvent(player));
-        } catch (RuntimeException error) {
-            getLogger().warning("Skript 표현식을 해석하지 못했습니다: " + text + " (" + error.getMessage() + ")");
-            return text;
-        } finally {
-            parser.restoreBackup(backup);
+    static String replaceSkriptVariablePlaceholders(String text, java.util.function.Function<String, String> resolver) {
+        java.util.regex.Matcher matcher = SKRIPT_VARIABLE_PLACEHOLDER.matcher(text);
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            String name = matcher.group(1).strip();
+            String value = resolver.apply(name);
+            matcher.appendReplacement(result, java.util.regex.Matcher.quoteReplacement(value == null ? "" : value));
         }
+        matcher.appendTail(result);
+        return result.toString();
+    }
+
+    private String resolveSkriptPlayerTokens(Player player, String text) {
+        return resolveSkriptPlayerTokens(text, player.getName(), player.getUniqueId(), Classes.toString(player.getLocation()));
+    }
+
+    static String resolveSkriptPlayerTokens(String text, String playerName, UUID playerId, String location) {
+        return text.replace("%player's location%", location)
+                .replace("%uuid of player%", playerId.toString())
+                .replace("%player%", playerName);
     }
 
     private String skriptText(Object value) {
@@ -4081,15 +4086,6 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         });
         viewer.showEntity(this, display);
         return display;
-    }
-
-    private static final class RpgMakerSkriptEvent extends PlayerEvent {
-        private static final HandlerList HANDLERS = new HandlerList();
-
-        private RpgMakerSkriptEvent(Player player) { super(player); }
-
-        @Override public @NotNull HandlerList getHandlers() { return HANDLERS; }
-        public static HandlerList getHandlerList() { return HANDLERS; }
     }
 
     private void position(Dialogue d) {
