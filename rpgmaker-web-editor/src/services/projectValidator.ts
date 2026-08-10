@@ -65,17 +65,25 @@ function conditionProblems(condition: ServerCondition) {
   return problems;
 }
 
+function naturalNextPageId(dialogue: Dialogue, page: PageWithServer, index: number) {
+  const server = page.server ?? emptyServerPage();
+  if (server.flow.ending) return undefined;
+  return server.flow.nextPageId || dialogue.pages[index + 1]?.id;
+}
+
 function pageEdges(dialogue: Dialogue, page: PageWithServer, index: number): string[] {
   const server = page.server ?? emptyServerPage();
   const edges = new Set<string>();
+  const naturalNext = naturalNextPageId(dialogue, page, index);
+  let hasContinuingChoice = false;
+
   forEachChoice(page.choices, (choice) => {
     if (choice.targetPageId) edges.add(choice.targetPageId);
+    else if (!choice.endAfterTarget) hasContinuingChoice = true;
   });
+
   if (server.flow.conditionalTargetPageId) edges.add(server.flow.conditionalTargetPageId);
-  if (!server.flow.ending) {
-    if (server.flow.nextPageId) edges.add(server.flow.nextPageId);
-    else if (!page.choices.length && dialogue.pages[index + 1]) edges.add(dialogue.pages[index + 1].id);
-  }
+  if (naturalNext && (!page.choices.length || hasContinuingChoice)) edges.add(naturalNext);
   return [...edges];
 }
 
@@ -108,40 +116,17 @@ function graphIssues(dialogue: Dialogue): ValidationIssue[] {
     }
   });
 
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-  const cyclePages = new Set<string>();
-  const visit = (id: string) => {
-    if (visiting.has(id)) {
-      cyclePages.add(id);
-      return;
-    }
-    if (visited.has(id)) return;
-    visiting.add(id);
-    edges.get(id)?.forEach((next) => {
-      if (byId.has(next)) visit(next);
-    });
-    visiting.delete(id);
-    visited.add(id);
-  };
-  visit(dialogue.startPageId || dialogue.pages[0].id);
-  cyclePages.forEach((pageId) => {
-    issues.push({
-      id: `cycle-${pageId}`,
-      severity: 'warning',
-      dialogueId: dialogue.id,
-      pageId,
-      section: 'flow',
-      message: '페이지 순환이 존재합니다. 의도된 반복이 아니라면 64회 Flow safety에 도달할 수 있습니다.',
-    });
-  });
+  // 일반적인 페이지 순환은 선택지/수동 진행으로 의도적으로 구성할 수 있습니다.
+  // Preview의 64회 Flow safety는 operation-only/조건부 자동 이동의 무한 반복을
+  // 막기 위한 런타임 보호이므로, 정적 그래프에 순환이 있다는 이유만으로 경고하지 않습니다.
 
   const terminal = new Set(
     dialogue.pages
       .filter((rawPage, index) => {
         const page = rawPage as PageWithServer;
         const server = page.server ?? emptyServerPage();
-        return server.flow.ending || (!page.choices.length && !server.flow.nextPageId && index === dialogue.pages.length - 1);
+        const choiceCanEnd = page.choices.some((choice) => choice.endAfterTarget);
+        return server.flow.ending || choiceCanEnd || (!server.flow.nextPageId && index === dialogue.pages.length - 1);
       })
       .map((page) => page.id),
   );
