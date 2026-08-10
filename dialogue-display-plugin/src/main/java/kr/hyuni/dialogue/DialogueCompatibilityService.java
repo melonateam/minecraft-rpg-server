@@ -63,6 +63,59 @@ final class DialogueCompatibilityService {
         }).filter(java.util.Objects::nonNull).sorted(Comparator.comparing(item -> String.valueOf(item.get("playerName")), String.CASE_INSENSITIVE_ORDER)).toList();
     }
 
+    List<Map<String, Object>> listPublic() {
+        ConfigurationSection section = plugin.getConfig().getConfigurationSection("public-dialogues");
+        if (section == null) return List.of();
+        return section.getKeys(false).stream().sorted(String.CASE_INSENSITIVE_ORDER).map(name -> {
+            String path = publicRoot(name);
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("name", name);
+            item.put("title", plugin.getConfig().getString(path + ".title", name));
+            item.put("revision", revision(path));
+            item.put("pages", pageCount(path));
+            item.put("ownerUuid", plugin.getConfig().getString(path + ".public-owner", ""));
+            item.put("publisher", plugin.getConfig().getString(path + ".public-by", "RPGMaker"));
+            return item;
+        }).toList();
+    }
+
+    DialogueDocument getPublic(String rawName) {
+        String name = sanitize(rawName);
+        String path = publicRoot(name);
+        if (!plugin.getConfig().contains(path)) return null;
+        Map<String, Object> data = new LinkedHashMap<>(readSection(path));
+        data.remove("public-owner");
+        data.remove("public-by");
+        return new DialogueDocument(name, revision(path), data);
+    }
+
+    UUID publicOwner(String rawName) {
+        String value = plugin.getConfig().getString(publicRoot(sanitize(rawName)) + ".public-owner", "");
+        try { return value.isBlank() ? null : UUID.fromString(value); }
+        catch (IllegalArgumentException ignored) { return null; }
+    }
+
+    String publicPublisher(String rawName) {
+        return plugin.getConfig().getString(publicRoot(sanitize(rawName)) + ".public-by", "RPGMaker");
+    }
+
+    SaveResult savePublic(UUID owner, String publisher, String rawName, String expectedRevision,
+                          Map<String, Object> data) {
+        String name = sanitize(rawName);
+        String path = publicRoot(name);
+        String current = plugin.getConfig().contains(path) ? revision(path) : null;
+        if (expectedRevision != null && !expectedRevision.isBlank() && !expectedRevision.equals(current))
+            return SaveResult.conflict(current);
+        List<String> errors = validate(data);
+        if (!errors.isEmpty()) return SaveResult.invalid(errors);
+        plugin.getConfig().set(path, null);
+        writeMap(path, data);
+        plugin.getConfig().set(path + ".public-owner", owner.toString());
+        plugin.getConfig().set(path + ".public-by", publisher == null || publisher.isBlank() ? owner.toString() : publisher);
+        plugin.saveConfig();
+        return SaveResult.saved(revision(path));
+    }
+
     List<Map<String, Object>> listItems(UUID owner) {
         String root = "custom-items." + owner;
         ConfigurationSection section = plugin.getConfig().getConfigurationSection(root);
@@ -277,6 +330,10 @@ final class DialogueCompatibilityService {
 
     private String ownerRoot(UUID owner) {
         return "player-dialogues." + owner;
+    }
+
+    private String publicRoot(String name) {
+        return "public-dialogues." + name;
     }
 
     private String sanitize(String raw) {

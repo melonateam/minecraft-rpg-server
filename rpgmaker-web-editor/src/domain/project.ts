@@ -37,6 +37,8 @@ export interface Dialogue {
     ownerUuid?: string;
     remoteName?: string;
     revision?: string;
+    scope?: 'personal' | 'public';
+    publisher?: string;
     raw?: Record<string, unknown>;
     lastSyncedAt?: string;
   };

@@ -84,6 +84,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private static final int CHOICE_LINE_PIXELS = 190;
     private static final int MAXIMUM_PAGES = 30;
     private static final int DEFAULT_TEXT_SIZE = 62;
+    private static final UUID SYSTEM_PUBLIC_OWNER = new UUID(0L, 0L);
     private static final double MINIMUM_UI_SCALE = 0.6;
     private static final double MAXIMUM_UI_SCALE = 1.4;
     private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\{(.+?)}}");
@@ -113,6 +114,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private CharacterRegistry characterRegistry;
     private DialogueWebApi webApi;
     private RpgDataStore dataStore;
+    private Listener citizensNpc;
     private NamespacedKey hotbarItemKey, hotbarSlotKey, temporaryHandKey, uiScaleKey, skriptSyncKey;
     private boolean skriptBridgeReady, skriptSyncReady;
 
@@ -134,10 +136,15 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         characterRegistry = CharacterRegistry.load(this);
         webApi = DialogueWebApi.start(this, new DialogueCompatibilityService(this), characterRegistry);
         installBundledExamples();
+        installPublicGuideDialogue();
         skriptBridgeReady = Bukkit.getPluginManager().isPluginEnabled("Skript");
         if (!skriptBridgeReady) getLogger().warning("Skript bridge is disabled: Skript is not installed.");
         Bukkit.getPluginManager().registerEvents(this, this);
-        if (Bukkit.getPluginManager().isPluginEnabled("Citizens")) new CitizensDialogueNpc(this).install();
+        if (Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            CitizensDialogueNpc bridge = new CitizensDialogueNpc(this);
+            citizensNpc = bridge;
+            Bukkit.getScheduler().runTaskLater(this, bridge::install, 40L);
+        }
         else getLogger().warning("Citizens dialogue NPC is disabled: Citizens is not installed.");
         startPackServer();
         tracker = Bukkit.getScheduler().runTaskTimer(this, this::tick, 1L, 1L);
@@ -146,6 +153,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             syncRpgVariables(player);
         });
         Bukkit.getScheduler().runTaskLater(this, () -> {
+            migrateStoredSkriptVariables();
             skriptSyncReady = true;
             Bukkit.getOnlinePlayers().forEach(this::syncRpgVariables);
         }, 100L);
@@ -783,7 +791,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             player.sendMessage(Component.text(player.getName() + " 계정으로 자동 연결됩니다. 이 링크는 다른 사람과 공유하지 마세요.", NamedTextColor.GRAY));
             return true;
         }
-        if (List.of("edit", "edit2", "edit3", "edit4", "adjust", "save", "show").contains(sub)
+        if (List.of("edit", "edit2", "edit3", "edit4", "adjust", "save", "show", "npc").contains(sub)
                 || (sub.equals("close") && args.length > 1)) {
             if (!player.hasPermission("rpgmaker.admin")) {
                 player.sendMessage(Component.text("이 기능은 OP만 사용할 수 있습니다.", NamedTextColor.RED));
@@ -883,6 +891,35 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             showNamed(player, sanitizeName(args[1]));
             return true;
         }
+        if (args.length == 1 && args[0].equalsIgnoreCase("public")) {
+            List<String> names = publicDialogueNames();
+            sender.sendMessage(Component.text("공용 대화문: " + (names.isEmpty() ? "없음" : String.join(", ", names)), NamedTextColor.AQUA));
+            return true;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("publish")) {
+            String name = sanitizeName(args[1]);
+            String source = "player-dialogues." + player.getUniqueId() + "." + name;
+            if (!getConfig().contains(source)) {
+                sender.sendMessage(Component.text("내 대화문 '" + name + "'을 찾을 수 없습니다.", NamedTextColor.RED));
+                return true;
+            }
+            String destination = "public-dialogues." + name;
+            String owner = getConfig().getString(destination + ".public-owner", "");
+            if (!owner.isBlank() && !owner.equals(player.getUniqueId().toString())) {
+                sender.sendMessage(Component.text("다른 유저가 올린 공용 대화문은 수정할 수 없습니다.", NamedTextColor.RED));
+                return true;
+            }
+            copySection(source, destination);
+            getConfig().set(destination + ".public-owner", player.getUniqueId().toString());
+            getConfig().set(destination + ".public-by", player.getName());
+            saveConfig();
+            sender.sendMessage(Component.text("'" + name + "'을 공용 대화문으로 저장했습니다.", NamedTextColor.GREEN));
+            return true;
+        }
+        if (args.length >= 2 && args[0].equalsIgnoreCase("npc") && citizensNpc instanceof CitizensDialogueNpc bridge) {
+            bridge.handleCommand(player, args);
+            return true;
+        }
         if (args.length >= 2 && args[0].equalsIgnoreCase("share")) {
             String name = sanitizeName(args[1]);
             String source = dialoguePath(player, name);
@@ -918,7 +955,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("delete")) {
             String name = sanitizeName(args[1]);
-            String path = dialoguePath(player, name);
+            String path = "player-dialogues." + player.getUniqueId() + "." + name;
             if (getConfig().contains(path)) {
                 if (isBuiltInExample(path)) dismissExample(player, name);
                 getConfig().set(path, null);
@@ -1094,17 +1131,23 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                                                 @NotNull String alias, @NotNull String[] args) {
         boolean admin = sender.hasPermission("rpgmaker.admin");
         List<String> commands = admin
-                ? List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "list", "edit", "edit2", "edit3", "edit4", "save", "show", "close", "admin")
-                : List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "list", "close");
+                ? List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "publish", "public", "list", "edit", "edit2", "edit3", "edit4", "save", "show", "close", "npc", "admin")
+                : List.of("help", "editor", "settings", "items", "examples", "load", "play", "delete", "share", "publish", "public", "list", "close");
         if (args.length == 1) return complete(args[0], commands);
         if (args.length == 2 && args[0].equalsIgnoreCase("editor")) return complete(args[1], List.of("help", "list", "variables"));
         if (args.length == 2 && args[0].equalsIgnoreCase("examples")) return complete(args[1], List.of("restore"));
         if (args.length == 2 && sender instanceof Player player
-                && List.of("load", "play", "delete", "share").contains(args[0].toLowerCase())) {
+                && List.of("load", "play", "delete", "share", "publish").contains(args[0].toLowerCase())) {
             List<String> names = dialogueNames(player);
             if (args[0].equalsIgnoreCase("share"))
                 names = names.stream().filter(name -> !isBuiltInExample(personalDialoguePath(player, name))).toList();
+            if (args[0].equalsIgnoreCase("play"))
+                names = java.util.stream.Stream.concat(names.stream(), publicDialogueNames().stream()).distinct().toList();
             return complete(args[1], names);
+        }
+        if (admin && args[0].equalsIgnoreCase("npc")) {
+            if (args.length == 2) return complete(args[1], List.of("bind", "unbind"));
+            if (args.length == 4 && args[1].equalsIgnoreCase("bind")) return complete(args[3], publicDialogueNames());
         }
         if (args.length == 2 && admin && List.of("show", "close").contains(args[0].toLowerCase()))
             return complete(args[1], Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
@@ -1162,7 +1205,14 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 .append(Component.text(" - 목록 확인 또는 삭제", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/rpgmaker share <이름>", NamedTextColor.YELLOW)
                 .append(Component.text(" - 전체 채팅에 읽기 전용으로 공유", NamedTextColor.GRAY)));
+        sender.sendMessage(Component.text("/rpgmaker publish <이름> | public", NamedTextColor.YELLOW)
+                .append(Component.text(" - 공용 대화문 저장 또는 목록", NamedTextColor.GRAY)));
         if (sender.hasPermission("rpgmaker.admin")) {
+            sender.sendMessage(Component.text("/rpgmaker play <공용명>", NamedTextColor.YELLOW)
+                    .append(Component.text(" - 공용 대화문을 자신에게 표시", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/rpgmaker npc bind <NPC ID> <공용명> | unbind <NPC ID>", NamedTextColor.YELLOW)
+                    .append(Component.text(" - Citizens NPC 우클릭 공용 대화 연결", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("NPC 생성 후 /npc id로 ID 확인 → /rpgmaker npc bind ...", NamedTextColor.GRAY));
             sender.sendMessage(Component.text("OP 전용 명령어", NamedTextColor.RED));
             sender.sendMessage(Component.text("/rpgmaker edit", NamedTextColor.YELLOW).append(Component.text(" - 화면 배치 편집", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/rpgmaker edit2", NamedTextColor.YELLOW).append(Component.text(" - 인물 없는 대화창 배치 편집", NamedTextColor.GRAY)));
@@ -1191,8 +1241,13 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     }
 
     void showNpcDialogue(Player player, String name) {
-        ensureExamples(player);
-        showNamed(player, sanitizeName(name));
+        String path = "public-dialogues." + sanitizeName(name);
+        if (getConfig().contains(path)) showPath(player, path);
+        else player.sendMessage(Component.text("공용 대화문 '" + name + "'을 찾을 수 없습니다.", NamedTextColor.RED));
+    }
+
+    boolean hasPublicDialogue(String name) {
+        return getConfig().contains("public-dialogues." + sanitizeName(name));
     }
 
     private void showPath(Player player, String path) {
@@ -2531,6 +2586,8 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
     private String dialoguePath(Player player, String name) {
         String personal = personalDialoguePath(player, name);
         if (getConfig().contains(personal)) return personal;
+        String published = "public-dialogues." + sanitizeName(name);
+        if (getConfig().contains(published)) return published;
         String legacy = "dialogues." + sanitizeName(name);
         return getConfig().contains(legacy) && (player.hasPermission("rpgmaker.admin")
                 || sanitizeName(name).equals("default")) ? legacy : personal;
@@ -2548,6 +2605,11 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         return names.stream().sorted(java.util.Comparator
                 .comparing((String name) -> !isBuiltInExample(personalDialoguePath(player, name)))
                 .thenComparing(String.CASE_INSENSITIVE_ORDER)).toList();
+    }
+
+    private List<String> publicDialogueNames() {
+        var section = getConfig().getConfigurationSection("public-dialogues");
+        return section == null ? List.of() : section.getKeys(false).stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
     }
 
     private void ensureExamples(Player player) {
@@ -2594,6 +2656,17 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         } catch (Exception error) {
             getLogger().warning("Bundled examples could not be updated: " + error.getMessage());
         }
+    }
+
+    private void installPublicGuideDialogue() {
+        String destination = "public-dialogues." + sanitizeName("초보_상점_이용법");
+        if (getConfig().contains(destination)) return;
+        String source = "example-templates.shop-final";
+        if (!getConfig().contains(source)) return;
+        copySection(source, destination);
+        getConfig().set(destination + ".public-owner", SYSTEM_PUBLIC_OWNER.toString());
+        getConfig().set(destination + ".public-by", "RPGMaker");
+        saveConfig();
     }
 
     private boolean ensureExampleItems(Player player) {
@@ -3804,6 +3877,39 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (value instanceof Map<?, ?> values)
             return values.values().stream().map(Classes::toString).collect(java.util.stream.Collectors.joining(", "));
         return Classes.toString(value);
+    }
+
+    private void migrateStoredSkriptVariables() {
+        if (!skriptBridgeReady) return;
+        boolean changed = false;
+        var iterator = Variables.getVariableIterator("rpgmaker::*", false, null);
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            String[] parts = storedSkriptVariableParts(entry.getFirst());
+            String value = skriptText(entry.getSecond());
+            if (parts == null || value == null) continue;
+            String path = "player-variables." + parts[0] + "." + variableDataKey(parts[1]);
+            if (!value.equals(getConfig().getString(path))) {
+                getConfig().set(path, value);
+                changed = true;
+            }
+        }
+        if (changed) saveConfig();
+    }
+
+    static String[] storedSkriptVariableParts(String raw) {
+        if (raw == null) return null;
+        String value = raw.strip();
+        if (value.startsWith("rpgmaker::")) value = value.substring("rpgmaker::".length());
+        while (value.startsWith("::")) value = value.substring(2);
+        int separator = value.indexOf("::");
+        if (separator < 1) return null;
+        String owner = value.substring(0, separator);
+        String variable = variableName(value.substring(separator + 2));
+        try {
+            UUID.fromString(owner);
+            return variable.isBlank() ? null : new String[]{owner, variable};
+        } catch (IllegalArgumentException ignored) { return null; }
     }
 
     private void syncRpgVariables(Player player) {

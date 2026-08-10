@@ -12,6 +12,7 @@ interface Props {
   onCreatePage: () => void;
   onDuplicatePage: (page: DialoguePage) => void;
   onDeletePage: (page: DialoguePage) => void;
+  readOnly?: boolean;
 }
 
 function flags(page: DialoguePage, issues: ValidationIssue[]) {
@@ -32,7 +33,7 @@ export function StructuredPageNavigator(props: Props) {
   const activePage = props.dialogue.pages.find((page) => page.id === props.activePageId) ?? props.dialogue.pages[0];
 
   const addChoice = () => {
-    if (!activePage || activePage.choices.length >= 8) return;
+    if (props.readOnly || !activePage || activePage.choices.length >= 8) return;
     const project = projects.find((candidate) => candidate.dialogues.some((dialogue) => dialogue.id === props.dialogue.id));
     if (!project) return;
     const choiceId = crypto.randomUUID();
@@ -78,8 +79,8 @@ export function StructuredPageNavigator(props: Props) {
                 )}
               </button>
               <div className="hidden border-t border-[#2b313b] px-2 py-1.5 group-hover:flex">
-                <button type="button" disabled={props.dialogue.pages.length >= 30} onClick={() => props.onDuplicatePage(page)} className="rounded px-2 py-1 text-[10px] text-[#7f8997] hover:bg-[#252b34] disabled:opacity-30">복제</button>
-                <button type="button" disabled={props.dialogue.pages.length <= 1} onClick={() => props.onDeletePage(page)} className="ml-auto rounded px-2 py-1 text-[10px] text-[#7f8997] hover:bg-red-400/10 hover:text-red-300 disabled:opacity-30">삭제</button>
+                <button type="button" disabled={props.readOnly || props.dialogue.pages.length >= 30} onClick={() => props.onDuplicatePage(page)} className="rounded px-2 py-1 text-[10px] text-[#7f8997] hover:bg-[#252b34] disabled:opacity-30">복제</button>
+                <button type="button" disabled={props.readOnly || props.dialogue.pages.length <= 1} onClick={() => props.onDeletePage(page)} className="ml-auto rounded px-2 py-1 text-[10px] text-[#7f8997] hover:bg-red-400/10 hover:text-red-300 disabled:opacity-30">삭제</button>
               </div>
             </div>
           );
@@ -87,7 +88,7 @@ export function StructuredPageNavigator(props: Props) {
       </div>
       <button
         type="button"
-        disabled={props.dialogue.pages.length >= 30}
+        disabled={props.readOnly || props.dialogue.pages.length >= 30}
         title={props.dialogue.pages.length >= 30 ? '한 대화에는 최대 30개의 페이지를 만들 수 있습니다.' : undefined}
         onClick={props.onCreatePage}
         className="mt-3 w-full rounded-xl border border-dashed border-[#343c48] px-3 py-3 text-sm text-[#8b99ff] enabled:hover:bg-[#1c2128] disabled:text-[#515a67]"
@@ -119,7 +120,7 @@ export function StructuredPageNavigator(props: Props) {
       </div>
       <button
         type="button"
-        disabled={!activePage || activePage.choices.length >= 8}
+        disabled={props.readOnly || !activePage || activePage.choices.length >= 8}
         onClick={addChoice}
         className="mt-2 w-full rounded-xl border border-dashed border-[#4a405e] px-3 py-3 text-sm text-[#b09cff] enabled:hover:bg-[#211d2b] disabled:opacity-30"
       >

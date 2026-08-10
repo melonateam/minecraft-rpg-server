@@ -100,4 +100,12 @@ class DialogueDisplayPluginTest {
                         Map.of("삭제됨", "1", "공통", "RPGMaker"),
                         Map.of("공통", "스크립트", "신규", "2"), true));
     }
+
+    @Test
+    void storedSkriptVariablesSplitIntoOwnerAndName() {
+        String owner = "12d0a2f0-6e70-4f53-88f7-9571b4c6bced";
+        assertEquals(List.of(owner, "한글_변수"), List.of(DialogueDisplayPlugin.storedSkriptVariableParts(owner + "::한글 변수")));
+        assertEquals(List.of(owner, "점수"), List.of(DialogueDisplayPlugin.storedSkriptVariableParts("rpgmaker::" + owner + "::점수")));
+        assertNull(DialogueDisplayPlugin.storedSkriptVariableParts("invalid::점수"));
+    }
 }

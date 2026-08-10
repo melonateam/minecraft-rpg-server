@@ -120,6 +120,7 @@ export function DialogueStudioV2() {
   const [testMode, setTestMode] = useState(false);
   const [serverModal, setServerModal] = useState(false);
   const [variableHelp, setVariableHelp] = useState(false);
+  const [publicHelp, setPublicHelp] = useState(false);
   const [connection, setConnection] = useState<PlayerSessionConnection>();
   const [serverStatus, setServerStatus] = useState<ServerUiStatus>('disconnected');
   const [serverMessage, setServerMessage] = useState('게임에서 /rpgmaker web 링크로 연결하세요.');
@@ -171,6 +172,8 @@ export function DialogueStudioV2() {
 
   const dialogue = project?.dialogues.find((candidate) => candidate.id === activeDialogueId) ?? project?.dialogues[0];
   const page = dialogue?.pages.find((candidate) => candidate.id === activePageId) ?? dialogue?.pages[0];
+  const isPublic = dialogue?.server?.scope === 'public';
+  const readOnly = Boolean(isPublic && dialogue?.server?.ownerUuid !== connection?.ownerUuid);
 
   const issues = useMemo(
     () => (project && manifest ? validateProject(project, manifest) : []),
@@ -186,7 +189,7 @@ export function DialogueStudioV2() {
   );
 
   const changePage = (mutator: (draft: DialoguePage) => void) => {
-    if (!project || !dialogue || !page) return;
+    if (readOnly || !project || !dialogue || !page) return;
     mutateProject(project.id, (draftProject) => {
       const draftDialogue = draftProject.dialogues.find((candidate) => candidate.id === dialogue.id);
       const draftPage = draftDialogue?.pages.find((candidate) => candidate.id === page.id);
@@ -198,13 +201,13 @@ export function DialogueStudioV2() {
   };
 
   const undo = () => {
-    if (!project) return;
+    if (readOnly || !project) return;
     const snapshot = takeUndo(project);
     if (snapshot) applyHistorySnapshot(snapshot);
   };
 
   const redo = () => {
-    if (!project) return;
+    if (readOnly || !project) return;
     const snapshot = takeRedo(project);
     if (snapshot) applyHistorySnapshot(snapshot);
   };
@@ -245,8 +248,9 @@ export function DialogueStudioV2() {
     let cancelled = false;
     setServerStatus('connecting');
     const api = new PlayerSessionApiClient(connection.sessionId);
-    void api
-      .getDialogue(connection.ownerUuid, dialogue.server.remoteName)
+    void (isPublic
+      ? api.getPublicDialogue(dialogue.server.remoteName)
+      : api.getDialogue(connection.ownerUuid, dialogue.server.remoteName))
       .then((remote) => {
         if (cancelled) return;
         if (dialogue.server?.revision && remote.revision !== dialogue.server.revision) {
@@ -265,7 +269,7 @@ export function DialogueStudioV2() {
     return () => {
       cancelled = true;
     };
-  }, [dialogue?.id, dialogue?.server?.revision, dialogue?.server?.remoteName, connection]);
+  }, [dialogue?.id, dialogue?.server?.revision, dialogue?.server?.remoteName, isPublic, connection]);
 
   if (!project) {
     return (
@@ -335,11 +339,14 @@ export function DialogueStudioV2() {
   };
 
   const deleteCurrentDialogue = () => {
-    if (!window.confirm(`'${dialogue.name}' 대화를 삭제할까요?\n서버에 연결된 대화라면 다음 '서버에 반영' 때 서버에서도 삭제됩니다.`)) return;
+    const detail = isPublic
+      ? '웹 목록에서만 닫히며 서버 공용본은 유지됩니다.'
+      : "서버에 연결된 대화라면 다음 '서버에 반영' 때 서버에서도 삭제됩니다.";
+    if (!window.confirm(`'${dialogue.name}' 대화를 삭제할까요?\n${detail}`)) return;
     const fallback = project.dialogues.find((candidate) => candidate.id !== dialogue.id);
     mutateProject(project.id, (draft) => {
       const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
-      if (target?.server?.ownerUuid && target.server.remoteName) {
+      if (target?.server?.scope !== 'public' && target?.server?.ownerUuid && target.server.remoteName) {
         draft.pendingServerDeletes ??= [];
         const duplicate = draft.pendingServerDeletes.some(
           (entry) => entry.ownerUuid === target.server!.ownerUuid && entry.remoteName === target.server!.remoteName,
@@ -360,7 +367,7 @@ export function DialogueStudioV2() {
   };
 
   const createNewPage = () => {
-    if (dialogue.pages.length >= 30) return;
+    if (readOnly || dialogue.pages.length >= 30) return;
     const next = createPage(`Page ${dialogue.pages.length + 1}`);
     const previous = dialogue.pages.at(-1);
     if (previous) {
@@ -378,7 +385,7 @@ export function DialogueStudioV2() {
   };
 
   const duplicatePage = (pageId: string) => {
-    if (dialogue.pages.length >= 30) return;
+    if (readOnly || dialogue.pages.length >= 30) return;
     const source = dialogue.pages.find((candidate) => candidate.id === pageId);
     if (!source) return;
     const duplicate = structuredClone(source);
@@ -394,7 +401,7 @@ export function DialogueStudioV2() {
   };
 
   const deletePage = (pageId: string) => {
-    if (dialogue.pages.length <= 1) return;
+    if (readOnly || dialogue.pages.length <= 1) return;
     const targetPage = dialogue.pages.find((candidate) => candidate.id === pageId);
     if (!targetPage) return;
 
@@ -445,37 +452,46 @@ export function DialogueStudioV2() {
     setRightPanel(inspectorSection ? { kind: 'inspector', section: inspectorSection } : undefined);
   };
 
-  const importRemote = async (document: ServerDialogueDocument) => {
+  const importRemote = async (document: ServerDialogueDocument, scope: 'personal' | 'public') => {
     if (!connection) return;
+    const ownerUuid = scope === 'public' ? document.ownerUuid || '' : connection.ownerUuid;
     const imported = importMinecraftDialogue(
       document.name,
       document.dialogue,
       document.revision,
-      connection.ownerUuid,
+      ownerUuid,
       manifest,
     );
+    imported.server = {
+      ...imported.server,
+      ownerUuid,
+      remoteName: document.name,
+      scope,
+      publisher: document.publisher,
+    };
     const existing = project.dialogues.find(
       (candidate) =>
-        (candidate.server?.ownerUuid === connection.ownerUuid &&
-          serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(document.name)) ||
-        normalizedName(candidate.name) === normalizedName(imported.name) ||
-        serverNameKey(candidate.name) === serverNameKey(document.name),
+        (candidate.server?.scope ?? 'personal') === scope &&
+        candidate.server?.ownerUuid === ownerUuid &&
+        serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(document.name),
     );
     if (existing) imported.id = existing.id;
+    else if (scope === 'public' && project.dialogues.some((candidate) => normalizedName(candidate.name) === normalizedName(imported.name)))
+      imported.name = `${imported.name} (공용)`;
 
     mutateProject(project.id, (draft) => {
       const existingIndex = draft.dialogues.findIndex(
         (candidate) =>
-          (candidate.server?.ownerUuid === connection.ownerUuid &&
-            serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(document.name)) ||
-          normalizedName(candidate.name) === normalizedName(imported.name) ||
-          serverNameKey(candidate.name) === serverNameKey(document.name),
+          (candidate.server?.scope ?? 'personal') === scope &&
+          candidate.server?.ownerUuid === ownerUuid &&
+          serverNameKey(candidate.server?.remoteName ?? '') === serverNameKey(document.name),
       );
       if (existingIndex >= 0) draft.dialogues[existingIndex] = imported;
       else draft.dialogues.push(imported);
-      draft.pendingServerDeletes = (draft.pendingServerDeletes ?? []).filter(
-        (entry) => !(entry.ownerUuid === connection.ownerUuid && entry.remoteName === document.name),
-      );
+      if (scope === 'personal')
+        draft.pendingServerDeletes = (draft.pendingServerDeletes ?? []).filter(
+          (entry) => !(entry.ownerUuid === connection.ownerUuid && entry.remoteName === document.name),
+        );
     });
     selectDialogue(imported.id, imported.pages[0]?.id);
     setServerStatus('connected');
@@ -499,9 +515,11 @@ export function DialogueStudioV2() {
       const documents = await Promise.all(
         summaries.map((summary) => api.getDialogue(connection.ownerUuid, summary.name)),
       );
-      const imported = documents.map((document) =>
-        importMinecraftDialogue(document.name, document.dialogue, document.revision, connection.ownerUuid, manifest),
-      );
+      const imported = documents.map((document) => {
+        const next = importMinecraftDialogue(document.name, document.dialogue, document.revision, connection.ownerUuid, manifest);
+        next.server = { ...next.server, scope: 'personal' };
+        return next;
+      });
       const remoteNames = new Set(summaries.map((summary) => serverNameKey(summary.name)));
 
       imported.forEach((next) => {
@@ -526,6 +544,7 @@ export function DialogueStudioV2() {
           })),
         ];
         draft.dialogues = draft.dialogues.filter((candidate) => {
+          if (candidate.server?.scope === 'public') return true;
           if (candidate.server?.ownerUuid !== connection.ownerUuid || !candidate.server.remoteName) return true;
           return remoteNames.has(serverNameKey(candidate.server.remoteName));
         });
@@ -568,6 +587,7 @@ export function DialogueStudioV2() {
     }
 
     const duplicateNames = project.dialogues
+      .filter((candidate) => candidate.server?.scope !== 'public')
       .map((candidate) => serverNameKey(candidate.server?.remoteName || candidate.name))
       .filter((name, index, all) => all.indexOf(name) !== index);
     if (duplicateNames.length) {
@@ -584,7 +604,7 @@ export function DialogueStudioV2() {
       const summaries = await api.listDialogues(connection.ownerUuid);
       const remoteByName = new Map(summaries.map((summary) => [serverNameKey(summary.name), summary]));
 
-      for (const local of project.dialogues) {
+      for (const local of project.dialogues.filter((candidate) => candidate.server?.scope !== 'public')) {
         const remoteName = local.server?.remoteName || local.name;
         const current = remoteByName.get(serverNameKey(remoteName));
         if (
@@ -606,9 +626,9 @@ export function DialogueStudioV2() {
 
       const savedMetadata = new Map<
         string,
-        { remoteName: string; revision: string; raw: Record<string, unknown> }
+        { remoteName: string; revision: string; raw: Record<string, unknown>; scope: 'personal' | 'public'; publisher?: string }
       >();
-      for (const local of project.dialogues) {
+      for (const local of project.dialogues.filter((candidate) => candidate.server?.scope !== 'public')) {
         const remoteName = local.server?.remoteName || local.name;
         const payload = exportMinecraftDialogue(local, manifest);
         await api.validate(payload);
@@ -628,6 +648,28 @@ export function DialogueStudioV2() {
           remoteName,
           revision: saved.revision,
           raw: structuredClone(payload),
+          scope: 'personal',
+        });
+      }
+
+      for (const local of project.dialogues.filter(
+        (candidate) => candidate.server?.scope === 'public' && candidate.server.ownerUuid === connection.ownerUuid,
+      )) {
+        const remoteName = local.server?.remoteName || local.name;
+        const payload = exportMinecraftDialogue(local, manifest);
+        await api.validate(payload);
+        const saved = await api.savePublicDialogue(
+          connection.ownerUuid,
+          remoteName,
+          local.server?.revision,
+          payload,
+        );
+        savedMetadata.set(local.id, {
+          remoteName,
+          revision: saved.revision,
+          raw: structuredClone(payload),
+          scope: 'public',
+          publisher: connection.playerName,
         });
       }
 
@@ -639,6 +681,8 @@ export function DialogueStudioV2() {
             ownerUuid: connection.ownerUuid,
             remoteName: saved.remoteName,
             revision: saved.revision,
+            scope: saved.scope,
+            publisher: saved.publisher,
             raw: saved.raw,
             lastSyncedAt: new Date().toISOString(),
           };
@@ -649,7 +693,7 @@ export function DialogueStudioV2() {
       });
       setServerStatus('applied');
       setServerMessage(
-        `${connection.playerName} · 서버 반영 완료 · 대화 ${project.dialogues.length}개 저장, 삭제 예약 처리 완료`,
+        `${connection.playerName} · 서버 반영 완료 · 대화 ${savedMetadata.size}개 저장, 삭제 예약 처리 완료`,
       );
     } catch (error) {
       if (error instanceof RevisionConflictError) {
@@ -664,6 +708,50 @@ export function DialogueStudioV2() {
     }
   };
 
+  const publishCurrent = async () => {
+    if (readOnly) return;
+    if (!connection) {
+      setServerModal(true);
+      return;
+    }
+    if (issues.some((issue) => issue.dialogueId === dialogue.id && issue.severity === 'error')) {
+      setRightPanel({ kind: 'validation' });
+      return;
+    }
+    setServerStatus('syncing');
+    try {
+      const api = new PlayerSessionApiClient(connection.sessionId);
+      const remoteName = dialogue.server?.remoteName || dialogue.name;
+      const payload = exportMinecraftDialogue(dialogue, manifest);
+      await api.validate(payload);
+      const saved = await api.savePublicDialogue(
+        connection.ownerUuid,
+        remoteName,
+        isPublic ? dialogue.server?.revision : undefined,
+        payload,
+      );
+      mutateProject(project.id, (draft) => {
+        const target = draft.dialogues.find((candidate) => candidate.id === dialogue.id);
+        if (!target) return;
+        target.server = {
+          ownerUuid: connection.ownerUuid,
+          remoteName,
+          revision: saved.revision,
+          scope: 'public',
+          publisher: connection.playerName,
+          raw: structuredClone(payload),
+          lastSyncedAt: new Date().toISOString(),
+        };
+      });
+      setServerStatus('applied');
+      setServerMessage(`'${remoteName}' 공용 대화문 저장 완료`);
+    } catch (error) {
+      if (error instanceof RevisionConflictError) setServerStatus('conflict');
+      else setServerStatus('error');
+      setServerMessage(error instanceof Error ? error.message : '공용 대화문 저장 실패');
+    }
+  };
+
   return (
     <main className="flex h-screen min-w-[1280px] flex-col overflow-hidden bg-[#0f1115] text-[#eef1f5]">
       {!testMode && (
@@ -675,8 +763,10 @@ export function DialogueStudioV2() {
           serverMessage={serverMessage}
           issueCount={issues.length}
           errorCount={errorCount}
-          canUndo={past.length > 0}
-          canRedo={future.length > 0}
+          canUndo={!readOnly && past.length > 0}
+          canRedo={!readOnly && future.length > 0}
+          readOnly={readOnly}
+          isPublic={isPublic}
           onBack={() => navigate('/')}
           onUndo={undo}
           onRedo={redo}
@@ -688,9 +778,11 @@ export function DialogueStudioV2() {
           onValidate={() => setRightPanel({ kind: 'validation' })}
           onServer={() => void pullFromServer()}
           onApplyServer={() => void applyToServer()}
+          onPublishServer={() => void publishCurrent()}
           onVariables={() => setVariableHelp(true)}
           isAdmin={connection?.admin}
           onAdmin={() => navigate('/admin')}
+          onPublicHelp={() => setPublicHelp(true)}
         />
       )}
 
@@ -718,17 +810,19 @@ export function DialogueStudioV2() {
               onCreatePage={createNewPage}
               onDuplicatePage={duplicatePage}
               onDeletePage={deletePage}
+              readOnly={readOnly}
             />
 
-            <ScriptWorkspace
-              page={page}
-              pageNumber={dialogue.pages.findIndex((candidate) => candidate.id === page.id) + 1}
-              manifest={manifest}
-              variableNames={variableNames}
-              activePanel={rightPanel?.kind === 'inspector' ? rightPanel.section : undefined}
-              onOpenPanel={(section) => setRightPanel({ kind: 'inspector', section })}
-              onChange={changePage}
-            />
+            <fieldset disabled={readOnly} className="contents">
+              <ScriptWorkspace
+                page={page}
+                pageNumber={dialogue.pages.findIndex((candidate) => candidate.id === page.id) + 1}
+                manifest={manifest}
+                variableNames={variableNames}
+                activePanel={rightPanel?.kind === 'inspector' ? rightPanel.section : undefined}
+                onOpenPanel={(section) => setRightPanel({ kind: 'inspector', section })}
+                onChange={changePage}
+              />
 
             {rightPanel?.kind === 'inspector' && rightPanel.section === 'effects' && (
               <EffectsInspector
@@ -751,6 +845,7 @@ export function DialogueStudioV2() {
                 onChange={changePage}
               />
             )}
+            </fieldset>
 
             {rightPanel?.kind === 'validation' && (
               <ValidationPanel
@@ -772,6 +867,30 @@ export function DialogueStudioV2() {
         />
       )}
       {variableHelp && <VariableHelpModal onClose={() => setVariableHelp(false)} />}
+      {publicHelp && connection?.admin && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-6">
+          <section className="w-full max-w-xl rounded-2xl border border-[#303846] bg-[#151a20] p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div>
+                <h2 className="font-semibold text-white">공용 대화문 사용법 · OP 전용</h2>
+                <p className="mt-2 text-sm leading-6 text-[#aab3c0]">
+                  웹에서는 대화를 연 뒤 <b>공용으로 저장</b>을 누릅니다. 올린 사람만 공용본을 수정할 수 있고 다른 유저는 읽기 전용입니다.
+                </p>
+                <div className="mt-4 space-y-2 rounded-xl bg-black/20 p-4 font-mono text-xs text-[#c4cbff]">
+                  <div>/rpgmaker publish &lt;개인 대화명&gt;</div>
+                  <div>/rpgmaker public</div>
+                  <div>/rpgmaker play &lt;공용명&gt;</div>
+                  <div>/npc create &lt;NPC 이름&gt; → /npc id</div>
+                  <div>/rpgmaker npc bind &lt;NPC ID&gt; &lt;공용명&gt;</div>
+                  <div>/rpgmaker npc unbind &lt;NPC ID&gt;</div>
+                </div>
+                <p className="mt-3 text-xs text-[#7f8997]">연결된 Citizens NPC를 우클릭하면 해당 플레이어에게만 공용 대화문이 표시됩니다.</p>
+              </div>
+              <button type="button" onClick={() => setPublicHelp(false)} className="ml-auto rounded-lg px-2 py-1 text-[#8993a1] hover:bg-[#242b34]">✕</button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

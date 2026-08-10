@@ -14,6 +14,7 @@ interface Props {
   onCreatePage: () => void;
   onDuplicatePage: (pageId: string) => void;
   onDeletePage: (pageId: string) => void;
+  readOnly?: boolean;
 }
 
 export function DialogueSidebar(props: Props) {
@@ -70,6 +71,7 @@ export function DialogueSidebar(props: Props) {
       </section>
 
       <StructuredPageNavigator
+        readOnly={props.readOnly}
         dialogue={props.dialogue}
         activePageId={props.activePageId}
         issues={props.issues.filter((issue) => issue.dialogueId === props.dialogue.id)}

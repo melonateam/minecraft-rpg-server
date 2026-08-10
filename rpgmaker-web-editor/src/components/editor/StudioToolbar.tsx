@@ -28,9 +28,13 @@ interface Props {
   onValidate: () => void;
   onServer: () => void;
   onApplyServer: () => void;
+  onPublishServer?: () => void;
+  onPublicHelp?: () => void;
   onVariables?: () => void;
   onAdmin?: () => void;
   isAdmin?: boolean;
+  readOnly?: boolean;
+  isPublic?: boolean;
 }
 
 const saveText: Record<SaveStatus, string> = {
@@ -96,9 +100,14 @@ export function StudioToolbar(props: Props) {
             관리자
           </button>
         )}
+        {props.isAdmin && props.onPublicHelp && (
+          <button type="button" onClick={props.onPublicHelp} className="rounded-lg px-3 py-2 text-xs text-amber-300 hover:bg-[#20252d]">
+            공용 대화 도움말
+          </button>
+        )}
         <button
           type="button"
-          disabled={!props.canUndo}
+          disabled={props.readOnly || !props.canUndo}
           onClick={props.onUndo}
           title="Undo (Ctrl+Z)"
           className="rounded-lg px-2.5 py-2 text-lg text-[#8c96a4] enabled:hover:bg-[#20252d] disabled:opacity-25"
@@ -107,7 +116,7 @@ export function StudioToolbar(props: Props) {
         </button>
         <button
           type="button"
-          disabled={!props.canRedo}
+          disabled={props.readOnly || !props.canRedo}
           onClick={props.onRedo}
           title="Redo (Ctrl+Shift+Z)"
           className="rounded-lg px-2.5 py-2 text-lg text-[#8c96a4] enabled:hover:bg-[#20252d] disabled:opacity-25"
@@ -116,8 +125,9 @@ export function StudioToolbar(props: Props) {
         </button>
         <button
           type="button"
+          disabled={props.readOnly}
           onClick={props.onSave}
-          className="rounded-lg px-3 py-2 text-xs text-[#8f99a7] hover:bg-[#20252d]"
+          className="rounded-lg px-3 py-2 text-xs text-[#8f99a7] enabled:hover:bg-[#20252d] disabled:opacity-35"
         >
           저장
         </button>
@@ -141,12 +151,22 @@ export function StudioToolbar(props: Props) {
         </button>
         <button
           type="button"
-          disabled={props.serverStatus === 'syncing'}
+          disabled={props.readOnly || props.serverStatus === 'syncing'}
           onClick={props.onApplyServer}
           className="ml-1 rounded-lg bg-[#7c8cff] px-4 py-2 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-50"
         >
           서버에 반영
         </button>
+        {props.onPublishServer && (
+          <button
+            type="button"
+            disabled={props.readOnly || props.serverStatus === 'syncing'}
+            onClick={props.onPublishServer}
+            className="ml-1 rounded-lg border border-violet-400/40 px-4 py-2 text-xs font-semibold text-violet-200 enabled:hover:bg-violet-400/10 disabled:opacity-35"
+          >
+            {props.isPublic ? '공용본 갱신' : '공용으로 저장'}
+          </button>
+        )}
         <button
           type="button"
           disabled={!canPullFromServer}

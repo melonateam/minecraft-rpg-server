@@ -24,6 +24,7 @@ class RpgDataStoreTest {
         live.set("dismissed-examples." + owner, java.util.List.of("예제"));
         live.set("player-variables." + owner + "." + DialogueDisplayPlugin.variableDataKey("호감도"), "10");
         live.set("shared-dialogues.token.message", "공유");
+        live.set("public-dialogues.공용.message", "모두 보기");
 
         RpgDataStore store = new RpgDataStore(folder, Logger.getAnonymousLogger());
         store.save(live);
@@ -38,5 +39,6 @@ class RpgDataStoreTest {
         assertEquals("안녕", restored.getString("player-dialogues." + owner + ".인사.message"));
         assertEquals("10", restored.getString("player-variables." + owner + "." + DialogueDisplayPlugin.variableDataKey("호감도")));
         assertEquals("공유", restored.getString("shared-dialogues.token.message"));
+        assertEquals("모두 보기", restored.getString("public-dialogues.공용.message"));
     }
 }
