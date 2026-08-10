@@ -72,7 +72,7 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
             dialogue.typed = dialogue.message.length();
             render(dialogue);
             finishPage(dialogue);
-            dialogue.manualRevealAdvanceUnlockAtMillis = now + 1000L;
+            dialogue.manualRevealAdvanceUnlockAtMillis = now + 500L;
             return;
         }
 
@@ -128,14 +128,14 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
 
         text = text
             .replace("입력이 저장되었습니다. Shift 키를 눌러 계속", "입력이 저장되었습니다. F키를 눌러 계속")
-            .replace("대화 중 Space: 대화문 스킵 · Shift: 다음 대사", "대화 중 F: 타이핑 전체 표시 / 다음 대사 · 수동 전체 표시 후 1초간 다음 진행 방지")
+            .replace("대화 중 Space: 대화문 스킵 · Shift: 다음 대사", "대화 중 F: 타이핑 전체 표시 / 다음 대사 · 수동 전체 표시 후 0.5초간 다음 진행 방지")
             .replace("Shift 키를 눌러 다음 대사", "F키를 눌러 다음 대사")
             .replace("Shift 키를 눌러 대화 종료", "F키를 눌러 대화 종료")
             .replace("후속 대사 후 쉬프트로 종료", "후속 대사 후 F키로 종료")
 
         replaceRequired(
             "        sender.sendMessage(Component.text(\"RPG Maker 도움말\", NamedTextColor.GOLD));",
-            "        sender.sendMessage(Component.text(\"RPG Maker 도움말\", NamedTextColor.GOLD));\n        sender.sendMessage(Component.text(\"대화 조작: F키로 타이핑 전체 표시 / 다음 진행 · 수동 전체 표시 후 1초간 진행 잠금\", NamedTextColor.AQUA));",
+            "        sender.sendMessage(Component.text(\"RPG Maker 도움말\", NamedTextColor.GOLD));\n        sender.sendMessage(Component.text(\"대화 조작: F키로 타이핑 전체 표시 / 다음 진행 · 수동 전체 표시 후 0.5초간 진행 잠금\", NamedTextColor.AQUA));",
             "server help F-key guidance",
         )
 
