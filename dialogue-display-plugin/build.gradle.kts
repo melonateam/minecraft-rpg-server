@@ -138,7 +138,7 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         bodyLines[0] = spawn(player, origin, Component.empty());
         bodyLines[0].setTextOpacity((byte) 248);
         bodyLines[0].setAlignment(TextDisplay.TextAlignment.LEFT);
-        bodyLines[0].setLineWidth(1024);
+        bodyLines[0].setLineWidth(MAXIMUM_LINE_PIXELS);
 """,
             "single multiline body TextDisplay",
         )
@@ -164,14 +164,19 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         for (int row = 0; row < lineCount; row++) {
             if (row > 0) body = body.append(Component.newline());
             String line = row < visibleLines.length ? visibleLines[row] : "";
-            Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
-                    .font(Key.key("dialog", "spacing"));
-            body = body.append(coloredLine(line)).append(padding);
+            body = body.append(coloredLine(line));
         }
+        // Keep a permanently fixed-width invisible line in the same TextDisplay. Minecraft
+        // centers the complete text block around the entity before applying LEFT alignment;
+        // without a stable maximum line width, every typed character changes that block width
+        // and the whole paragraph appears to shake. The spacing-font-only anchor contributes
+        // advance but no visible pixels, so the block stays 270 px wide for the entire page.
+        body = body.append(Component.newline()).append(Component.text(
+                TextWidthRules.padding("", MAXIMUM_LINE_PIXELS)).font(Key.key("dialog", "spacing")));
         dialogue.bodyLines[0].text(body);
     }
 """,
-            "fixed-width multiline body renderer",
+            "stable multiline body renderer",
         )
 
         text = text
@@ -193,8 +198,8 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         check(!text.contains("대화 중 Space:")) { "Legacy Space guidance remains in generated source." }
         check(!text.contains("후속 대사 후 쉬프트로 종료")) { "Legacy Shift choice guidance remains in generated source." }
         check(text.contains("TextDisplay[] bodyLines = new TextDisplay[1];")) { "Multiline body TextDisplay patch was not applied." }
-        check(text.contains("String[] completeLines = dialogue.message.split(\"\\\\n\", -1);")) { "Fixed multiline body height patch was not applied." }
-        check(text.contains("TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS)")) { "Fixed-width multiline padding patch was not applied." }
+        check(text.contains("TextWidthRules.padding(\"\", MAXIMUM_LINE_PIXELS)")) { "Stable body width anchor was not applied." }
+        check(!text.contains("TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS)")) { "Per-character body padding still changes during typing." }
 
         source.writeText(text, Charsets.UTF_8)
     }
