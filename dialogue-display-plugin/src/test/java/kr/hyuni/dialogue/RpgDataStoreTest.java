@@ -41,4 +41,27 @@ class RpgDataStoreTest {
         assertEquals("공유", restored.getString("shared-dialogues.token.message"));
         assertEquals("모두 보기", restored.getString("public-dialogues.공용.message"));
     }
+
+    @Test
+    void deletedPlayerDataDoesNotReturnAfterRestart(@TempDir Path folder) throws Exception {
+        UUID owner = UUID.fromString("12d0a2f0-6e70-4f53-88f7-9571b4c6bced");
+        YamlConfiguration live = new YamlConfiguration();
+        live.set("player-dialogues." + owner + ".삭제할_대화.message", "삭제됨");
+
+        RpgDataStore store = new RpgDataStore(folder, Logger.getAnonymousLogger());
+        store.save(live);
+        Path playerFile = folder.resolve("players").resolve(owner + ".yml");
+        assertTrue(Files.exists(playerFile));
+
+        live.set("player-dialogues." + owner, null);
+        store.save(live);
+        assertFalse(Files.exists(playerFile));
+        try (var backups = Files.list(folder.resolve("backups"))) {
+            assertTrue(backups.anyMatch(path -> path.getFileName().toString().startsWith(owner + ".yml-")));
+        }
+
+        YamlConfiguration restored = new YamlConfiguration();
+        store.loadInto(restored);
+        assertFalse(restored.contains("player-dialogues." + owner));
+    }
 }

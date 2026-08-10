@@ -70,12 +70,13 @@ final class RpgDataStore {
         });
         writeAtomic(folder.resolve("config.yml"), settings.saveToString());
 
-        Set<String> owners = new HashSet<>();
+        Set<String> rawOwners = new HashSet<>();
         for (String root : List.of("player-dialogues", "custom-items", "dismissed-examples", "player-variables")) {
             ConfigurationSection section = live.getConfigurationSection(root);
-            if (section != null) owners.addAll(section.getKeys(false));
+            if (section != null) rawOwners.addAll(section.getKeys(false));
         }
-        for (String rawOwner : owners) {
+        Set<UUID> owners = new HashSet<>();
+        for (String rawOwner : rawOwners) {
             UUID owner;
             try {
                 owner = UUID.fromString(rawOwner);
@@ -83,6 +84,7 @@ final class RpgDataStore {
                 logger.warning("Ignoring invalid RPGMaker player data owner: " + rawOwner);
                 continue;
             }
+            owners.add(owner);
             YamlConfiguration player = new YamlConfiguration();
             player.set("owner-uuid", owner.toString());
             copy(live, "player-dialogues." + owner, player, "dialogues", false);
@@ -90,6 +92,19 @@ final class RpgDataStore {
             copy(live, "dismissed-examples." + owner, player, "dismissed-examples", false);
             copy(live, "player-variables." + owner, player, "variables", false);
             writeAtomic(folder.resolve("players").resolve(owner + ".yml"), player.saveToString());
+        }
+        Path players = folder.resolve("players");
+        if (Files.isDirectory(players)) try (var files = Files.list(players)) {
+            for (Path file : files.filter(path -> path.getFileName().toString().endsWith(".yml")).toList()) {
+                String name = file.getFileName().toString();
+                try {
+                    if (owners.contains(UUID.fromString(name.substring(0, name.length() - 4)))) continue;
+                } catch (IllegalArgumentException ignored) {
+                    continue;
+                }
+                backup(file);
+                Files.deleteIfExists(file);
+            }
         }
 
         YamlConfiguration common = new YamlConfiguration();
