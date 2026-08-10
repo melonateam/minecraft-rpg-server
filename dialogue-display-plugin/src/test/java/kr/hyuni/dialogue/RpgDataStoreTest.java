@@ -33,6 +33,10 @@ class RpgDataStoreTest {
         assertTrue(settings.contains("distance: 1.8"));
         assertFalse(settings.contains("player-dialogues"));
         assertTrue(Files.readString(folder.resolve("players").resolve(owner + ".yml")).contains("variables:"));
+        String common = Files.readString(folder.resolve("common.yml"));
+        assertTrue(common.contains("public-dialogues"));
+        assertFalse(common.contains("shared-dialogues"));
+        assertTrue(Files.readString(folder.resolve("shares.yml")).contains("shared-dialogues"));
 
         YamlConfiguration restored = new YamlConfiguration();
         store.loadInto(restored);
@@ -40,6 +44,34 @@ class RpgDataStoreTest {
         assertEquals("10", restored.getString("player-variables." + owner + "." + DialogueDisplayPlugin.variableDataKey("호감도")));
         assertEquals("공유", restored.getString("shared-dialogues.token.message"));
         assertEquals("모두 보기", restored.getString("public-dialogues.공용.message"));
+    }
+
+    @Test
+    void migratesLegacySharedDataOutOfCommon(@TempDir Path folder) throws Exception {
+        Files.createDirectories(folder);
+        Files.writeString(folder.resolve("common.yml"), """
+                shared-dialogues:
+                  legacytoken:
+                    message: legacy share
+                public-dialogues:
+                  public_one:
+                    message: public dialogue
+                """);
+
+        RpgDataStore store = new RpgDataStore(folder, Logger.getAnonymousLogger());
+        YamlConfiguration live = new YamlConfiguration();
+        store.loadInto(live);
+        assertEquals("legacy share", live.getString("shared-dialogues.legacytoken.message"));
+        assertEquals("public dialogue", live.getString("public-dialogues.public_one.message"));
+
+        store.save(live);
+        assertTrue(Files.readString(folder.resolve("shares.yml")).contains("legacytoken"));
+        assertFalse(Files.readString(folder.resolve("common.yml")).contains("shared-dialogues"));
+
+        YamlConfiguration restored = new YamlConfiguration();
+        store.loadInto(restored);
+        assertEquals("legacy share", restored.getString("shared-dialogues.legacytoken.message"));
+        assertEquals("public dialogue", restored.getString("public-dialogues.public_one.message"));
     }
 
     @Test
@@ -63,5 +95,33 @@ class RpgDataStoreTest {
         YamlConfiguration restored = new YamlConfiguration();
         store.loadInto(restored);
         assertFalse(restored.contains("player-dialogues." + owner));
+    }
+
+    @Test
+    void snapshotsWholeGenerationBeforeReplacement(@TempDir Path folder) throws Exception {
+        YamlConfiguration live = new YamlConfiguration();
+        live.set("distance", 1.0);
+        live.set("public-dialogues.example.message", "first");
+        live.set("shared-dialogues.token.message", "share-first");
+
+        RpgDataStore store = new RpgDataStore(folder, Logger.getAnonymousLogger());
+        store.save(live);
+
+        live.set("distance", 2.0);
+        live.set("public-dialogues.example.message", "second");
+        live.set("shared-dialogues.token.message", "share-second");
+        store.save(live);
+
+        try (var backups = Files.list(folder.resolve("backups"))) {
+            Path generation = backups
+                    .filter(Files::isDirectory)
+                    .filter(path -> path.getFileName().toString().startsWith("generation-"))
+                    .filter(path -> Files.isRegularFile(path.resolve("config.yml")))
+                    .findFirst()
+                    .orElseThrow();
+            assertTrue(Files.readString(generation.resolve("config.yml")).contains("distance: 1.0"));
+            assertTrue(Files.readString(generation.resolve("common.yml")).contains("first"));
+            assertTrue(Files.readString(generation.resolve("shares.yml")).contains("share-first"));
+        }
     }
 }

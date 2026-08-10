@@ -24,3 +24,22 @@ jobs:
           gradle-version: "8.14.3"
       - run: gradle -p dialogue-display-plugin build --no-daemon
       - run: gradle -p rpg-server-admin-plugin build --no-daemon
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: rpgmaker-web-editor/package-lock.json
+      - run: npm ci
+        working-directory: rpgmaker-web-editor
+      - run: npm run typecheck
+        working-directory: rpgmaker-web-editor
+      - run: npm run check:migration
+        working-directory: rpgmaker-web-editor
+      - run: npm run check:preview
+        working-directory: rpgmaker-web-editor
+      - run: npm run check:return-targets
+        working-directory: rpgmaker-web-editor
+      - run: npm run check:validator
+        working-directory: rpgmaker-web-editor
+      - run: npm run build
+        working-directory: rpgmaker-web-editor

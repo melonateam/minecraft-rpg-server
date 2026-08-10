@@ -31,7 +31,6 @@ interface Props {
   onPublishServer?: () => void;
   onPublicHelp?: () => void;
   onVariables?: () => void;
-  onAdmin?: () => void;
   isAdmin?: boolean;
   readOnly?: boolean;
   isPublic?: boolean;
