@@ -57,8 +57,8 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-6">
-      <section className="w-full max-w-xl rounded-2xl border border-[#303846] bg-[#151a20] shadow-2xl">
-        <header className="flex items-start gap-3 border-b border-[#29313c] px-5 py-4">
+      <section className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl border border-[#303846] bg-[#151a20] shadow-2xl">
+        <header className="flex shrink-0 items-start gap-3 border-b border-[#29313c] px-5 py-4">
           <div>
             <h2 className="font-semibold text-[#f1f3f6]">Minecraft 서버 연결</h2>
             <p className="mt-1 text-xs text-[#7d8794]">API 주소, 토큰, UUID는 이 화면에서 입력하지 않습니다.</p>
@@ -68,17 +68,21 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
           </button>
         </header>
 
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           {connection ? (
             <>
               <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4">
                 <div className="text-[11px] font-semibold tracking-[0.12em] text-emerald-300">서버 연결됨</div>
                 <div className="mt-2 text-lg font-semibold text-white">{connection.playerName}</div>
-                <div className="mt-1 text-xs text-[#84909e]">이 링크를 발급받은 플레이어 계정으로만 저장됩니다.</div>
+                <div className="mt-1 text-xs text-[#84909e]">
+                  {connection.admin
+                    ? '관리자 권한으로 모든 공용 대화문을 열고 수정할 수 있습니다.'
+                    : '이 링크를 발급받은 플레이어 계정으로만 저장됩니다.'}
+                </div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-[#9aa4b2]">서버의 대화 불러오기</div>
+                <div className="mb-2 text-xs font-semibold text-[#9aa4b2]">서버의 대화 불러오기 · {dialogues.length}개</div>
                 <div className="max-h-72 space-y-2 overflow-y-auto">
                   {loading && dialogues.length === 0 && <div className="py-8 text-center text-xs text-[#74808f]">불러오는 중...</div>}
                   {!loading && dialogues.length === 0 && <div className="rounded-xl border border-dashed border-[#333b47] py-8 text-center text-xs text-[#74808f]">저장된 대화가 없습니다.</div>}
@@ -101,8 +105,11 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-[#9aa4b2]">공용 대화문 보기</div>
-                <div className="max-h-72 space-y-2 overflow-y-auto">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold text-[#9aa4b2]">
+                  <span>공용 대화문 · {publicDialogues.length}개</span>
+                  {connection.admin && <span className="text-amber-300">관리자: 전체 수정 가능</span>}
+                </div>
+                <div className="space-y-2">
                   {publicDialogues.map((dialogue) => {
                     const mine = dialogue.ownerUuid === connection.ownerUuid;
                     const editable = mine || connection.admin;
@@ -120,7 +127,7 @@ export function PlayerConnectionModal({ connection, onClose, onImport }: Props) 
                             {dialogue.pages} 페이지 · {dialogue.publisher || 'RPGMaker'} · {editable ? (mine ? '작성자 수정 가능' : '관리자 수정 가능') : '읽기 전용'}
                           </div>
                         </div>
-                        <span className="text-xs text-[#8b99ff]">{editable ? '열기' : '보기'}</span>
+                        <span className="text-xs text-[#8b99ff]">{editable ? '편집' : '보기'}</span>
                       </button>
                     );
                   })}
