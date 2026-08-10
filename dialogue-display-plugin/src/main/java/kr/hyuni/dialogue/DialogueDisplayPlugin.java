@@ -4200,7 +4200,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         dialogue.choiceFrame.text(Component.empty());
         dialogue.choiceDisplay.text(Component.empty());
         clearBody(dialogue);
-        dialogue.player.getInventory().setHeldItemSlot(dialogue.originalHeldSlot);
+        dialogue.player.getInventory().setHeldItemSlot(8);
         dialogue.player.sendActionBar(Component.empty());
         updatePortrait(dialogue);
         applyScales(dialogue);

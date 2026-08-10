@@ -1,2 +1,6 @@
 minecraft-server-1.21.8/logs/resource-pack-tunnel.log
 .tools/
+dialogue-display-plugin/.gradle/
+dialogue-display-plugin/build/
+rpg-server-admin-plugin/.gradle/
+rpg-server-admin-plugin/build/
