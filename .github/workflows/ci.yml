@@ -1,121 +1,68 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch-and-verify:
-    name: Apply and verify F-key dialogue patch
+  build:
+    name: Build and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.head_ref }}
-      - name: Apply dialogue control patch
-        shell: python
+      - name: Parse Windows launcher PowerShell
+        shell: pwsh
         run: |
-          import pathlib, re
-
-          java_path = pathlib.Path('dialogue-display-plugin/src/main/java/kr/hyuni/dialogue/DialogueDisplayPlugin.java')
-          text = java_path.read_text(encoding='utf-8-sig')
-          if 'manualRevealAdvanceUnlockAtMillis' not in text:
-              text = text.replace('import org.bukkit.event.player.PlayerInputEvent;\n', '')
-              text = text.replace('import org.bukkit.event.player.PlayerToggleSneakEvent;\n', '')
-              old_swap = '''    @EventHandler public void onSwapHands(PlayerSwapHandItemsEvent event) {
-        if (active.containsKey(event.getPlayer().getUniqueId())) event.setCancelled(true);
-    }
-'''
-              new_swap = '''    @EventHandler
-    public void onSwapHands(PlayerSwapHandItemsEvent event) {
-        Dialogue dialogue = active.get(event.getPlayer().getUniqueId());
-        if (dialogue == null) return;
-        event.setCancelled(true);
-        if (dialogue.editing || dialogue.waitingForChoice || dialogue.waitingForChat) return;
-
-        long now = System.currentTimeMillis();
-        if (dialogue.typed < dialogue.message.length()) {
-            dialogue.typed = dialogue.message.length();
-            render(dialogue);
-            finishPage(dialogue);
-            dialogue.manualRevealAdvanceUnlockAtMillis = now + 1000L;
-            return;
-        }
-
-        if (now < dialogue.manualRevealAdvanceUnlockAtMillis) return;
-        if (dialogue.waitingForNext || dialogue.waitingForClose) advanceFromPage(dialogue, false);
-    }
-'''
-              if old_swap not in text:
-                  raise SystemExit('onSwapHands block not found')
-              text = text.replace(old_swap, new_swap, 1)
-              text, count = re.subn(r'\n    @EventHandler\n    public void onSneak\(PlayerToggleSneakEvent event\) \{.*?\n    \}\n', '\n', text, count=1, flags=re.S)
-              if count != 1:
-                  raise SystemExit(f'onSneak removal count={count}')
-              text, count = re.subn(r'\n    @EventHandler\n    public void onInput\(PlayerInputEvent event\) \{.*?\n    \}\n', '\n', text, count=1, flags=re.S)
-              if count != 1:
-                  raise SystemExit(f'onInput removal count={count}')
-              text = text.replace('입력이 저장되었습니다. Shift 키를 눌러 계속', '입력이 저장되었습니다. F키를 눌러 계속')
-              text = text.replace('대화 중 Space: 대화문 스킵 · Shift: 다음 대사', '대화 중 F: 타이핑 즉시 표시 / 다음 대사 · 수동 전체 표시 후 1초간 다음 진행 방지')
-              text = text.replace('Shift 키를 눌러 다음 대사', 'F키를 눌러 다음 대사')
-              text = text.replace('Shift 키를 눌러 대화 종료', 'F키를 눌러 대화 종료')
-              text = text.replace('후속 대사 후 쉬프트로 종료', '후속 대사 후 F키로 종료')
-              needle = '        dialogue.typed = completed ? dialogue.message.length() : 0;\n        if (!dialogue.message.isBlank()) dialogue.autoTransitions = 0;\n'
-              replacement = '        dialogue.typed = completed ? dialogue.message.length() : 0;\n        dialogue.manualRevealAdvanceUnlockAtMillis = 0L;\n        if (!dialogue.message.isBlank()) dialogue.autoTransitions = 0;\n'
-              if needle not in text:
-                  raise SystemExit('restartPage reset point not found')
-              text = text.replace(needle, replacement, 1)
-              needle = '        int forcedTerminalPage = -1;\n        int expiresAt = Bukkit.getCurrentTick() + 160;\n        boolean waitingForChoice;\n'
-              replacement = '        int forcedTerminalPage = -1;\n        int expiresAt = Bukkit.getCurrentTick() + 160;\n        long manualRevealAdvanceUnlockAtMillis;\n        boolean waitingForChoice;\n'
-              if needle not in text:
-                  raise SystemExit('Dialogue state insertion point not found')
-              text = text.replace(needle, replacement, 1)
-              java_path.write_text(text, encoding='utf-8')
-
-          web_path = pathlib.Path('rpgmaker-web-editor/src/components/preview/TestMode.tsx')
-          web = web_path.read_text(encoding='utf-8')
-          web = web.replace('Shift · 다음 ›', 'F · 다음 ›')
-          web = web.replace(
-              '서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다.',
-              '서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다. 실제 서버에서는 F로 타이핑 전체 표시와 다음 진행을 모두 조작합니다.'
-          )
-          web_path.write_text(web, encoding='utf-8')
-
-          if 'PlayerInputEvent' in text or 'PlayerToggleSneakEvent' in text:
-              raise SystemExit('legacy Space/Shift handlers still present')
-          for legacy in ('Shift 키를 눌러', '대화 중 Space:', '후속 대사 후 쉬프트로 종료'):
-              if legacy in text:
-                  raise SystemExit(f'legacy server guide still present: {legacy}')
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path './start-with-web-and-sync.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
       - uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '9.1.0'
+          gradle-version: "9.1.0"
       - run: gradle -p dialogue-display-plugin build --no-daemon
+      - run: gradle -p rpg-server-admin-plugin build --no-daemon
       - uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
           cache-dependency-path: rpgmaker-web-editor/package-lock.json
       - run: npm ci
         working-directory: rpgmaker-web-editor
       - run: npm run typecheck
         working-directory: rpgmaker-web-editor
+      - run: npm run check:migration
+        working-directory: rpgmaker-web-editor
       - run: npm run check:preview
+        working-directory: rpgmaker-web-editor
+      - run: npm run check:return-targets
+        working-directory: rpgmaker-web-editor
+      - run: npm run check:validator
         working-directory: rpgmaker-web-editor
       - run: npm run build
         working-directory: rpgmaker-web-editor
-      - name: Commit verified patch
-        shell: bash
-        run: |
-          if git diff --quiet; then exit 0; fi
-          git config user.name 'ChatGPT'
-          git config user.email 'actions@users.noreply.github.com'
-          git add dialogue-display-plugin/src/main/java/kr/hyuni/dialogue/DialogueDisplayPlugin.java rpgmaker-web-editor/src/components/preview/TestMode.tsx
-          git commit -m 'F키 대화 출력 및 진행 통합'
-          git push origin HEAD:${{ github.head_ref }}
+
+  windows-bootstrap:
+    name: Windows launcher build bootstrap
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Bootstrap tools and deploy RPGMaker.jar
+        shell: powershell
+        run: .\start-with-web-and-sync.ps1 -BuildOnly
