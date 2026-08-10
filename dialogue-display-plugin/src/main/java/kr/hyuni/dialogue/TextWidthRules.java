@@ -8,7 +8,11 @@ final class TextWidthRules {
     private TextWidthRules() {}
 
     static String padding(String text, int targetWidth) {
-        return spacing(Math.max(0, targetWidth - visibleWidth(text)));
+        // TextDisplay body lines are left-aligned. Appending synthetic spacing glyphs to
+        // force a fixed width can shift the visible start position when formatting tokens
+        // or runtime-expanded variables have a different rendered width than our estimate.
+        // Keep authored whitespace only and render from the first real visible character.
+        return "";
     }
 
     private static String spacing(int width) {
@@ -200,11 +204,9 @@ final class TextWidthRules {
         assert limitVisible("123{{name}}4567", 6).equals("123{{name}}456");
         assert limitVisible("#FF0000:bold:화자이름", 2).equals("#FF0000:bold:화자");
         assert limitVisible("123{{name}}", 3).equals("123{{name}}");
-        String padding = padding("한글 English !", 270);
-        assert visibleWidth("한글 English !") + paddingWidth(padding) == 270;
-        assert paddingWidth(padding("", 270)) == 270;
-        assert visibleWidth("aa") + paddingWidth(padding("aa", 270)) == 270;
-        assert visibleWidth("[1] 선택") + paddingWidth(padding("[1] 선택", 190)) == 190;
+        assert padding("한글 English !", 270).isEmpty();
+        assert padding("", 270).isEmpty();
+        assert padding("#FF0000:색상 {{name}}", 270).isEmpty();
     }
 
     record TextFormat(String color, boolean bold, boolean italic, boolean strikethrough) {}
