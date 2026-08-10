@@ -1,4 +1,7 @@
 minecraft-server-1.21.8/logs/resource-pack-tunnel.log
+minecraft-server-1.21.8/world/session.lock
+minecraft-server-1.21.8/world_nether/session.lock
+minecraft-server-1.21.8/world_the_end/session.lock
 .tools/
 dialogue-display-plugin/.gradle/
 dialogue-display-plugin/build/
