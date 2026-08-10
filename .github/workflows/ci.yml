@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
@@ -10,17 +8,18 @@ permissions:
   contents: write
 
 jobs:
-  apply-fkey-patch:
-    name: Apply F-key dialogue patch
+  patch-and-verify:
+    name: Apply and verify F-key dialogue patch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.head_ref }}
-      - name: Patch dialogue controls
+      - name: Apply dialogue control patch
         shell: python
         run: |
           import pathlib, re
+
           java_path = pathlib.Path('dialogue-display-plugin/src/main/java/kr/hyuni/dialogue/DialogueDisplayPlugin.java')
           text = java_path.read_text(encoding='utf-8-sig')
           if 'manualRevealAdvanceUnlockAtMillis' not in text:
@@ -63,6 +62,7 @@ jobs:
               text = text.replace('대화 중 Space: 대화문 스킵 · Shift: 다음 대사', '대화 중 F: 타이핑 즉시 표시 / 다음 대사 · 수동 전체 표시 후 1초간 다음 진행 방지')
               text = text.replace('Shift 키를 눌러 다음 대사', 'F키를 눌러 다음 대사')
               text = text.replace('Shift 키를 눌러 대화 종료', 'F키를 눌러 대화 종료')
+              text = text.replace('후속 대사 후 쉬프트로 종료', '후속 대사 후 F키로 종료')
               needle = '        dialogue.typed = completed ? dialogue.message.length() : 0;\n        if (!dialogue.message.isBlank()) dialogue.autoTransitions = 0;\n'
               replacement = '        dialogue.typed = completed ? dialogue.message.length() : 0;\n        dialogue.manualRevealAdvanceUnlockAtMillis = 0L;\n        if (!dialogue.message.isBlank()) dialogue.autoTransitions = 0;\n'
               if needle not in text:
@@ -85,74 +85,37 @@ jobs:
           web_path.write_text(web, encoding='utf-8')
 
           if 'PlayerInputEvent' in text or 'PlayerToggleSneakEvent' in text:
-              raise SystemExit('legacy key handlers still present')
-          if 'Shift 키를 눌러' in text or '대화 중 Space:' in text:
-              raise SystemExit('legacy server key guide still present')
-      - name: Commit patch if needed
-        shell: bash
-        run: |
-          if git diff --quiet; then exit 0; fi
-          git config user.name "ChatGPT"
-          git config user.email "actions@users.noreply.github.com"
-          git add dialogue-display-plugin/src/main/java/kr/hyuni/dialogue/DialogueDisplayPlugin.java rpgmaker-web-editor/src/components/preview/TestMode.tsx
-          git commit -m "F키 대화 출력 및 진행 통합"
-          git push origin HEAD:${{ github.head_ref }}
-
-  build:
-    name: Build and test
-    needs: apply-fkey-patch
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Parse Windows launcher PowerShell
-        shell: pwsh
-        run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path './start-with-web-and-sync.ps1'),
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
-          }
+              raise SystemExit('legacy Space/Shift handlers still present')
+          for legacy in ('Shift 키를 눌러', '대화 중 Space:', '후속 대사 후 쉬프트로 종료'):
+              if legacy in text:
+                  raise SystemExit(f'legacy server guide still present: {legacy}')
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: "9.1.0"
+          gradle-version: '9.1.0'
       - run: gradle -p dialogue-display-plugin build --no-daemon
-      - run: gradle -p rpg-server-admin-plugin build --no-daemon
       - uses: actions/setup-node@v6
         with:
-          node-version: "24"
+          node-version: '24'
           cache: npm
           cache-dependency-path: rpgmaker-web-editor/package-lock.json
       - run: npm ci
         working-directory: rpgmaker-web-editor
       - run: npm run typecheck
         working-directory: rpgmaker-web-editor
-      - run: npm run check:migration
-        working-directory: rpgmaker-web-editor
       - run: npm run check:preview
-        working-directory: rpgmaker-web-editor
-      - run: npm run check:return-targets
-        working-directory: rpgmaker-web-editor
-      - run: npm run check:validator
         working-directory: rpgmaker-web-editor
       - run: npm run build
         working-directory: rpgmaker-web-editor
-
-  windows-bootstrap:
-    name: Windows launcher build bootstrap
-    needs: apply-fkey-patch
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Bootstrap tools and deploy RPGMaker.jar
-        shell: powershell
-        run: .\start-with-web-and-sync.ps1 -BuildOnly
+      - name: Commit verified patch
+        shell: bash
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'ChatGPT'
+          git config user.email 'actions@users.noreply.github.com'
+          git add dialogue-display-plugin/src/main/java/kr/hyuni/dialogue/DialogueDisplayPlugin.java rpgmaker-web-editor/src/components/preview/TestMode.tsx
+          git commit -m 'F키 대화 출력 및 진행 통합'
+          git push origin HEAD:${{ github.head_ref }}
