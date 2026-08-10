@@ -2,6 +2,7 @@ package kr.hyuni.dialogue;
 
 final class TextWidthRules {
     private static final int FIRST_SPACE_GLYPH = 0xE100;
+    private static final int TEXT_SPACE_WIDTH = 3;
     private static final java.util.regex.Pattern VARIABLE_PLACEHOLDER =
             java.util.regex.Pattern.compile("\\{\\{.+?}}");
 
@@ -116,6 +117,13 @@ final class TextWidthRules {
 
     private static int glyphWidth(int codePoint) {
         if (codePoint == 0x3000) return 9;
+        // The dialogue TextDisplay renders an ordinary U+0020 slightly narrower than the
+        // generic whitespace estimate used here previously. Keeping it at 4 made the
+        // calculated body width grow too quickly for every authored space, so the trailing
+        // fixed-width padding became too short and the apparent left edge drifted by the
+        // accumulated error. Calibrate only the normal text space; other whitespace keeps
+        // its previous behavior.
+        if (codePoint == ' ') return TEXT_SPACE_WIDTH;
         if (Character.isWhitespace(codePoint)) return 4;
         int type = Character.getType(codePoint);
         if (type == Character.NON_SPACING_MARK || type == Character.COMBINING_SPACING_MARK) return 0;
@@ -188,6 +196,9 @@ final class TextWidthRules {
 
     public static void main(String[] args) {
         assert visibleWidth("가") > visibleWidth("A");
+        assert visibleWidth(" ") == TEXT_SPACE_WIDTH;
+        assert visibleWidth("가 나") == 9 + TEXT_SPACE_WIDTH + 9;
+        assert visibleWidth("가 나 다") == 9 * 3 + TEXT_SPACE_WIDTH * 2;
         assert visibleWidth("#FF0000:가") == visibleWidth("가");
         assert visibleWidth("{#00FF00}A") == visibleWidth("A");
         assert visibleWidth("#FF0000:bold,italic,strikethrough:가") == visibleWidth("가");
