@@ -1,6 +1,7 @@
 package kr.hyuni.dialogue;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.nio.charset.StandardCharsets;
@@ -42,6 +43,24 @@ final class DialogueCompatibilityService {
             item.put("pages", pageCount(path));
             return item;
         }).toList();
+    }
+
+    List<Map<String, Object>> listOwners() {
+        ConfigurationSection section = plugin.getConfig().getConfigurationSection("player-dialogues");
+        if (section == null) return List.of();
+        return section.getKeys(false).stream().map(key -> {
+            try {
+                UUID owner = UUID.fromString(key);
+                String name = Bukkit.getOfflinePlayer(owner).getName();
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("ownerUuid", key);
+                result.put("playerName", name == null ? key : name);
+                result.put("dialogues", list(owner).size());
+                return result;
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }).filter(java.util.Objects::nonNull).sorted(Comparator.comparing(item -> String.valueOf(item.get("playerName")), String.CASE_INSENSITIVE_ORDER)).toList();
     }
 
     List<Map<String, Object>> listItems(UUID owner) {

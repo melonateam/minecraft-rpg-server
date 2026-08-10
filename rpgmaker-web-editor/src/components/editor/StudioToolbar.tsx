@@ -28,6 +28,9 @@ interface Props {
   onValidate: () => void;
   onServer: () => void;
   onApplyServer: () => void;
+  onVariables?: () => void;
+  onAdmin?: () => void;
+  isAdmin?: boolean;
 }
 
 const saveText: Record<SaveStatus, string> = {
@@ -83,6 +86,16 @@ export function StudioToolbar(props: Props) {
       </div>
 
       <div className="ml-auto flex items-center gap-1">
+        {props.onVariables && (
+          <button type="button" onClick={props.onVariables} className="rounded-lg px-3 py-2 text-xs text-[#aab2ff] hover:bg-[#20252d]">
+            변수 도움말
+          </button>
+        )}
+        {props.isAdmin && props.onAdmin && (
+          <button type="button" onClick={props.onAdmin} className="rounded-lg px-3 py-2 text-xs text-amber-300 hover:bg-[#20252d]">
+            관리자
+          </button>
+        )}
         <button
           type="button"
           disabled={!props.canUndo}
