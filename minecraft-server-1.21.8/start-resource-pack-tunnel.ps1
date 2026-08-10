@@ -3,6 +3,7 @@ param([switch]$Stop)
 $ErrorActionPreference = 'Stop'
 $serverRoot = $PSScriptRoot
 $cloudflared = Join-Path $serverRoot 'cloudflared.exe'
+$serverJava = Join-Path $serverRoot 'runtime\jdk-25.0.4+7-jre\bin\java.exe'
 $log = Join-Path $serverRoot 'logs\resource-pack-tunnel.log'
 
 $tunnels = Get-CimInstance Win32_Process | Where-Object {
@@ -14,17 +15,22 @@ if ($Stop) {
     return
 }
 
-$worldLock = Join-Path $serverRoot 'world\session.lock'
-if (Test-Path -LiteralPath $worldLock) {
-    try {
-        $stream = [IO.File]::Open($worldLock, 'Open', 'ReadWrite', 'None')
-        $stream.Dispose()
-    }
-    catch {
-        throw 'Minecraft server is already running; refusing to replace its resource-pack tunnel.'
-    }
+# Do not use world/session.lock to determine whether Paper is running. On OneDrive
+# or while antivirus/indexing tools inspect the world, that file can be locked even
+# after Paper has stopped, which produces a false "server is already running" error.
+# The bundled Java executable is specific to this server launcher, so check the
+# actual Paper process instead.
+$serverProcesses = Get-CimInstance Win32_Process | Where-Object {
+    $_.Name -eq 'java.exe' -and
+    $_.ExecutablePath -eq $serverJava -and
+    $_.CommandLine -match '(?i)(^|\s|["''])paper\.jar(["'']|\s|$)'
+}
+if ($serverProcesses) {
+    throw 'Minecraft server is already running; refusing to replace its resource-pack tunnel.'
 }
 
+# No Paper process is using this server. Any matching cloudflared process is stale
+# from a previous run and can be replaced safely.
 $tunnels | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 
 New-Item -ItemType Directory -Path (Split-Path $log) -Force | Out-Null
