@@ -12,6 +12,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +26,7 @@ final class RpgDataStore {
             "shared-dialogues", "public-dialogues");
     private static final long BACKUP_INTERVAL_MILLIS = 5 * 60 * 1000L;
     private static final int MAXIMUM_BACKUPS = 20;
+    private static final int MAXIMUM_GENERATION_BACKUPS = 10;
 
     private final Path folder;
     private final Logger logger;
@@ -53,22 +56,33 @@ final class RpgDataStore {
                 copy(player, "variables", live, "player-variables." + owner, true);
             }
         }
+
+        // common.yml now owns only persistent public dialogues. Older versions also
+        // stored token-based /rpgmaker share data here, so load that legacy section
+        // once and let shares.yml override it when the migrated file already exists.
         Path commonFile = folder.resolve("common.yml");
-        if (Files.isRegularFile(commonFile))
-        {
+        if (Files.isRegularFile(commonFile)) {
             YamlConfiguration common = YamlConfiguration.loadConfiguration(commonFile.toFile());
-            copy(common, "shared-dialogues", live, "shared-dialogues", true);
             copy(common, "public-dialogues", live, "public-dialogues", true);
+            if (common.contains("shared-dialogues"))
+                copy(common, "shared-dialogues", live, "shared-dialogues", true);
+        }
+        Path sharesFile = folder.resolve("shares.yml");
+        if (Files.isRegularFile(sharesFile)) {
+            YamlConfiguration shares = YamlConfiguration.loadConfiguration(sharesFile.toFile());
+            copy(shares, "shared-dialogues", live, "shared-dialogues", true);
         }
     }
 
     synchronized void save(FileConfiguration live) throws IOException {
+        LinkedHashMap<Path, String> writes = new LinkedHashMap<>();
+
         YamlConfiguration settings = new YamlConfiguration();
         live.getValues(true).forEach((path, value) -> {
             if (!(value instanceof ConfigurationSection) && DATA_ROOTS.stream().noneMatch(root -> path.equals(root) || path.startsWith(root + ".")))
                 settings.set(path, value);
         });
-        writeAtomic(folder.resolve("config.yml"), settings.saveToString());
+        writes.put(folder.resolve("config.yml"), settings.saveToString());
 
         Set<String> rawOwners = new HashSet<>();
         for (String root : List.of("player-dialogues", "custom-items", "dismissed-examples", "player-variables")) {
@@ -91,8 +105,10 @@ final class RpgDataStore {
             copy(live, "custom-items." + owner, player, "custom-items", false);
             copy(live, "dismissed-examples." + owner, player, "dismissed-examples", false);
             copy(live, "player-variables." + owner, player, "variables", false);
-            writeAtomic(folder.resolve("players").resolve(owner + ".yml"), player.saveToString());
+            writes.put(folder.resolve("players").resolve(owner + ".yml"), player.saveToString());
         }
+
+        LinkedHashSet<Path> deletes = new LinkedHashSet<>();
         Path players = folder.resolve("players");
         if (Files.isDirectory(players)) try (var files = Files.list(players)) {
             for (Path file : files.filter(path -> path.getFileName().toString().endsWith(".yml")).toList()) {
@@ -102,15 +118,19 @@ final class RpgDataStore {
                 } catch (IllegalArgumentException ignored) {
                     continue;
                 }
-                backup(file);
-                Files.deleteIfExists(file);
+                deletes.add(file);
             }
         }
 
         YamlConfiguration common = new YamlConfiguration();
-        copy(live, "shared-dialogues", common, "shared-dialogues", false);
         copy(live, "public-dialogues", common, "public-dialogues", false);
-        writeAtomic(folder.resolve("common.yml"), common.saveToString());
+        writes.put(folder.resolve("common.yml"), common.saveToString());
+
+        YamlConfiguration shares = new YamlConfiguration();
+        copy(live, "shared-dialogues", shares, "shared-dialogues", false);
+        writes.put(folder.resolve("shares.yml"), shares.saveToString());
+
+        commitBatch(writes, deletes);
     }
 
     private static void copy(ConfigurationSection source, String sourcePath,
@@ -126,38 +146,146 @@ final class RpgDataStore {
         });
     }
 
-    private void writeAtomic(Path target, String content) throws IOException {
-        Files.createDirectories(target.getParent());
+    private void commitBatch(Map<Path, String> writes, Set<Path> deletes) throws IOException {
+        LinkedHashSet<Path> affected = new LinkedHashSet<>(writes.keySet());
+        affected.addAll(deletes);
+        Path snapshot = createGenerationSnapshot(affected);
+        LinkedHashMap<Path, Path> staged = new LinkedHashMap<>();
         try {
-            backup(target);
-        } catch (IOException error) {
-            logger.warning("Could not back up " + target.getFileName() + ": " + error.getMessage());
-        }
-        Path temporary = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".tmp");
-        try {
-            Files.writeString(temporary, content, StandardCharsets.UTF_8);
-            IOException failure = null;
-            for (int attempt = 0; attempt < 10; attempt++) {
+            // Stage every new file before replacing any live file. A serialization or
+            // disk-write failure therefore cannot leave half of a save generation live.
+            for (Map.Entry<Path, String> entry : writes.entrySet()) {
+                Path target = entry.getKey();
+                Files.createDirectories(target.getParent());
+                Path temporary = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".txn");
+                Files.writeString(temporary, entry.getValue(), StandardCharsets.UTF_8);
+                staged.put(target, temporary);
+            }
+
+            for (Map.Entry<Path, Path> entry : staged.entrySet()) {
                 try {
-                    try {
-                        Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                    } catch (AtomicMoveNotSupportedException ignored) {
-                        Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                    return;
+                    backup(entry.getKey());
                 } catch (IOException error) {
-                    failure = error;
-                    if (attempt < 9) try {
-                        Thread.sleep(50L);
-                    } catch (InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
-                        throw new IOException("Interrupted while saving " + target, interrupted);
-                    }
+                    logger.warning("Could not back up " + entry.getKey().getFileName() + ": " + error.getMessage());
                 }
+                replaceAtomic(entry.getValue(), entry.getKey());
+            }
+            for (Path target : deletes) {
+                try {
+                    backup(target);
+                } catch (IOException error) {
+                    logger.warning("Could not back up " + target.getFileName() + ": " + error.getMessage());
+                }
+                deleteWithRetry(target);
+            }
+        } catch (IOException failure) {
+            try {
+                restoreGeneration(snapshot, affected);
+            } catch (IOException restoreFailure) {
+                failure.addSuppressed(restoreFailure);
+                logger.severe("RPGMaker save rollback failed: " + restoreFailure.getMessage());
             }
             throw failure;
         } finally {
-            Files.deleteIfExists(temporary);
+            for (Path temporary : staged.values()) Files.deleteIfExists(temporary);
+        }
+    }
+
+    private Path createGenerationSnapshot(Set<Path> affected) throws IOException {
+        long now = System.currentTimeMillis();
+        Path backups = folder.resolve("backups");
+        Files.createDirectories(backups);
+        Path snapshot = backups.resolve("generation-" + now);
+        Files.createDirectories(snapshot);
+        for (Path target : affected) {
+            if (!Files.isRegularFile(target)) continue;
+            Path relative = folder.relativize(target);
+            Path copy = snapshot.resolve(relative);
+            Files.createDirectories(copy.getParent());
+            Files.copy(target, copy, StandardCopyOption.REPLACE_EXISTING);
+        }
+        pruneGenerationSnapshots(backups);
+        return snapshot;
+    }
+
+    private void restoreGeneration(Path snapshot, Set<Path> affected) throws IOException {
+        IOException failure = null;
+        for (Path target : affected) {
+            Path backup = snapshot.resolve(folder.relativize(target));
+            try {
+                if (Files.isRegularFile(backup)) {
+                    Files.createDirectories(target.getParent());
+                    Files.copy(backup, target, StandardCopyOption.REPLACE_EXISTING);
+                } else {
+                    Files.deleteIfExists(target);
+                }
+            } catch (IOException error) {
+                if (failure == null) failure = error;
+                else failure.addSuppressed(error);
+            }
+        }
+        if (failure != null) throw failure;
+    }
+
+    private void pruneGenerationSnapshots(Path backups) throws IOException {
+        try (var files = Files.list(backups)) {
+            List<Path> old = files
+                    .filter(Files::isDirectory)
+                    .filter(path -> path.getFileName().toString().startsWith("generation-"))
+                    .sorted((left, right) -> right.getFileName().toString().compareTo(left.getFileName().toString()))
+                    .skip(MAXIMUM_GENERATION_BACKUPS)
+                    .toList();
+            for (Path path : old) deleteTree(path);
+        }
+    }
+
+    private void deleteTree(Path root) throws IOException {
+        if (!Files.exists(root)) return;
+        try (var paths = Files.walk(root)) {
+            for (Path path : paths.sorted((left, right) -> right.getNameCount() - left.getNameCount()).toList())
+                Files.deleteIfExists(path);
+        }
+    }
+
+    private void replaceAtomic(Path temporary, Path target) throws IOException {
+        IOException failure = null;
+        for (int attempt = 0; attempt < 10; attempt++) {
+            try {
+                try {
+                    Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException ignored) {
+                    Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+                return;
+            } catch (IOException error) {
+                failure = error;
+                retryDelay(target, attempt);
+            }
+        }
+        throw failure;
+    }
+
+    private void deleteWithRetry(Path target) throws IOException {
+        IOException failure = null;
+        for (int attempt = 0; attempt < 10; attempt++) {
+            try {
+                Files.deleteIfExists(target);
+                return;
+            } catch (IOException error) {
+                failure = error;
+                retryDelay(target, attempt);
+            }
+        }
+        throw failure;
+    }
+
+    private void retryDelay(Path target, int attempt) throws IOException {
+        if (attempt >= 9) return;
+        try {
+            Thread.sleep(50L);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while saving " + target, interrupted);
         }
     }
 
@@ -171,7 +299,7 @@ final class RpgDataStore {
         Files.copy(target, backups.resolve(prefix + now + ".bak"), StandardCopyOption.REPLACE_EXISTING);
         lastBackup.put(target, now);
         try (var files = Files.list(backups)) {
-            List<Path> old = files.filter(path -> path.getFileName().toString().startsWith(prefix))
+            List<Path> old = files.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().startsWith(prefix))
                     .sorted((left, right) -> right.getFileName().toString().compareTo(left.getFileName().toString()))
                     .skip(MAXIMUM_BACKUPS).toList();
             for (Path path : old) Files.deleteIfExists(path);
