@@ -26,11 +26,10 @@ tasks.processResources {
 }
 
 /*
- * DialogueDisplayPlugin is currently a large legacy source file. To keep this input-only
- * change isolated from unrelated editor/runtime code, compilation uses a generated copy
- * where only the dialogue control handlers and their user-facing guidance are rewritten.
- * The task is strict: if the expected legacy blocks change, the build fails instead of
- * silently producing an RPGMaker.jar with stale Space/Shift controls.
+ * DialogueDisplayPlugin is currently a large legacy source file. To keep runtime-only
+ * changes isolated from unrelated editor/runtime code, compilation uses a generated copy
+ * where dialogue controls and display rendering are rewritten. The task is strict: if an
+ * expected source block changes, the build fails instead of silently producing stale code.
  */
 val generatedRuntimeSources = layout.buildDirectory.dir("generated/sources/dialogue-runtime").get().asFile
 val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSources") {
@@ -126,6 +125,44 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
             "manual reveal lock state",
         )
 
+        replaceRequired(
+            """        TextDisplay[] bodyLines = new TextDisplay[MAXIMUM_LINES];
+        for (int line = 0; line < bodyLines.length; line++) {
+            bodyLines[line] = spawn(player, origin, Component.empty());
+            bodyLines[line].setTextOpacity((byte) 248);
+            bodyLines[line].setAlignment(TextDisplay.TextAlignment.LEFT);
+            bodyLines[line].setLineWidth(1024);
+        }
+""",
+            """        TextDisplay[] bodyLines = new TextDisplay[1];
+        bodyLines[0] = spawn(player, origin, Component.empty());
+        bodyLines[0].setTextOpacity((byte) 248);
+        bodyLines[0].setAlignment(TextDisplay.TextAlignment.LEFT);
+        bodyLines[0].setLineWidth(1024);
+""",
+            "single multiline body TextDisplay",
+        )
+
+        replaceRequired(
+            """    private void render(Dialogue dialogue) {
+        String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
+        String[] visibleLines = visible.split("\\n", -1);
+        for (int row = 0; row < dialogue.bodyLines.length; row++) {
+            String line = row < visibleLines.length ? visibleLines[row] : "";
+            Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
+                    .font(Key.key("dialog", "spacing"));
+            dialogue.bodyLines[row].text(coloredLine(line).append(padding));
+        }
+    }
+""",
+            """    private void render(Dialogue dialogue) {
+        String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
+        dialogue.bodyLines[0].text(formattedText(visible, NamedTextColor.WHITE));
+    }
+""",
+            "multiline body renderer",
+        )
+
         text = text
             .replace("입력이 저장되었습니다. Shift 키를 눌러 계속", "입력이 저장되었습니다. F키를 눌러 계속")
             .replace("대화 중 Space: 대화문 스킵 · Shift: 다음 대사", "대화 중 F: 타이핑 전체 표시 / 다음 대사 · 수동 전체 표시 후 0.5초간 다음 진행 방지")
@@ -144,6 +181,8 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         check(!text.contains("Shift 키를 눌러")) { "Legacy Shift guidance remains in generated source." }
         check(!text.contains("대화 중 Space:")) { "Legacy Space guidance remains in generated source." }
         check(!text.contains("후속 대사 후 쉬프트로 종료")) { "Legacy Shift choice guidance remains in generated source." }
+        check(text.contains("TextDisplay[] bodyLines = new TextDisplay[1];")) { "Multiline body TextDisplay patch was not applied." }
+        check(!text.contains("TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS)")) { "Legacy per-line body padding remains in generated source." }
 
         source.writeText(text, Charsets.UTF_8)
     }
