@@ -174,7 +174,9 @@ export class PlayerSessionApiClient {
 
   async listPublicDialogues() {
     const result = await this.request<{ dialogues: PublicDialogueSummary[] }>('/public-dialogues');
-    return result.dialogues;
+    return [...result.dialogues].sort((left, right) =>
+      (left.title || left.name).localeCompare(right.title || right.name, 'ko'),
+    );
   }
 
   async getPublicDialogue(name: string) {
@@ -182,10 +184,9 @@ export class PlayerSessionApiClient {
     const session = await this.connect();
     if (!session.admin) return document;
 
-    // DialogueStudio treats a public dialogue as editable when its ownerUuid matches
-    // the connected editor. For admins, expose an editable local view while the real
-    // public owner is still resolved again at save time below, so ownership is never
-    // transferred merely because an OP edited the shared copy.
+    // The current editor uses owner equality to decide read-only state. An admin
+    // receives an editable local view, while savePublicDialogue resolves the real
+    // owner from the server immediately before saving so ownership stays intact.
     return { ...document, ownerUuid: session.ownerUuid };
   }
 
@@ -195,16 +196,13 @@ export class PlayerSessionApiClient {
     expectedRevision: string | undefined,
     dialogue: Record<string, unknown>,
   ) {
-    const session = await this.connect();
-    let targetOwnerUuid = ownerUuid;
-
-    if (session.admin) {
-      // Admins may edit somebody else's public dialogue, but the server API protects
-      // public ownership by path. Resolve the original owner immediately before the
-      // PUT and save through that owner instead of transferring the public copy to OP.
-      const current = await this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`);
-      if (current.ownerUuid?.trim()) targetOwnerUuid = current.ownerUuid;
-    }
+    // Always resolve the current server-side owner immediately before PUT. This
+    // avoids depending on the editable admin view's temporary owner UUID and also
+    // avoids the extra /me request that previously caused the admin save path to
+    // fail in some sessions.
+    const current = await this.request<ServerDialogueDocument>(`/public-dialogues/${encodeURIComponent(name)}`)
+      .catch(() => undefined);
+    const targetOwnerUuid = current?.ownerUuid?.trim() || ownerUuid;
 
     return this.request<{ saved: boolean; revision: string }>(
       `/public-dialogues/${encodeURIComponent(targetOwnerUuid)}/${encodeURIComponent(name)}`,
