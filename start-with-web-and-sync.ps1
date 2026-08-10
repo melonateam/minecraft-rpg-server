@@ -24,6 +24,7 @@ $GradleUrl     = "https://services.gradle.org/distributions/gradle-$GradleVersio
 $JdkMajor      = '21'
 $JdkHome       = Join-Path $ToolsPath 'temurin-jdk-21'
 $JdkZip        = Join-Path $ToolsPath 'temurin-jdk-21.zip'
+$JdkChecksum   = Join-Path $ToolsPath 'temurin-jdk-21.zip.sha256.txt'
 $JdkExtract    = Join-Path $ToolsPath '.temurin-jdk-21-extract'
 $JdkApiUrl     = "https://api.adoptium.net/v3/binary/latest/$JdkMajor/ga/windows/x64/jdk/hotspot/normal/eclipse"
 $BuildLog      = Join-Path $ToolsPath 'rpgmaker-gradle-build.log'
@@ -113,6 +114,7 @@ function Ensure-Jdk21 {
     $checksumUrl = $downloadUrl + '.sha256.txt'
 
     Remove-Item -LiteralPath $JdkZip -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $JdkChecksum -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $JdkExtract -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $JdkHome -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -120,14 +122,16 @@ function Ensure-Jdk21 {
     try {
         $ProgressPreference = 'SilentlyContinue'
         Invoke-WebRequest -UseBasicParsing -Uri $downloadUrl -OutFile $JdkZip
-        $checksumText = (Invoke-WebRequest -UseBasicParsing -Uri $checksumUrl).Content
+        Invoke-WebRequest -UseBasicParsing -Uri $checksumUrl -OutFile $JdkChecksum
     }
     finally {
         $ProgressPreference = $previousProgressPreference
     }
 
+    $checksumText = Get-Content -LiteralPath $JdkChecksum -Raw
     $expectedHash = (($checksumText.Trim() -split '\s+')[0]).ToLowerInvariant()
     $actualHash = (Get-FileHash -LiteralPath $JdkZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    Remove-Item -LiteralPath $JdkChecksum -Force -ErrorAction SilentlyContinue
     if (-not $expectedHash -or $actualHash -ne $expectedHash) {
         Remove-Item -LiteralPath $JdkZip -Force -ErrorAction SilentlyContinue
         throw "Temurin JDK 21 checksum mismatch. Expected $expectedHash but got $actualHash."
