@@ -1,0 +1,122 @@
+name: ChatGPT F-key dialogue patch
+
+on:
+  push:
+    branches: [chatgpt/fkey-dialogue-control]
+    paths: [.github/dialogue-fkey-patch.trigger]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: chatgpt/fkey-dialogue-control
+      - name: Apply dialogue control patch
+        shell: python
+        run: |
+          import pathlib, re
+
+          java_path = pathlib.Path('dialogue-display-plugin/src/main/java/kr/hyuni/dialogue/DialogueDisplayPlugin.java')
+          text = java_path.read_text(encoding='utf-8-sig')
+
+          text = text.replace('import org.bukkit.event.player.PlayerInputEvent;\n', '')
+          text = text.replace('import org.bukkit.event.player.PlayerToggleSneakEvent;\n', '')
+
+          old_swap = '''    @EventHandler public void onSwapHands(PlayerSwapHandItemsEvent event) {
+        if (active.containsKey(event.getPlayer().getUniqueId())) event.setCancelled(true);
+    }
+'''
+          new_swap = '''    @EventHandler
+    public void onSwapHands(PlayerSwapHandItemsEvent event) {
+        Dialogue dialogue = active.get(event.getPlayer().getUniqueId());
+        if (dialogue == null) return;
+        event.setCancelled(true);
+        if (dialogue.editing || dialogue.waitingForChoice || dialogue.waitingForChat) return;
+
+        long now = System.currentTimeMillis();
+        if (dialogue.typed < dialogue.message.length()) {
+            dialogue.typed = dialogue.message.length();
+            render(dialogue);
+            finishPage(dialogue);
+            dialogue.manualRevealAdvanceUnlockAtMillis = now + 1000L;
+            return;
+        }
+
+        if (now < dialogue.manualRevealAdvanceUnlockAtMillis) return;
+        if (dialogue.waitingForNext || dialogue.waitingForClose) advanceFromPage(dialogue, false);
+    }
+'''
+          if old_swap not in text:
+              raise SystemExit('onSwapHands block not found')
+          text = text.replace(old_swap, new_swap, 1)
+
+          sneak_pattern = re.compile(r'''\n    @EventHandler\n    public void onSneak\(PlayerToggleSneakEvent event\) \{.*?\n    \}\n''', re.S)
+          text, count = sneak_pattern.subn('\n', text, count=1)
+          if count != 1:
+              raise SystemExit(f'onSneak removal count={count}')
+
+          input_pattern = re.compile(r'''\n    @EventHandler\n    public void onInput\(PlayerInputEvent event\) \{.*?\n    \}\n''', re.S)
+          text, count = input_pattern.subn('\n', text, count=1)
+          if count != 1:
+              raise SystemExit(f'onInput removal count={count}')
+
+          text = text.replace('입력이 저장되었습니다. Shift 키를 눌러 계속', '입력이 저장되었습니다. F키를 눌러 계속')
+          text = text.replace('대화 중 Space: 대화문 스킵 · Shift: 다음 대사', '대화 중 F: 타이핑 즉시 표시 / 다음 대사 · 수동 전체 표시 후 1초간 다음 진행 방지')
+          text = text.replace('Shift 키를 눌러 다음 대사', 'F키를 눌러 다음 대사')
+          text = text.replace('Shift 키를 눌러 대화 종료', 'F키를 눌러 대화 종료')
+
+          restart_needle = '''        dialogue.typed = completed ? dialogue.message.length() : 0;
+        if (!dialogue.message.isBlank()) dialogue.autoTransitions = 0;
+'''
+          restart_replacement = '''        dialogue.typed = completed ? dialogue.message.length() : 0;
+        dialogue.manualRevealAdvanceUnlockAtMillis = 0L;
+        if (!dialogue.message.isBlank()) dialogue.autoTransitions = 0;
+'''
+          if restart_needle not in text:
+              raise SystemExit('restartPage typing reset not found')
+          text = text.replace(restart_needle, restart_replacement, 1)
+
+          field_needle = '''        int forcedTerminalPage = -1;
+        int expiresAt = Bukkit.getCurrentTick() + 160;
+        boolean waitingForChoice;
+'''
+          field_replacement = '''        int forcedTerminalPage = -1;
+        int expiresAt = Bukkit.getCurrentTick() + 160;
+        long manualRevealAdvanceUnlockAtMillis;
+        boolean waitingForChoice;
+'''
+          if field_needle not in text:
+              raise SystemExit('Dialogue state field insertion point not found')
+          text = text.replace(field_needle, field_replacement, 1)
+
+          if 'PlayerInputEvent' in text or 'PlayerToggleSneakEvent' in text:
+              raise SystemExit('legacy Space/Shift handlers still referenced')
+          if 'Shift 키를 눌러' in text or '대화 중 Space:' in text:
+              raise SystemExit('legacy server control description still present')
+          java_path.write_text(text, encoding='utf-8')
+
+          web_path = pathlib.Path('rpgmaker-web-editor/src/components/preview/TestMode.tsx')
+          web = web_path.read_text(encoding='utf-8')
+          old = 'Shift · 다음 ›'
+          if old not in web:
+              raise SystemExit('web preview legacy key label not found')
+          web = web.replace(old, 'F · 다음 ›', 1)
+          old_desc = '서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다.'
+          new_desc = '서버에 저장하지 않고 현재 편집 데이터를 시뮬레이션합니다. 실제 서버에서는 F로 타이핑 전체 표시와 다음 진행을 모두 조작합니다.'
+          if old_desc not in web:
+              raise SystemExit('web preview description not found')
+          web = web.replace(old_desc, new_desc, 1)
+          web_path.write_text(web, encoding='utf-8')
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "ChatGPT"
+          git config user.email "actions@users.noreply.github.com"
+          git add dialogue-display-plugin/src/main/java/kr/hyuni/dialogue/DialogueDisplayPlugin.java rpgmaker-web-editor/src/components/preview/TestMode.tsx
+          git commit -m "F키 대화 출력 및 진행 통합"
+          git push origin HEAD:chatgpt/fkey-dialogue-control
