@@ -3,10 +3,12 @@ package kr.hyuni.dialogue;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DialogueDisplayPluginTest {
@@ -81,5 +83,20 @@ class DialogueDisplayPluginTest {
                             case "list::*" -> "first, second";
                             default -> null;
                         }));
+    }
+
+    @Test
+    void skriptMirrorWinsAndSynchronizesCreatesAndDeletes() {
+        assertEquals("저장값", DialogueDisplayPlugin.resolvedRpgVariable("저장값", null, false));
+        assertEquals("스크립트값", DialogueDisplayPlugin.resolvedRpgVariable("저장값", "스크립트값", true));
+        assertNull(DialogueDisplayPlugin.resolvedRpgVariable("저장값", null, true));
+        assertEquals(Map.of("기존", "1", "공통", "스크립트", "신규", "2"),
+                DialogueDisplayPlugin.synchronizedRpgVariables(
+                        Map.of("기존", "1", "공통", "RPGMaker"),
+                        Map.of("공통", "스크립트", "신규", "2"), false));
+        assertEquals(Map.of("공통", "스크립트", "신규", "2"),
+                DialogueDisplayPlugin.synchronizedRpgVariables(
+                        Map.of("삭제됨", "1", "공통", "RPGMaker"),
+                        Map.of("공통", "스크립트", "신규", "2"), true));
     }
 }
