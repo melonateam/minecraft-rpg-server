@@ -95,11 +95,6 @@ export function StudioToolbar(props: Props) {
             변수 도움말
           </button>
         )}
-        {props.isAdmin && props.onAdmin && (
-          <button type="button" onClick={props.onAdmin} className="rounded-lg px-3 py-2 text-xs text-amber-300 hover:bg-[#20252d]">
-            관리자
-          </button>
-        )}
         {props.isAdmin && props.onPublicHelp && (
           <button type="button" onClick={props.onPublicHelp} className="rounded-lg px-3 py-2 text-xs text-amber-300 hover:bg-[#20252d]">
             공용 대화 도움말
