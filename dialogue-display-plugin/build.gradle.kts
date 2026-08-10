@@ -45,7 +45,7 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         }
 
         val source = generatedRuntimeSources.resolve("kr/hyuni/dialogue/DialogueDisplayPlugin.java")
-        var text = source.readText(Charsets.UTF_8)
+        var text = source.readText(Charsets.UTF_8).replace("\r\n", "\n")
 
         fun replaceRequired(old: String, replacement: String, label: String) {
             check(text.contains(old)) { "Dialogue runtime patch point not found: $label" }
