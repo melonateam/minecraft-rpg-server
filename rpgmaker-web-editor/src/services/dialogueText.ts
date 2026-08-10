@@ -19,6 +19,17 @@ function flags(value = '') {
   };
 }
 
+function withoutVariablePlaceholders(value: string) {
+  // Keep the web editor's 30-character validation aligned with the Paper plugin.
+  // Variables are runtime substitutions and their token syntax must not consume the
+  // authored text budget. Handle RPGMaker {{name}}, Skript %name%, and nested
+  // Skript %{list::%uuid of player%}% forms in that order.
+  return value
+    .replace(/\{\{.+?\}\}/gu, '')
+    .replace(/%\{.*?\}%/gu, '')
+    .replace(/%[^%\n]+%/gu, '');
+}
+
 export function parseDialogueText(
   source: string,
   variables: Record<string, string | number | boolean> = {},
@@ -64,5 +75,8 @@ export function parseDialogueText(
 }
 
 export function visibleLength(value: string) {
-  return parseDialogueText(value).reduce((total, segment) => total + Array.from(segment.text).length, 0);
+  return parseDialogueText(withoutVariablePlaceholders(value)).reduce(
+    (total, segment) => total + Array.from(segment.text).length,
+    0,
+  );
 }
