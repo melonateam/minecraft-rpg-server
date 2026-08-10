@@ -3451,7 +3451,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (effect == null) return;
         boolean firstItem = true;
         for (String entry : effectEntries(effect.items)) {
-            ItemSpec spec = parseItemSpec(entry);
+            ItemSpec spec = parseItemSpec(player, entry);
             if (spec == null) continue;
             ItemStack item = itemStack(spec, firstItem ? effect.itemName : "", firstItem ? effect.itemColor : "#FFFFFF");
             firstItem = false;
@@ -3459,7 +3459,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             overflow.values().forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
         }
         for (String entry : effectEntries(effect.takeItems)) {
-            ItemSpec spec = parseItemSpec(entry);
+            ItemSpec spec = parseItemSpec(player, entry);
             if (spec != null) removeItems(player, spec);
         }
         for (String entry : effectEntries(effect.variablesSet)) {
@@ -3597,8 +3597,13 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         } catch (IllegalArgumentException ignored) { return null; }
     }
 
-    private ItemSpec parseItemSpec(String value) {
+    static String resolveItemOwner(String value, UUID owner) {
+        return value == null ? null : value.replace("@OWNER/", "@" + owner + "/");
+    }
+
+    private ItemSpec parseItemSpec(Player player, String value) {
         if (value == null || value.isBlank()) return null;
+        value = resolveItemOwner(value, player.getUniqueId());
         if (value.strip().startsWith("@")) {
             String entry = value.strip();
             int separator = entry.lastIndexOf(':');
@@ -4244,7 +4249,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
             variableMatches.add(ExpressionRules.compare(actual, operator, expandVariables(player, check.group(3))));
         }
         if (!variableMatches.isEmpty()) variableMatch = ExpressionRules.combine(variableMatches, condition.variableLogic);
-        ItemSpec required = parseItemSpec(condition.itemSpec);
+        ItemSpec required = parseItemSpec(player, condition.itemSpec);
         int itemAmount = 0;
         for (ItemStack item : player.getInventory().getContents()) {
             if (required != null && matchesItem(item, required)) itemAmount += item.getAmount();
