@@ -126,60 +126,6 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         )
 
         replaceRequired(
-            """        TextDisplay[] bodyLines = new TextDisplay[MAXIMUM_LINES];
-        for (int line = 0; line < bodyLines.length; line++) {
-            bodyLines[line] = spawn(player, origin, Component.empty());
-            bodyLines[line].setTextOpacity((byte) 248);
-            bodyLines[line].setAlignment(TextDisplay.TextAlignment.LEFT);
-            bodyLines[line].setLineWidth(1024);
-        }
-""",
-            """        TextDisplay[] bodyLines = new TextDisplay[1];
-        bodyLines[0] = spawn(player, origin, Component.empty());
-        bodyLines[0].setTextOpacity((byte) 248);
-        bodyLines[0].setAlignment(TextDisplay.TextAlignment.LEFT);
-        bodyLines[0].setLineWidth(MAXIMUM_LINE_PIXELS);
-""",
-            "single multiline body TextDisplay",
-        )
-
-        replaceRequired(
-            """    private void render(Dialogue dialogue) {
-        String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
-        String[] visibleLines = visible.split("\\n", -1);
-        for (int row = 0; row < dialogue.bodyLines.length; row++) {
-            String line = row < visibleLines.length ? visibleLines[row] : "";
-            Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
-                    .font(Key.key("dialog", "spacing"));
-            dialogue.bodyLines[row].text(coloredLine(line).append(padding));
-        }
-    }
-""",
-            """    private void render(Dialogue dialogue) {
-        String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
-        String[] visibleLines = visible.split("\\n", -1);
-        String[] completeLines = dialogue.message.split("\\n", -1);
-        int lineCount = Math.max(1, Math.min(MAXIMUM_LINES, completeLines.length));
-        Component body = Component.empty();
-        for (int row = 0; row < lineCount; row++) {
-            if (row > 0) body = body.append(Component.newline());
-            String line = row < visibleLines.length ? visibleLines[row] : "";
-            body = body.append(coloredLine(line));
-        }
-        // Keep a permanently fixed-width invisible line in the same TextDisplay. Minecraft
-        // centers the complete text block around the entity before applying LEFT alignment;
-        // without a stable maximum line width, every typed character changes that block width
-        // and the whole paragraph appears to shake. The spacing-font-only anchor contributes
-        // advance but no visible pixels, so the block stays 270 px wide for the entire page.
-        body = body.append(Component.newline()).append(Component.text(
-                TextWidthRules.padding("", MAXIMUM_LINE_PIXELS)).font(Key.key("dialog", "spacing")));
-        dialogue.bodyLines[0].text(body);
-    }
-""",
-            "stable multiline body renderer",
-        )
-
-        replaceRequired(
             """    @EventHandler(ignoreCancelled = true)
     public void onChatInput(AsyncChatEvent event) {
         Player player = event.getPlayer();
@@ -274,15 +220,6 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         )
 
         replaceRequired(
-            """        for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow(player, "본문 " + line + "줄",
-                "text-line-" + line + "-x-offset", "text-line-" + line + "-vertical-offset", "text-line-" + line + "-scale");
-""",
-            """        editorRow(player, "본문", "text-line-1-x-offset", "text-line-1-vertical-offset", "text-line-1-scale");
-""",
-            "remove body line 2-4 editor controls",
-        )
-
-        replaceRequired(
             """    private void editorFrameRow(Player player) {
         player.sendMessage(Component.text("외곽선 위치  ", NamedTextColor.YELLOW)
                 .append(button("←", "/rpgmaker adjust frame-x-offset -0.03", NamedTextColor.AQUA))
@@ -297,18 +234,14 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
     }
 """,
             """    private void editorFrameRow(Player player) {
-        Dialogue dialogue = active.get(player.getUniqueId());
-        if (dialogue == null) return;
-        player.sendMessage(Component.text("외곽선 위치 · X " + layoutNumber(layoutValue(dialogue, "frame-x-offset"))
-                        + " · Y " + layoutNumber(layoutValue(dialogue, "vertical-offset")) + "  ", NamedTextColor.YELLOW)
+        player.sendMessage(Component.text("외곽선 위치  ", NamedTextColor.YELLOW)
                 .append(button("←", "/rpgmaker adjust frame-x-offset -0.03", NamedTextColor.AQUA))
                 .append(button(" →", "/rpgmaker adjust frame-x-offset 0.03", NamedTextColor.AQUA))
                 .append(button(" ↑", "/rpgmaker adjust vertical-offset 0.03", NamedTextColor.GREEN))
                 .append(button(" ↓", "/rpgmaker adjust vertical-offset -0.03", NamedTextColor.GREEN))
                 .append(button(" [X 수치]", "/rpgmaker setvalue frame-x-offset", NamedTextColor.WHITE))
                 .append(button(" [Y 수치]", "/rpgmaker setvalue vertical-offset", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("외곽선 크기 · 폭 " + layoutNumber(layoutValue(dialogue, "frame-scale-x"))
-                        + " · 높이 " + layoutNumber(layoutValue(dialogue, "frame-scale-y")) + "  ", NamedTextColor.YELLOW)
+        player.sendMessage(Component.text("외곽선 크기  ", NamedTextColor.YELLOW)
                 .append(button("[폭＋]", "/rpgmaker adjust frame-scale-x 0.02", NamedTextColor.GOLD))
                 .append(button(" [폭－]", "/rpgmaker adjust frame-scale-x -0.02", NamedTextColor.GOLD))
                 .append(button(" [높이＋]", "/rpgmaker adjust frame-scale-y 0.02", NamedTextColor.LIGHT_PURPLE))
@@ -337,18 +270,14 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
     }
 """,
             """    private void editorChoiceFrameRows(Player player) {
-        Dialogue dialogue = active.get(player.getUniqueId());
-        if (dialogue == null) return;
-        player.sendMessage(Component.text("소형 박스 위치 · X " + layoutNumber(layoutValue(dialogue, "choice-frame-x-offset"))
-                        + " · Y " + layoutNumber(layoutValue(dialogue, "choice-frame-vertical-offset")) + "  ", NamedTextColor.YELLOW)
+        player.sendMessage(Component.text("소형 박스 위치  ", NamedTextColor.YELLOW)
                 .append(button("←", "/rpgmaker adjust choice-frame-x-offset -0.03", NamedTextColor.AQUA))
                 .append(button(" →", "/rpgmaker adjust choice-frame-x-offset 0.03", NamedTextColor.AQUA))
                 .append(button(" ↑", "/rpgmaker adjust choice-frame-vertical-offset 0.03", NamedTextColor.GREEN))
                 .append(button(" ↓", "/rpgmaker adjust choice-frame-vertical-offset -0.03", NamedTextColor.GREEN))
                 .append(button(" [X 수치]", "/rpgmaker setvalue choice-frame-x-offset", NamedTextColor.WHITE))
                 .append(button(" [Y 수치]", "/rpgmaker setvalue choice-frame-vertical-offset", NamedTextColor.WHITE)));
-        player.sendMessage(Component.text("소형 박스 크기 · 폭 " + layoutNumber(layoutValue(dialogue, "choice-frame-scale-x"))
-                        + " · 높이 " + layoutNumber(layoutValue(dialogue, "choice-frame-scale-y")) + "  ", NamedTextColor.YELLOW)
+        player.sendMessage(Component.text("소형 박스 크기  ", NamedTextColor.YELLOW)
                 .append(button("[전체＋]", "/rpgmaker adjust choice-frame-scale 0.02", NamedTextColor.GREEN))
                 .append(button(" [전체－]", "/rpgmaker adjust choice-frame-scale -0.02", NamedTextColor.GREEN))
                 .append(button(" [폭＋]", "/rpgmaker adjust choice-frame-scale-x 0.02", NamedTextColor.GOLD))
@@ -377,11 +306,7 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
     private Component button(String text, String command, NamedTextColor color) {
 """,
             """    private void editorRow(Player player, String name, String x, String y, String scale) {
-        Dialogue dialogue = active.get(player.getUniqueId());
-        if (dialogue == null) return;
-        player.sendMessage(Component.text(name + " · X " + layoutNumber(layoutValue(dialogue, x))
-                        + " · Y " + layoutNumber(layoutValue(dialogue, y))
-                        + " · 크기 " + layoutNumber(layoutValue(dialogue, scale)) + "  ", NamedTextColor.YELLOW)
+        player.sendMessage(Component.text(name + "  ", NamedTextColor.YELLOW)
                 .append(button("←", "/rpgmaker adjust " + x + " -0.03", NamedTextColor.AQUA))
                 .append(button(" →", "/rpgmaker adjust " + x + " 0.03", NamedTextColor.AQUA))
                 .append(button(" ↑", "/rpgmaker adjust " + y + " 0.03", NamedTextColor.GREEN))
@@ -471,12 +396,11 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         check(!text.contains("Shift 키를 눌러")) { "Legacy Shift guidance remains in generated source." }
         check(!text.contains("대화 중 Space:")) { "Legacy Space guidance remains in generated source." }
         check(!text.contains("후속 대사 후 쉬프트로 종료")) { "Legacy Shift choice guidance remains in generated source." }
-        check(text.contains("TextDisplay[] bodyLines = new TextDisplay[1];")) { "Multiline body TextDisplay patch was not applied." }
-        check(text.contains("TextWidthRules.padding(\"\", MAXIMUM_LINE_PIXELS)")) { "Stable body width anchor was not applied." }
-        check(!text.contains("TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS)")) { "Per-character body padding still changes during typing." }
-        check(!text.contains("for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow")) { "Body line 2-4 editor controls remain." }
+        check(text.contains("TextDisplay[] bodyLines = new TextDisplay[MAXIMUM_LINES];")) { "Body must use four separate TextDisplays." }
+        check(text.contains("for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow")) { "Body line 1-4 editor controls are missing." }
         check(text.contains("/rpgmaker setvalue ")) { "Numeric editor controls were not generated." }
         check(text.contains("현재 수치: ")) { "Numeric chat prompt was not generated." }
+        check(!text.contains(" · X \" + layoutNumber")) { "Editor controls expose numeric values before a numeric button is clicked." }
 
         source.writeText(text, Charsets.UTF_8)
     }
