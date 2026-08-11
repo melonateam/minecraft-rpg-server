@@ -820,8 +820,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         if (args.length == 3 && args[0].equalsIgnoreCase("adjust")) {
             if (!active.containsKey(player.getUniqueId()) || !active.get(player.getUniqueId()).editing) return true;
             String key = args[1];
-            boolean lineLayout = key.matches("text-line-[1-4]-(x-offset|vertical-offset|scale)");
-            if (!lineLayout && !List.of("vertical-offset", "frame-x-offset", "frame-scale", "frame-scale-x", "frame-scale-y", "portrait-x-offset",
+            if (!List.of("vertical-offset", "frame-x-offset", "frame-scale", "frame-scale-x", "frame-scale-y", "portrait-x-offset",
                     "portrait-vertical-offset", "portrait-scale", "text-x-offset", "text-vertical-offset",
                     "text-scale", "speaker-x-offset", "speaker-vertical-offset", "speaker-scale",
                     "choice-x-offset", "choice-vertical-offset", "choice-scale", "choice-frame-x-offset",
@@ -842,6 +841,9 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                         case "choice-frame-vertical-offset" -> layout(edited, "choice-vertical-offset", -0.20);
                         case "choice-frame-scale-x" -> choiceFrameScaleDefault(edited, "x");
                         case "choice-frame-scale-y" -> choiceFrameScaleDefault(edited, "y");
+                        case "text-x-offset" -> -0.06;
+                        case "text-vertical-offset" -> 0.05;
+                        case "text-scale" -> DEFAULT_TEXT_SIZE / 100.0;
                         default -> lineLayoutDefault(edited, key);
                     };
                     getConfig().set(configKey, getConfig().getDouble(configKey, fallback) + delta);
@@ -2783,13 +2785,10 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         speakerDisplay.setTextOpacity((byte) 248);
         speakerDisplay.setAlignment(TextDisplay.TextAlignment.CENTER);
         speakerDisplay.setLineWidth(1024);
-        TextDisplay[] bodyLines = new TextDisplay[MAXIMUM_LINES];
-        for (int line = 0; line < bodyLines.length; line++) {
-            bodyLines[line] = spawn(player, origin, Component.empty());
-            bodyLines[line].setTextOpacity((byte) 248);
-            bodyLines[line].setAlignment(TextDisplay.TextAlignment.LEFT);
-            bodyLines[line].setLineWidth(1024);
-        }
+        TextDisplay[] bodyLines = {spawn(player, origin, Component.empty())};
+        bodyLines[0].setTextOpacity((byte) 248);
+        bodyLines[0].setAlignment(TextDisplay.TextAlignment.LEFT);
+        bodyLines[0].setLineWidth(1024);
         TextDisplay choiceDisplay = spawn(player, origin, Component.empty());
         choiceDisplay.setTextOpacity((byte) 248);
         choiceDisplay.setAlignment(TextDisplay.TextAlignment.LEFT);
@@ -2906,9 +2905,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                 (float) layout(d, "choice-frame-scale-y", choiceFrameScaleDefault(d, "y")) * uiScale));
         if (d.showPortrait) d.portrait.setTransformation(scale((float) layout(d, "portrait-scale", 0.24) * uiScale));
         if (d.showSpeaker) d.speakerDisplay.setTransformation(scale((float) layout(d, "speaker-scale", 0.68) * uiScale));
-        float textScale = (float) layout(d, "text-scale", DEFAULT_TEXT_SIZE / 100.0);
-        for (int line = 0; line < d.bodyLines.length; line++)
-            d.bodyLines[line].setTransformation(scale((float) layout(d, "text-line-" + (line + 1) + "-scale", textScale) * uiScale));
+        d.bodyLines[0].setTransformation(scale((float) layout(d, "text-scale", DEFAULT_TEXT_SIZE / 100.0) * uiScale));
         d.choiceDisplay.setTransformation(scale((float) layout(d, "choice-scale", 0.60) * uiScale));
     }
 
@@ -2944,8 +2941,7 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
         editorFrameRow(player);
         if (showPortrait) editorRow(player, "캐릭터", "portrait-x-offset", "portrait-vertical-offset", "portrait-scale");
         if (showSpeaker) editorRow(player, "화자 이름", "speaker-x-offset", "speaker-vertical-offset", "speaker-scale");
-        for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow(player, "본문 " + line + "줄",
-                "text-line-" + line + "-x-offset", "text-line-" + line + "-vertical-offset", "text-line-" + line + "-scale");
+        editorRow(player, "본문", "text-x-offset", "text-vertical-offset", "text-scale");
         player.sendMessage(Component.text("본문 최대 4줄 · 줄당 공백 포함 30자", NamedTextColor.YELLOW));
         editorRow(player, "선택지", "choice-x-offset", "choice-vertical-offset", "choice-scale");
         editorChoiceFrameRows(player);
@@ -3111,13 +3107,23 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
 
     private void render(Dialogue dialogue) {
         String visible = dialogue.message.substring(0, Math.min(dialogue.typed, dialogue.message.length()));
-        String[] visibleLines = visible.split("\\n", -1);
-        for (int row = 0; row < dialogue.bodyLines.length; row++) {
-            String line = row < visibleLines.length ? visibleLines[row] : "";
+        Component body = Component.empty();
+        List<String> rows = bodyRows(visible);
+        for (int row = 0; row < rows.size(); row++) {
+            if (row > 0) body = body.append(Component.newline());
+            String line = rows.get(row);
             Component padding = Component.text(TextWidthRules.padding(line, MAXIMUM_LINE_PIXELS))
                     .font(Key.key("dialog", "spacing"));
-            dialogue.bodyLines[row].text(coloredLine(line).append(padding));
+            body = body.append(coloredLine(line)).append(Component.text(" ")).append(padding);
         }
+        dialogue.bodyLines[0].text(body);
+    }
+
+    static List<String> bodyRows(String visible) {
+        String[] lines = visible.split("\\n", -1);
+        java.util.ArrayList<String> rows = new java.util.ArrayList<>(MAXIMUM_LINES);
+        for (int row = 0; row < MAXIMUM_LINES; row++) rows.add(row < lines.length ? lines[row] : "");
+        return rows;
     }
 
     private void clearBody(Dialogue dialogue) {
@@ -4284,16 +4290,12 @@ public final class DialogueDisplayPlugin extends JavaPlugin implements Listener 
                     .subtract(forward.clone().multiply(0.100));
             face(speakerAt, forward); d.speakerDisplay.teleport(speakerAt);
         }
-        for (int line = 0; line < d.bodyLines.length; line++) {
-            String key = "text-line-" + (line + 1);
-            Location bodyAt = base.clone().add(right.clone().multiply(layout(d, "text-x-offset", -0.06)
-                            + layout(d, key + "-x-offset", 0.0)).multiply(uiScale))
-                    .add(up.clone().multiply((layout(d, "text-vertical-offset", 0.05)
-                            + layout(d, key + "-vertical-offset", (1.5 - line) * 0.10)) * uiScale))
-                    .subtract(forward.clone().multiply(0.100));
-            face(bodyAt, forward);
-            d.bodyLines[line].teleport(bodyAt);
-        }
+        Location bodyAt = base.clone().add(right.clone().multiply(layout(d, "text-x-offset", -0.06) * uiScale))
+                .add(up.clone().multiply((layout(d, "text-vertical-offset", 0.05)
+                        + (MAXIMUM_LINES - 1) * 0.05) * uiScale))
+                .subtract(forward.clone().multiply(0.100));
+        face(bodyAt, forward);
+        d.bodyLines[0].teleport(bodyAt);
         Location choiceFrameAt = base.clone().add(right.clone().multiply(layout(d, "choice-frame-x-offset",
                         layout(d, "choice-x-offset", -0.06)) * uiScale))
                 .add(up.clone().multiply(layout(d, "choice-frame-vertical-offset", layout(d, "choice-vertical-offset", -0.20)) * uiScale))

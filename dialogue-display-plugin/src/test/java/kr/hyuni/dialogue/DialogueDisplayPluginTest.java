@@ -13,6 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DialogueDisplayPluginTest {
     @Test
+    void multilineBodyAlwaysKeepsFourOrderedRows() {
+        assertEquals(List.of("첫째", "둘째", "", ""), DialogueDisplayPlugin.bodyRows("첫째\n둘째"));
+        assertEquals(List.of("첫째", "둘째", "셋째", "넷째"),
+                DialogueDisplayPlugin.bodyRows("첫째\n둘째\n셋째\n넷째\n다섯째"));
+    }
+
+    @Test
     void portraitVisibilityFollowsEditorModeAndCurrentPage() {
         assertFalse(DialogueDisplayPlugin.portraitVisible(false, List.of(), 0));
         assertFalse(DialogueDisplayPlugin.portraitVisible(true, List.of(false), 0));
