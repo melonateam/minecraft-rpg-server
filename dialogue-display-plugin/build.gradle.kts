@@ -319,8 +319,7 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
     }
 
     private boolean editableLayoutKey(String key) {
-        return key.matches("text-line-[1-4]-(x-offset|vertical-offset|scale)") || List.of(
-                "vertical-offset", "frame-x-offset", "frame-scale", "frame-scale-x", "frame-scale-y",
+        return List.of("vertical-offset", "frame-x-offset", "frame-scale", "frame-scale-x", "frame-scale-y",
                 "portrait-x-offset", "portrait-vertical-offset", "portrait-scale", "text-x-offset",
                 "text-vertical-offset", "text-scale", "speaker-x-offset", "speaker-vertical-offset",
                 "speaker-scale", "choice-x-offset", "choice-vertical-offset", "choice-scale",
@@ -352,8 +351,7 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
             case "choice-frame-vertical-offset" -> layout(dialogue, "choice-vertical-offset", -0.20);
             case "choice-frame-scale-x" -> choiceFrameScaleDefault(dialogue, "x");
             case "choice-frame-scale-y" -> choiceFrameScaleDefault(dialogue, "y");
-            default -> key.matches("text-line-[1-4]-(x-offset|vertical-offset|scale)")
-                    ? lineLayoutDefault(dialogue, key) : 0.0;
+            default -> 0.0;
         };
         return layout(dialogue, key, fallback);
     }
@@ -396,8 +394,9 @@ val prepareDialogueRuntimeSources = tasks.register("prepareDialogueRuntimeSource
         check(!text.contains("Shift 키를 눌러")) { "Legacy Shift guidance remains in generated source." }
         check(!text.contains("대화 중 Space:")) { "Legacy Space guidance remains in generated source." }
         check(!text.contains("후속 대사 후 쉬프트로 종료")) { "Legacy Shift choice guidance remains in generated source." }
-        check(text.contains("TextDisplay[] bodyLines = new TextDisplay[MAXIMUM_LINES];")) { "Body must use four separate TextDisplays." }
-        check(text.contains("for (int line = 1; line <= MAXIMUM_LINES; line++) editorRow")) { "Body line 1-4 editor controls are missing." }
+        check(text.contains("TextDisplay[] bodyLines = {spawn(player, origin, Component.empty())};")) { "Body must use one multiline TextDisplay." }
+        check(text.contains("editorRow(player, \"본문\", \"text-x-offset\", \"text-vertical-offset\", \"text-scale\")")) { "Unified body editor controls are missing." }
+        check(text.contains("for (int row = 0; row < MAXIMUM_LINES; row++)")) { "Multiline body must keep four stable rows." }
         check(text.contains("/rpgmaker setvalue ")) { "Numeric editor controls were not generated." }
         check(text.contains("현재 수치: ")) { "Numeric chat prompt was not generated." }
         check(!text.contains(" · X \" + layoutNumber")) { "Editor controls expose numeric values before a numeric button is clicked." }
