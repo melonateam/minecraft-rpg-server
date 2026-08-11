@@ -158,6 +158,20 @@ function Ensure-Jdk21 {
     }
 }
 
+function Test-RpgMakerBuildRequired {
+    if (-not (Test-Path -LiteralPath $PluginJar)) {
+        return $true
+    }
+
+    $jarTime = (Get-Item -LiteralPath $PluginJar).LastWriteTimeUtc
+    $inputs = @(
+        Get-ChildItem -LiteralPath (Join-Path $PluginProjectPath 'src') -File -Recurse
+        Get-ChildItem -LiteralPath $PluginProjectPath -File |
+            Where-Object { $_.Name -in @('build.gradle.kts', 'settings.gradle.kts', 'gradle.properties') }
+    )
+    return $null -ne ($inputs | Where-Object { $_.LastWriteTimeUtc -gt $jarTime } | Select-Object -First 1)
+}
+
 function Deploy-RpgMakerPlugin {
     Write-Host ''
     Write-Host '========================================'
@@ -205,7 +219,12 @@ try {
         throw "RPGMaker plugin project not found: $PluginProjectPath"
     }
 
-    Deploy-RpgMakerPlugin
+    if ($BuildOnly -or (Test-RpgMakerBuildRequired)) {
+        Deploy-RpgMakerPlugin
+    }
+    else {
+        Write-Host 'RPGMaker plugin unchanged. Skipping build.'
+    }
 
     if ($BuildOnly) {
         Write-Host 'Build-only validation completed.'
