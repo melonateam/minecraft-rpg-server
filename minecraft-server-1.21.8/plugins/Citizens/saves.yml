@@ -19,7 +19,7 @@ npc:
       scoreboardtrait:
         tags:
           '0': CITIZENS_NPC
-    traitnames: spawned,scoreboardtrait,skintrait,location,type,inventory,chunktickettrait
+    traitnames: spawned,scoreboardtrait,owner,skintrait,location,type,inventory,chunktickettrait
     navigator:
       speedmodifier: 1.0
       avoidwater: false
